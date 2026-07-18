@@ -2,7 +2,20 @@
 
 ## Alcance de esta propuesta
 
-Este documento compara alternativas y recomienda una sola base técnica. No constituye una implementación ni una decisión ya aprobada. En esta fase no se instalaron paquetes, no se generó código y no se construyó ningún ejecutable.
+Este documento conserva la comparación técnica inicial y registra la arquitectura adoptada. No constituye una implementación. En esta fase no se instalaron paquetes, no se generó código y no se construyó ningún ejecutable.
+
+## Arquitectura adoptada (18 de julio de 2026)
+
+Se adoptó la siguiente base tecnológica para el proyecto:
+
+- **Lenguaje y plataforma:** C# con .NET 10.
+- **Interfaz de escritorio:** WPF para Windows.
+- **Datos locales:** SQLite.
+- **Instalación y actualizaciones previstas:** Velopack.
+- **Publicación:** un único repositorio público.
+- **Canal de actualización:** GitHub Releases públicos del mismo repositorio.
+
+Esta decisión no autoriza todavía a crear la solución, agregar paquetes, implementar Velopack, crear un remoto ni publicar archivos. Las decisiones funcionales aún abiertas permanecen en `docs/DECISIONES_PENDIENTES.md`.
 
 ## Comparación de alternativas
 

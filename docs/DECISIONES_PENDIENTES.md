@@ -1,8 +1,17 @@
 # Decisiones pendientes
 
-Este registro impide que la implementación convierta supuestos en reglas de negocio. Ninguna opción se considera aprobada hasta que el usuario la confirme.
+Este registro impide que la implementación convierta supuestos en reglas de negocio. Las decisiones resueltas se conservan como trazabilidad; las demás no se consideran aprobadas hasta que el usuario las confirme.
 
-## Decisiones obligatorias antes de implementar
+## Decisiones resueltas en la Fase 0.1 (18 de julio de 2026)
+
+- **Visibilidad del repositorio:** público.
+- **Organización de publicación:** un único repositorio público para el código y los GitHub Releases.
+- **Tecnología adoptada:** C#, .NET 10, WPF y SQLite.
+- **Actualizador previsto:** Velopack con GitHub Releases públicos.
+
+Estas decisiones no autorizan todavía la creación de la solución, la instalación de paquetes, la creación del remoto ni la publicación de archivos.
+
+## Decisiones pendientes antes de implementar
 
 ### 1. Generación del cobro semanal
 
@@ -15,16 +24,7 @@ Se debe definir:
 
 **Restricción vigente:** el sábado no está confirmado como día de generación o cobro. No se asumirá ningún día.
 
-### 2. Visibilidad y separación de repositorios
-
-Elegir entre:
-
-- un repositorio público que contenga el código y los GitHub Releases;
-- un repositorio privado para el código y otro repositorio público que contenga solamente los archivos de actualización y sus GitHub Releases.
-
-La segunda opción protege el código, pero aumenta la complejidad de publicación y exige que la automatización publique artefactos entre repositorios. Cualquier credencial necesaria existiría solo en el entorno seguro de publicación; nunca dentro de la aplicación instalada.
-
-### 3. Versiones de Windows compatibles
+### 2. Versiones de Windows compatibles
 
 Definir las versiones y arquitecturas mínimas admitidas, por ejemplo:
 
@@ -33,17 +33,7 @@ Definir las versiones y arquitecturas mínimas admitidas, por ejemplo:
 
 Esta decisión afecta el instalador, las pruebas, el soporte y la estrategia de empaquetado.
 
-### 4. Tecnología definitiva
-
-Confirmar o rechazar la recomendación de `docs/ARQUITECTURA_PROPUESTA.md`:
-
-- .NET con WPF y SQLite;
-- Electron con TypeScript y SQLite;
-- Tauri con interfaz web y SQLite.
-
-No se generará el código base antes de esta confirmación.
-
-### 5. Moneda
+### 3. Moneda
 
 Elegir entre:
 
@@ -54,22 +44,22 @@ La moneda principal inicial es USD en ambos casos. No se implementará conversi�
 
 ## Decisiones adicionales que conviene cerrar
 
-### 6. Nombre del módulo de personas que pagan por usar el local
+### 4. Nombre del módulo de personas que pagan por usar el local
 
 El nombre **Trabajadores y alquiler de sillas** está prohibido. Debe elegirse un nombre definitivo que no confunda este grupo con los colaboradores.
 
-### 7. Colaboradores correspondientes a cada mes
+### 5. Colaboradores correspondientes a cada mes
 
 Se debe definir cómo se determina quiénes participan en el reparto de un mes cuando una persona entra o sale durante ese mes. No se deben inventar prorrateos ni reglas laborales.
 
-### 8. Importes pagados y presupuestados en el punto de equilibrio
+### 6. Importes pagados y presupuestados en el punto de equilibrio
 
 Se debe precisar, por cada tipo de servicio u obligación, cuándo se usa el valor pagado y cuándo el presupuestado para evitar dobles conteos.
 
-### 9. Política de copias de seguridad
+### 7. Política de copias de seguridad
 
 Definir la frecuencia, cantidad de copias a conservar y ubicación elegida por el usuario. La arquitectura ya exige copia previa a migraciones importantes y restauración manual segura.
 
-### 10. Tecnología de actualización y firma
+### 8. Firma de código
 
-Confirmar el uso propuesto de Velopack con GitHub Releases y decidir, antes de una distribución real, si los instaladores y ejecutables se firmarán con un certificado de firma de código.
+Decidir, antes de una distribución real, si los instaladores y ejecutables se firmarán con un certificado de firma de código.

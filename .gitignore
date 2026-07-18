@@ -1,0 +1,84 @@
+# Compilación de .NET, WPF y resultados de pruebas
+[Bb]in/
+[Oo]bj/
+[Aa]rtifacts/
+[Tt]est[Rr]esults/
+TestResults/
+coverage/
+coverage-*/
+*.trx
+*.coverage
+*.coveragexml
+
+# Visual Studio, VS Code y Rider
+.vs/
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+.idea/
+*.sln.iml
+.vscode/.browse.VC.db
+.vscode/*.code-workspace
+
+# Restauración y paquetes temporales
+.nuget/packages/
+packages/
+*.nupkg
+*.snupkg
+*.tmp
+*.temp
+*.cache
+*.bak
+*.backup
+~$*
+*.swp
+*.swo
+
+# Bases de datos SQLite locales y sus archivos auxiliares
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# Datos locales, copias, registros y exportaciones reales
+/datos-reales/
+/datos_reales/
+/local-data/
+/AppData/
+/backups/
+/logs/
+*.log
+
+# Configuración local, variables de entorno y secretos
+.env
+.env.*
+!.env.example
+!.env.sample
+*.secrets.json
+secrets.json
+appsettings.Local.json
+appsettings.Development.local.json
+
+# Certificados y claves privadas o de firma
+*.pfx
+*.p12
+*.pem
+*.key
+*.pvk
+*.snk
+
+# Instaladores y artefactos de actualización generados localmente
+/Releases/
+/.velopack/
+*.msi
+*.msix
+*.msixbundle
+*.appinstaller
+*.vpk
+RELEASES
+releases.*.json
+*.exe
