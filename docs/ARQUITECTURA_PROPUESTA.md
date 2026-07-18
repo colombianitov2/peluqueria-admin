@@ -1,8 +1,8 @@
 # Arquitectura propuesta
 
-## Alcance de esta propuesta
+## Alcance y estado
 
-Este documento conserva la comparación técnica inicial y registra la arquitectura adoptada. No constituye una implementación. En esta fase no se instalaron paquetes, no se generó código y no se construyó ningún ejecutable.
+Este documento conserva la comparación técnica inicial y registra la arquitectura adoptada. La base técnica se creó en la Fase 1 y la Fase 2 implementa SQLite y la configuración general. Velopack, los módulos operativos y el instalador continúan pendientes.
 
 ## Arquitectura adoptada (18 de julio de 2026)
 
@@ -16,7 +16,7 @@ Se adoptó la siguiente base tecnológica para el proyecto:
 - **Canal de actualización:** GitHub Releases públicos del mismo repositorio.
 - **Repositorio publicado:** [https://github.com/colombianitov2/peluqueria-admin](https://github.com/colombianitov2/peluqueria-admin), desde el 18 de julio de 2026.
 
-La solución base queda autorizada en la Fase 1. Velopack todavía no está implementado y no se han autorizado paquetes externos ni módulos funcionales. Las decisiones funcionales abiertas permanecen en `docs/DECISIONES_PENDIENTES.md`.
+La solución base quedó creada en la Fase 1. En la Fase 2 se incorporan EF Core SQLite, migraciones, MVVM, inyección de dependencias y pruebas. Velopack todavía no está implementado. Las decisiones funcionales abiertas permanecen en `docs/DECISIONES_PENDIENTES.md`.
 
 ## Comparación de alternativas
 
@@ -71,7 +71,7 @@ Infraestructura: SQLite, copias, migraciones, exportación y actualizaciones
 ```
 
 - **Presentación:** pantallas, navegación, validación visible y comandos. No contiene fórmulas financieras ni acceso directo a SQLite.
-- **Aplicación:** coordina altas, ediciones, pagos, movimientos, cierres y consultas.
+- **Aplicación:** define contratos y coordina casos de uso. En la Fase 2 contiene exclusivamente consulta y guardado de Ajustes.
 - **Dominio:** concentra deuda semanal, inventario, punto de equilibrio y distribución de ganancias. Las reglas pendientes no se codifican hasta recibir respuesta.
 - **Infraestructura:** implementa persistencia, transacciones, copias, restauración, migraciones y consulta de actualizaciones.
 
@@ -79,17 +79,20 @@ Esta separación protege las reglas aprobadas y permite probarlas sin depender d
 
 ## Datos locales y protección
 
-Propuesta de almacenamiento para la aplicación instalada:
+Almacenamiento adoptado para la aplicación:
 
 - El ejecutable y sus archivos de versión viven en la ubicación administrada por el instalador.
-- La base de datos, configuración, copias y registros viven en una carpeta persistente de datos de usuario distinta de la carpeta del ejecutable.
-- La ruta exacta y el nombre del producto se fijan al aprobar la tecnología.
+- La base de datos vive en `%LocalAppData%\PeluqueriaAdmin\Data\peluqueria-admin.db`, fuera de la carpeta del ejecutable.
+- Las carpetas `%LocalAppData%\PeluqueriaAdmin\Backups` y `%LocalAppData%\PeluqueriaAdmin\Logs` quedan preparadas para funciones futuras.
+- Las pruebas inyectan una raíz temporal y no usan datos reales.
 
 Reglas técnicas:
 
 - SQLite usa claves foráneas, transacciones y restricciones para proteger integridad.
 - Los importes monetarios se almacenan con una representación exacta definida; no se usa punto flotante binario para dinero.
-- Las fechas de creación, modificación y eliminación se mantienen internamente cuando correspondan.
+- La configuración general obligatoria usa una sola fila protegida, con fechas UTC de creación y modificación.
+- El dinero se persiste como unidades menores enteras; los porcentajes se persisten como puntos básicos.
+- La moneda es un único código ISO de tres letras. Cambiarlo no convierte valores existentes.
 - La eliminación funcional es lógica y las consultas normales excluyen registros eliminados.
 - Cada migración se identifica por versión y se ejecuta dentro de una transacción cuando SQLite lo permita.
 - Antes de una migración importante se crea una copia verificada de la base de datos cerrada o mediante el mecanismo seguro de copia de SQLite.

@@ -8,5 +8,34 @@
         MinWidth="720"
         MinHeight="520"
         WindowStartupLocation="CenterScreen">
-    <views:HomeView />
+  <DockPanel>
+    <Border DockPanel.Dock="Left"
+            Width="176"
+            Padding="16,24"
+            Background="#172033">
+      <StackPanel>
+        <TextBlock Margin="8,0,8,28"
+                   Foreground="White"
+                   FontSize="18"
+                   FontWeight="SemiBold"
+                   Text="Peluquería Admin"
+                   TextWrapping="Wrap" />
+        <Button Margin="0,0,0,8"
+                Padding="12,9"
+                HorizontalContentAlignment="Left"
+                Command="{Binding ShowHomeCommand}"
+                Content="Inicio" />
+        <Button Padding="12,9"
+                HorizontalContentAlignment="Left"
+                Command="{Binding ShowSettingsCommand}"
+                Content="Ajustes" />
+      </StackPanel>
+    </Border>
+
+    <Grid Background="#F5F7FA">
+      <views:HomeView Visibility="{Binding IsHomeVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
+      <views:SettingsView DataContext="{Binding Settings}"
+                          Visibility="{Binding IsSettingsVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
+    </Grid>
+  </DockPanel>
 </Window>
