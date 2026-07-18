@@ -270,6 +270,10 @@ Configurar, como mínimo:
 
 No se crean ajustes individuales que contradigan la tarifa semanal general.
 
+La moneda es única para todo el local y se guarda como un código ISO de tres letras en mayúsculas. No existen conversiones, tasas de cambio ni varias monedas simultáneas. Cambiar el código no convierte los importes existentes.
+
+Los importes de Ajustes se persisten en unidades menores enteras y los porcentajes en puntos básicos. No se usa punto flotante binario ni se aceptan silenciosamente más de dos decimales.
+
 ## 13. Balance anual
 
 El balance por año muestra:

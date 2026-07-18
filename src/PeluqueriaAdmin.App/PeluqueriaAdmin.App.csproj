@@ -1,6 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\PeluqueriaAdmin.Application\PeluqueriaAdmin.Application.csproj" />
     <ProjectReference Include="..\PeluqueriaAdmin.Infrastructure\PeluqueriaAdmin.Infrastructure.csproj" />
   </ItemGroup>

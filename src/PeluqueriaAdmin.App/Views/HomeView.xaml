@@ -4,7 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:viewModels="clr-namespace:PeluqueriaAdmin.App.ViewModels"
-             d:DataContext="{d:DesignInstance Type=viewModels:MainViewModel}"
+             d:DataContext="{d:DesignInstance Type=viewModels:MainViewModel, IsDesignTimeCreatable=False}"
              d:DesignHeight="640"
              d:DesignWidth="960"
              Language="es-ES"

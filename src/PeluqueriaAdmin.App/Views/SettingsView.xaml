@@ -1,0 +1,107 @@
+<UserControl x:Class="PeluqueriaAdmin.App.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:PeluqueriaAdmin.App.ViewModels"
+             d:DataContext="{d:DesignInstance Type=viewModels:SettingsViewModel, IsDesignTimeCreatable=False}"
+             d:DesignHeight="640"
+             d:DesignWidth="784"
+             Language="es-ES"
+             mc:Ignorable="d">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <Grid Margin="32" MaxWidth="640" HorizontalAlignment="Left">
+      <Grid.Resources>
+        <Style TargetType="TextBox">
+          <Setter Property="Margin" Value="0,6,0,18" />
+          <Setter Property="Padding" Value="10,7" />
+          <Setter Property="MinWidth" Value="280" />
+        </Style>
+        <Style TargetType="TextBlock" x:Key="FieldLabel">
+          <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+      </Grid.Resources>
+
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+
+      <StackPanel Grid.Row="0" Margin="0,0,0,24">
+        <TextBlock FontSize="26" FontWeight="SemiBold" Text="Ajustes" />
+        <TextBlock Margin="0,6,0,0"
+                   Foreground="#4B5563"
+                   Text="Configuración general para todo el local. Cambiar la moneda no convierte los valores existentes."
+                   TextWrapping="Wrap" />
+      </StackPanel>
+
+      <StackPanel Grid.Row="1">
+        <TextBlock Style="{StaticResource FieldLabel}" Text="Valor semanal general por uso del local" />
+        <TextBox MaxLength="18"
+                 Text="{Binding WeeklyUsageFee, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Importe no negativo con máximo dos decimales." />
+      </StackPanel>
+
+      <StackPanel Grid.Row="2">
+        <TextBlock Style="{StaticResource FieldLabel}" Text="Ganancia colaboradores (%)" />
+        <TextBox MaxLength="7"
+                 Text="{Binding CollaboratorProfitPercent, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Porcentaje entre 0 y 100 con máximo dos decimales." />
+      </StackPanel>
+
+      <StackPanel Grid.Row="3">
+        <TextBlock Style="{StaticResource FieldLabel}" Text="Presupuesto mensual para insumos opcionales" />
+        <TextBox MaxLength="18"
+                 Text="{Binding OptionalSuppliesMonthlyBudget, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Importe no negativo con máximo dos decimales." />
+      </StackPanel>
+
+      <StackPanel Grid.Row="4">
+        <TextBlock Style="{StaticResource FieldLabel}" Text="Cantidad total de sillas" />
+        <TextBox MaxLength="9"
+                 Text="{Binding TotalChairs, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Número entero no negativo." />
+      </StackPanel>
+
+      <StackPanel Grid.Row="5">
+        <TextBlock Style="{StaticResource FieldLabel}" Text="Código de moneda" />
+        <TextBox MaxLength="3"
+                 CharacterCasing="Upper"
+                 Text="{Binding CurrencyCode, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Código ISO de exactamente tres letras, por ejemplo USD." />
+      </StackPanel>
+
+      <Border Grid.Row="6"
+              Margin="0,2,0,18"
+              Padding="12"
+              Background="#E8EEF6"
+              Visibility="{Binding HasStatusMessage, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap">
+          <TextBlock.Style>
+            <Style TargetType="TextBlock">
+              <Setter Property="Foreground" Value="#166534" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding IsError}" Value="True">
+                  <Setter Property="Foreground" Value="#B91C1C" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </TextBlock.Style>
+        </TextBlock>
+      </Border>
+
+      <Button Grid.Row="7"
+              Width="132"
+              Padding="14,9"
+              HorizontalAlignment="Left"
+              Command="{Binding SaveCommand}"
+              Content="Guardar ajustes" />
+    </Grid>
+  </ScrollViewer>
+</UserControl>
