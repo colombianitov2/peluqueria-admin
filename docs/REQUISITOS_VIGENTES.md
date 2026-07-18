@@ -346,9 +346,10 @@ Política de versiones y publicación:
 - incorporar posteriormente automatización de compilación, pruebas, empaquetado y publicación por etiquetas de versión;
 - no incrustar un token personal de GitHub en el ejecutable.
 
-La visibilidad y distribución de repositorios sigue pendiente entre:
+El proyecto utiliza un único repositorio público para el código y los lanzamientos:
 
-1. repositorio público para código y lanzamientos;
-2. repositorio privado para el código y un repositorio público separado solamente para actualizaciones.
+- [https://github.com/colombianitov2/peluqueria-admin](https://github.com/colombianitov2/peluqueria-admin)
+- El repositorio remoto ya existe y el proyecto fue publicado el 18 de julio de 2026.
+- Los GitHub Releases públicos del mismo repositorio serán el canal previsto para las actualizaciones.
 
-No se creará ni publicará ningún repositorio remoto hasta que el usuario tome esa decisión.
+El ejecutable nunca debe incluir un token personal de GitHub ni otra credencial para consultar o descargar actualizaciones públicas.
