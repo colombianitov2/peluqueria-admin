@@ -2,6 +2,7 @@
 * text=auto
 .gitattributes text eol=lf
 .gitignore text eol=lf
+.editorconfig text eol=lf
 LICENSE text eol=lf
 
 # Código y archivos de proyecto

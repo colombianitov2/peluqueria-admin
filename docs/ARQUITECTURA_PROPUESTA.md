@@ -14,8 +14,9 @@ Se adoptó la siguiente base tecnológica para el proyecto:
 - **Instalación y actualizaciones previstas:** Velopack.
 - **Publicación:** un único repositorio público.
 - **Canal de actualización:** GitHub Releases públicos del mismo repositorio.
+- **Repositorio publicado:** [https://github.com/colombianitov2/peluqueria-admin](https://github.com/colombianitov2/peluqueria-admin), desde el 18 de julio de 2026.
 
-Esta decisión no autoriza todavía a crear la solución, agregar paquetes, implementar Velopack, crear un remoto ni publicar archivos. Las decisiones funcionales aún abiertas permanecen en `docs/DECISIONES_PENDIENTES.md`.
+La solución base queda autorizada en la Fase 1. Velopack todavía no está implementado y no se han autorizado paquetes externos ni módulos funcionales. Las decisiones funcionales abiertas permanecen en `docs/DECISIONES_PENDIENTES.md`.
 
 ## Comparación de alternativas
 
@@ -139,11 +140,11 @@ Costos:
 - la automatización necesita permiso limitado para publicar artefactos en el repositorio público;
 - se deben coordinar etiquetas, notas y archivos entre dos repositorios.
 
-### Alternativa neutral recomendada
+### Estado adoptado de publicación
 
-Usar **GitHub Releases públicos como canal de actualización con Velopack**, independientemente de si el código termina siendo público o privado. Esta propuesta satisface las actualizaciones sin incrustar credenciales y deja abierta la decisión de visibilidad del código.
+Se adoptó la opción A: un único repositorio público para código y lanzamientos. El repositorio está publicado en [https://github.com/colombianitov2/peluqueria-admin](https://github.com/colombianitov2/peluqueria-admin). La opción B se conserva arriba únicamente como parte de la comparación histórica.
 
-No se ha creado ningún remoto y no debe publicarse nada hasta recibir la decisión del usuario.
+Los GitHub Releases públicos serán el canal previsto para Velopack. Velopack todavía no está implementado y el ejecutable no debe incorporar credenciales de GitHub.
 
 ## Validaciones previstas para fases posteriores
 

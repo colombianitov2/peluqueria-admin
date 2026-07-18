@@ -6,10 +6,11 @@ Este registro impide que la implementación convierta supuestos en reglas de neg
 
 - **Visibilidad del repositorio:** público.
 - **Organización de publicación:** un único repositorio público para el código y los GitHub Releases.
+- **Repositorio publicado el 18 de julio de 2026:** [https://github.com/colombianitov2/peluqueria-admin](https://github.com/colombianitov2/peluqueria-admin).
 - **Tecnología adoptada:** C#, .NET 10, WPF y SQLite.
 - **Actualizador previsto:** Velopack con GitHub Releases públicos.
 
-Estas decisiones no autorizan todavía la creación de la solución, la instalación de paquetes, la creación del remoto ni la publicación de archivos.
+La creación de la solución base queda autorizada en la Fase 1. La implementación de módulos funcionales, SQLite, Velopack y paquetes externos continúa fuera del alcance de esta fase.
 
 ## Decisiones pendientes antes de implementar
 

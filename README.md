@@ -1,6 +1,6 @@
 # Peluquería Admin
 
-> Estado: planificación y preparación inicial.
+> Estado: solución técnica base creada; módulos funcionales todavía no implementados.
 
 Peluquería Admin será una aplicación local para administrar el funcionamiento interno de una peluquería. Su propósito es registrar ingresos propios del local, gastos, obligaciones, inventario y el punto de equilibrio mensual.
 
@@ -19,11 +19,28 @@ Las personas que trabajan en el local utilizan sus propios implementos y cobran 
 
 ## Estado de implementación
 
-Todavía no existe la solución .NET ni funcionalidades implementadas. Este repositorio contiene la preparación documental y de publicación del proyecto.
+Existe una solución compilable en .NET 10 con una aplicación WPF mínima y separación por capas. Todavía no existen módulos funcionales, base de datos, instalador ni actualización automática.
+
+## Estructura de proyectos
+
+- `PeluqueriaAdmin.Domain`: reglas y modelos del negocio, sin dependencias de infraestructura o interfaz.
+- `PeluqueriaAdmin.Application`: casos de uso, contratos y coordinación; depende de Domain.
+- `PeluqueriaAdmin.Infrastructure`: futuras implementaciones de persistencia, copias, migraciones y actualizaciones; depende de Application y Domain.
+- `PeluqueriaAdmin.App`: interfaz WPF, composición y arranque; depende de Application e Infrastructure.
 
 ## Requisitos actuales para desarrollo
 
-El desarrollo requerirá Windows y el SDK de .NET 10. Las dependencias y el flujo de compilación se documentarán cuando exista una solución aprobada; por ahora no hay instrucciones de instalación o descarga de la aplicación.
+El desarrollo requiere Windows y un SDK compatible con el `global.json` del repositorio, actualmente .NET SDK 10.0.301 con avance permitido dentro de .NET 10.
+
+Para restaurar y compilar desde la raíz:
+
+```powershell
+dotnet restore PeluqueriaAdmin.sln
+dotnet build PeluqueriaAdmin.sln --configuration Debug --no-restore
+dotnet build PeluqueriaAdmin.sln --configuration Release --no-restore
+```
+
+Estos comandos compilan la solución para desarrollo; todavía no generan un instalador ni configuran actualizaciones automáticas.
 
 ## Protección de datos
 

@@ -1,0 +1,56 @@
+<UserControl x:Class="PeluqueriaAdmin.App.Views.HomeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:PeluqueriaAdmin.App.ViewModels"
+             d:DataContext="{d:DesignInstance Type=viewModels:MainViewModel}"
+             d:DesignHeight="640"
+             d:DesignWidth="960"
+             Language="es-ES"
+             mc:Ignorable="d">
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="20" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="16" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="16" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock FontSize="14"
+                       FontWeight="SemiBold"
+                       Text="Fecha actual" />
+            <TextBlock Margin="0,4,0,0"
+                       FontSize="20"
+                       Text="{Binding FechaActual}" />
+        </StackPanel>
+
+        <GroupBox Grid.Row="2"
+                  Padding="16"
+                  Header="Servicios e impuestos pendientes">
+            <TextBlock VerticalAlignment="Center"
+                       Text="{Binding EstadoServiciosEImpuestos}"
+                       TextWrapping="Wrap" />
+        </GroupBox>
+
+        <GroupBox Grid.Row="4"
+                  Padding="16"
+                  Header="Personas con pagos pendientes por uso del local">
+            <TextBlock VerticalAlignment="Center"
+                       Text="{Binding EstadoPersonasConPagosPendientes}"
+                       TextWrapping="Wrap" />
+        </GroupBox>
+
+        <GroupBox Grid.Row="6"
+                  Padding="16"
+                  Header="Cantidad faltante para alcanzar el punto de equilibrio mensual">
+            <TextBlock VerticalAlignment="Center"
+                       Text="{Binding EstadoPuntoDeEquilibrio}"
+                       TextWrapping="Wrap" />
+        </GroupBox>
+    </Grid>
+</UserControl>
