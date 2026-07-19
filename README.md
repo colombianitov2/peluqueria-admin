@@ -19,7 +19,7 @@ Las personas que trabajan en el local utilizan sus propios implementos y cobran 
 
 ## Estado de implementación
 
-La aplicación implementa los 15 módulos aprobados: Inicio, Uso del local, Colaboradores, Ventas, Inventario, Otros ingresos, Gastos, Imprevistos, Obligaciones, Mantenimiento, Nómina de colaboradores, Resumen mensual, Balance anual, Flujo de caja y Ajustes. Incluye cuotas cada siete días, inventario por movimientos, cierres históricos, fórmulas mensuales/anuales, copias, restauración, CSV y actualización con Velopack.
+La aplicación implementa los módulos aprobados: Inicio, Uso del local, Colaboradores, Ventas, Inventario, Otros ingresos, Gastos, Imprevistos, Obligaciones, Mantenimiento, Nómina de colaboradores, Resumen mensual, Balance anual y Ajustes. Incluye sillas individuales, cuotas por periodos semanales completos, inventario por movimientos, cierres históricos, fórmulas mensuales/anuales, copias, restauración, CSV, Excel y actualización con Velopack.
 
 El instalador alpha x64 se construyó localmente sin firma y permanece ignorado por Git. No se ha publicado un Release ni se ha probado todavía una actualización real entre dos Releases.
 

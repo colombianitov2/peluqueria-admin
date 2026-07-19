@@ -8,7 +8,19 @@ Todas las operaciones monetarias usan unidades menores enteras. Los redondeos ne
 deuda actual = suma de cuotas generadas - suma de pagos válidos
 ```
 
-La primera cuota empieza al ingreso y cada siguiente exactamente siete días después. Una cuota usa la tarifa vigente al inicio de su periodo. Se rechaza cualquier pago mayor que la deuda.
+Al ingresar la deuda es cero. La primera cuota se causa tras siete días completos y vence el primer sábado igual o posterior al final del periodo. Los periodos siguientes avanzan siete días, no se cobra un periodo incompleto y cada cuota usa la tarifa vigente al inicio de su periodo. Se rechaza cualquier pago mayor que la deuda causada a la fecha del pago.
+
+## Precio sugerido por silla
+
+```text
+monto por cubrir = máximo(0, meta mensual oficial
+                            + gastos extraoficiales vigentes
+                            - ventas y otros ingresos esperados)
+precio mensual por silla = monto por cubrir ÷ sillas ocupadas vigentes
+precio semanal sugerido = precio mensual × 12 ÷ 52
+```
+
+Los pagos actuales por uso del local no se restan porque crearían una fórmula circular. Sin sillas ocupadas no se divide entre cero. Los gastos extraoficiales no forman parte del Balance anual oficial.
 
 ## Inventario
 
@@ -64,8 +76,8 @@ Un resultado base cero o negativo produce fondo cero y no crea deuda. Un cierre 
 
 Mientras el cierre permanezca confirmado, sus totales guardados prevalecen sobre cambios posteriores de porcentaje, presupuesto o registros editables al consultar el resumen mensual, el balance anual y los CSV. Al reabrir, el mes vuelve a usar la fórmula dinámica.
 
-## Balance anual y caja
+## Balance anual
 
 El balance suma los 12 resultados mensuales, distribuciones pagadas de cierres confirmados y obligaciones pendientes sin repetir obligaciones anuales ya incluidas en un mes. Desglosa servicios, impuestos, otras obligaciones, mercancía, insumos obligatorios y opcionales, mantenimiento, imprevistos, otros gastos y planes de reposición. El ajuste histórico reconcilia el desglose dinámico con la meta guardada de un cierre confirmado. El indicador es `Positivo` cuando el resultado retenido acumulado es mayor o igual a cero y `Negativo` cuando es inferior a cero.
 
-El flujo de caja lista solo entradas y salidas efectivas dentro del rango seleccionado y excluye distribuciones asociadas a cierres reabiertos.
+Las operaciones originales de ingresos y gastos se conservan para los cálculos internos, pero Flujo de caja ya no es un módulo visible ni una hoja independiente de Excel.

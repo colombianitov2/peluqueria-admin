@@ -34,7 +34,7 @@ Las obligaciones admiten recurrencia mensual/anual y pagos parciales. Sus ocurre
 
 - Resumen mensual: escriba el mes y pulse **Consultar**.
 - Balance anual: escriba el año y consulte; verá el desglose por categoría y el indicador `Positivo` o `Negativo`.
-- Flujo de caja: indique fechas inicial/final y categoría opcional.
+- El módulo de Manual integrado en la aplicación queda pendiente para una fase posterior.
 
 ### Editar y eliminar
 
@@ -42,7 +42,7 @@ Seleccione una fila y use **Editar/Cargar** para llevar sus valores al formulari
 
 ## Ajustes
 
-Permite configurar tarifa semanal, porcentaje de colaboradores, reserva opcional, sillas y moneda. Cambiar moneda no convierte importes previos; cambiar tarifa solo afecta cuotas futuras.
+Permite configurar tarifa semanal, porcentaje de colaboradores, reserva opcional, moneda y gastos extraoficiales. Las sillas se administran individualmente en Uso del local. Cambiar moneda no convierte importes previos; cambiar tarifa solo afecta cuotas futuras.
 
 En **Datos** puede crear/restaurar copias, abrir las carpetas, exportar CSV o crear una exportación completa a Excel en el Escritorio. Reinicie después de restaurar. Los Ajustes válidos se guardan automáticamente; una entrada temporalmente inválida queda como borrador recuperable.
 

@@ -2,7 +2,9 @@
 
 ## Carácter canónico y precedencia
 
-Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 3.1 del 18 de julio de 2026.
+Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.1 del 19 de julio de 2026.
+
+La Fase 4.1 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre cobro sin día fijo, cobro al ingresar, prohibición general de texto libre, prohibición de filtros históricos, inventario con unidad de medida, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. La excepción autorizada en Inicio es únicamente el precio sugerido por silla.
 
 - Cuando exista contradicción con ideas iniciales de `Programa para peluquería.txt`, prevalece este documento.
 - `Instrucciones codex.txt` conserva las normas de trabajo y seguridad del proyecto, excepto cuando contradiga expresamente la solicitud vigente.
@@ -34,8 +36,8 @@ La aplicación:
 - El dinero que estas personas cobran a sus clientes por sus servicios no pertenece al local y no se registra como ingreso del local.
 - Cada persona paga actualmente USD 12 semanales por utilizar el local y guardar sus pertenencias de trabajo.
 - Los USD 12 constituyen un valor general configurable en Ajustes, no una tarifa individual.
-- No está definido que el cobro sea los sábados y no se asumirá ningún día de cobro.
-- La primera cuota se genera al ingreso y las posteriores cada siete días exactos; cada periodo iniciado se cobra completo y conserva su tarifa histórica.
+- El día habitual de pago es sábado.
+- Al ingresar la deuda es cero. Cada cuota corresponde a siete días completos; vence el primer sábado igual o posterior al final del periodo, no se cobra un periodo incompleto y se conserva la tarifa histórica.
 - Los pagos registrados reducen la deuda de cada persona.
 - La página principal muestra el nombre de cada persona con deuda y el importe adeudado.
 
@@ -48,18 +50,17 @@ Datos mínimos previstos:
 - nombre;
 - fecha de ingreso;
 - fecha de retiro, cuando corresponda.
+- descripción opcional;
+- silla individual asignada actualmente.
 
 La condición activa o inactiva se calcula internamente a partir de las fechas; no existirá un campo visible de estado.
 
 No incluir:
 
 - fotografía;
-- silla asignada;
 - espacio de almacenamiento asignado;
 - tarifa semanal individual;
-- día habitual de pago;
 - campo visible activo/inactivo;
-- observaciones;
 - semanas pagadas por anticipado;
 - semanas perdonadas;
 - semanas suspendidas;
@@ -68,21 +69,18 @@ No incluir:
 - recibos internos;
 - estados vencido, exonerado o anulado;
 - medio de pago;
-- búsquedas especializadas por persona, semana, mes o año.
+- consultas periódicas constantes.
 
 El registro de un pago será simple y contendrá únicamente:
 
 - persona;
 - fecha;
 - monto.
+- descripción opcional.
 
 ## 4. Sillas y capacidad
 
-Manejar solamente:
-
-- cantidad total de sillas;
-- cantidad de personas que pagan por utilizar el local;
-- cantidad de sillas disponibles.
+Cada silla es un registro individual con nombre o número, fecha de creación, descripción opcional y, si corresponde, un único peluquero vigente asignado. Los colaboradores son inversionistas y nunca ocupan sillas. Se muestran total de sillas, peluqueros vigentes y sillas disponibles.
 
 No incluir:
 
@@ -104,12 +102,7 @@ Los servicios prestados directamente por las personas a sus clientes no se regis
 
 ## 6. Inventario
 
-El inventario diferencia, como mínimo:
-
-- productos para la venta;
-- insumos obligatorios del local, como papel higiénico y productos de aseo;
-- insumos opcionales ofrecidos al cliente, como café, té, alimentos o bebidas de cortesía;
-- equipos o bienes duraderos del local.
+El inventario usa exclusivamente estas categorías: Alimento o bebida para venta, Otro producto para venta, Cortesía para clientes, Aseo, Insumo del local y Otro producto del local. No existe campo de unidad de medida en la interfaz.
 
 Los productos personales de quienes trabajan en el local no pertenecen al inventario.
 
@@ -138,7 +131,7 @@ No incluir en productos o ventas:
 - vencimiento;
 - stock mínimo;
 - estado activo/inactivo;
-- observaciones.
+- campos adicionales distintos de la descripción opcional autorizada.
 
 No incluir en ninguna sección proveedor, medio de pago ni comprobante.
 
@@ -186,7 +179,7 @@ No incluir:
 - estado manual;
 - técnico;
 - proveedor;
-- observaciones.
+- campos adicionales distintos de la descripción opcional autorizada.
 
 La necesidad de atención se calcula a partir de las fechas y de la existencia o ausencia de costo y fecha real, sin un campo manual de estado.
 
@@ -265,12 +258,12 @@ Configurar, como mínimo:
 - valor semanal general por uso del local, inicialmente USD 12;
 - porcentaje de ganancia de colaboradores, inicialmente 20 %;
 - presupuesto mensual para insumos opcionales ofrecidos a clientes;
-- cantidad total de sillas;
 - moneda principal, inicialmente USD.
+- gastos extraoficiales separados, que solo intervienen en el precio sugerido por silla.
 
 No se crean ajustes individuales que contradigan la tarifa semanal general.
 
-La moneda es única para todo el local y se guarda como un código ISO de tres letras en mayúsculas. No existen conversiones, tasas de cambio ni varias monedas simultáneas. Cambiar el código no convierte los importes existentes.
+La moneda es única para todo el local y se selecciona inicialmente entre USD y COP. No existen conversiones, tasas de cambio ni varias monedas simultáneas. Cambiar el código no convierte los importes existentes.
 
 Los importes de Ajustes se persisten en unidades menores enteras y los porcentajes en puntos básicos. No se usa punto flotante binario ni se aceptan silenciosamente más de dos decimales.
 
@@ -296,6 +289,7 @@ La página principal muestra exclusivamente:
 - nombre de cada persona que debe pagos por uso del local;
 - monto adeudado por cada persona;
 - cantidad faltante para alcanzar el punto de equilibrio mensual.
+- precio semanal actual, precio semanal sugerido por silla ocupada y equivalente mensual, con explicación breve.
 
 No mostrar allí:
 
@@ -304,7 +298,7 @@ No mostrar allí:
 - alertas de inventario;
 - ventas;
 - mantenimiento;
-- cantidad de sillas;
+- elementos distintos del precio sugerido expresamente autorizado.
 - nómina de colaboradores;
 - tarjetas o indicadores adicionales.
 
@@ -382,3 +376,16 @@ La primera alpha es x64, sin certificado y puede activar una advertencia de Smar
 - Las correcciones de inventario conservan las invariantes de cantidad, dinero y existencia cronológica no negativa. Los nombres activos de productos son únicos sin distinguir mayúsculas.
 - No se permite eliminar padres con historial dependiente ni registros calculados como cierres o asignaciones. Los datos históricos huérfanos heredados se muestran con una descripción segura en vez de cerrar la pantalla.
 - Los estados y categorías visibles y exportados se presentan en español.
+
+## 18. Correcciones de aceptación de la Fase 4.1
+
+- Todas las páginas operativas muestran actividad no editable con periodo Hoy por defecto, semana, mes, 3 meses, 6 meses, año y rango personalizado. El cambio de día se detecta al actualizar por navegación, periodo u operación; no existe sondeo constante.
+- Las operaciones confirmadas crean su actividad en la misma transacción. Los estados actuales y selectores no dependen del filtro de actividad.
+- La recuperación de formularios es silenciosa; la interfaz solo ofrece `Limpiar formulario` cuando hay contenido no confirmado.
+- Ventas selecciona por identificador un producto de venta, usa su precio predeterminado y rechaza inventario negativo. Las compras reutilizan productos existentes y calculan su total.
+- Ingresos, gastos, imprevistos, obligaciones y mantenimiento usan acciones directas; no existe un desplegable genérico Acción.
+- Los colaboradores no ocupan sillas y su historial financiero se deriva únicamente de cierres, participaciones y pagos reales.
+- Resumen mensual añade gráficos 2D de barras, composición y evolución con los mismos cálculos que las cifras.
+- Flujo de caja se retira de navegación, pantallas, manual y hoja independiente de Excel; se conservan las operaciones fuente.
+- La exportación Excel incluye sillas, asignaciones, actividad, descripciones, gastos extraoficiales, precio sugerido e historial financiero de colaboradores.
+- El futuro módulo Manual queda como requisito pendiente y no se muestra un botón vacío.

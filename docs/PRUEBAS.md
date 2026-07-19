@@ -9,7 +9,7 @@ La solución contiene cuatro proyectos de pruebas:
 - Infrastructure.Tests: SQLite, migraciones, borradores, política de durabilidad, eliminación lógica, copias, restauración, CSV y Excel.
 - App.Tests: comandos y presentación segura de la interfaz WPF sin abrir una ventana real.
 
-En la validación local de la Fase 4 pasan 65 pruebas: 34 de dominio, 15 de aplicación, 10 de infraestructura y 6 de interfaz.
+En la validación local consolidada de la Fase 4.1 pasan 84 pruebas: 35 de dominio, 26 de aplicación, 11 de infraestructura y 12 de interfaz.
 
 ## Cobertura funcional comprobada
 
@@ -35,6 +35,14 @@ En la validación local de la Fase 4 pasan 65 pruebas: 34 de dominio, 15 de apli
 - persistencia de borradores tras reinicio y finalización atómica junto con la operación registrada;
 - `foreign_keys=ON`, WAL, `synchronous=FULL` y `busy_timeout=5000` en cada conexión SQLite.
 - disposición de Administración y Ajustes en los espacios lógicos equivalentes a 1366×768 con escalas de 100 %, 125 % y 150 %.
+- regla semanal definitiva sin cobro de entrada, periodos completos de siete días, vencimiento el primer sábado posterior y deuda calculada a la fecha de corte;
+- sillas individuales, asignación exclusiva, disponibilidad, retiro y liberación de asignaciones vencidas;
+- precio de venta predeterminado, control de existencia, recompra y seis categorías visibles de inventario;
+- precio sugerido por silla con gastos extraoficiales separados del balance oficial;
+- filtros de actividad Hoy, semana, mes, tres meses, seis meses, año y periodo personalizado, incluido el cambio silencioso de día;
+- auditoría transaccional, historial financiero del colaborador y migración conservadora desde una base `0.1.0-alpha.1`;
+- ausencia del módulo Flujo de caja en navegación, interfaz y Excel, y contratos visuales de acciones contextuales;
+- exportación Excel ampliada con sillas, asignaciones, gastos extraoficiales, precio sugerido, historial financiero y actividad.
 
 ## Comandos finales
 
@@ -51,6 +59,9 @@ dotnet ef migrations has-pending-model-changes --project src/PeluqueriaAdmin.Inf
 
 ## Validaciones manuales realizadas
 
+- migración y arranque de la aplicación Release con una copia aislada de los datos de revisión de `0.1.0-alpha.1`;
+- revisión visual de Inicio, Inventario, Ajustes y Resumen mensual, incluidos menús contextuales, controles de Excel y los tres gráficos;
+- comprobación de que la aplicación usa exclusivamente la raíz temporal indicada mediante `PELUQUERIA_ADMIN_DATA_ROOT` y permanece abierta para revisión;
 - arranque oculto del ejecutable Debug con `PELUQUERIA_ADMIN_DATA_ROOT` dirigido a una carpeta controlada dentro del worktree;
 - arranque oculto del ejecutable publicado Release x64 con una raíz de datos nueva; el proceso permaneció activo, creó SQLite fuera del ejecutable y se cerró de forma controlada;
 - creación de SQLite fuera del directorio del ejecutable;
@@ -66,5 +77,6 @@ dotnet ef migrations has-pending-model-changes --project src/PeluqueriaAdmin.Inf
 - actualización entre dos GitHub Releases y conservación de datos durante ese salto;
 - firma de código y comportamiento reputacional de SmartScreen;
 - comparación de reportes con datos reales aprobados por el usuario.
+- integración y validación del logotipo exacto K&V Barber & Beauty, porque el archivo gráfico solicitado no estuvo disponible entre los adjuntos accesibles.
 
 Ninguna prueba automatizada utiliza la base real ni incorpora datos permanentes.

@@ -13,17 +13,19 @@
 
 | Área | Tablas | Responsabilidad |
 |---|---|---|
-| Ajustes | `Settings` | Única fila con tarifa semanal, porcentaje, reserva opcional, sillas y moneda. |
-| Uso del local | `LocalUsePeople`, `WeeklyRates`, `WeeklyCharges`, `LocalUsePayments` | Personas, histórico de tarifas, cuotas de siete días y pagos. |
+| Ajustes | `Settings`, `UnofficialExpenses` | Tarifa semanal, porcentaje, reserva, moneda y gastos extraoficiales separados. `TotalChairs` se conserva solo para migrar bases antiguas. |
+| Uso del local | `Chairs`, `LocalUsePeople`, `WeeklyRates`, `WeeklyCharges`, `LocalUsePayments` | Sillas individuales, peluqueros, histórico de tarifas, cuotas de periodos completos y pagos. |
 | Inventario | `Products`, `InventoryMovements`, `MonthlyRestockPlans` | Catálogo mínimo, existencias por movimientos y necesidad opcional mensual. |
 | Caja | `FinancialEntries` | Otros ingresos, gastos e imprevistos sin duplicar movimientos originados en otros módulos. |
 | Obligaciones | `Obligations`, `ObligationPayments` | Importe esperado, recurrencia y pagos parciales/finales. |
 | Mantenimiento | `MaintenanceRecords` | Plan y ejecución con costo estimado o real. |
 | Colaboradores | `Collaborators`, `MonthlyCloses`, `MonthlyCloseParticipants`, `DistributionPayments` | Participantes, fotografía del cierre y pagos de distribución. |
+| Actividad | `ActivityRecords` | Registro no editable de altas, ediciones, pagos, ventas, compras, asignaciones, cierres y eliminaciones. |
 
 ## Integridad relevante
 
-- Una cuota semanal es única por persona y fecha de inicio; la generación repetida es idempotente.
+- Una cuota semanal es única por persona y fecha de inicio; solo existe tras siete días completos, vence el primer sábado posterior o igual al final y la generación repetida es idempotente.
+- `Chairs.AssignedPersonId` es único: una silla no admite dos peluqueros y un peluquero no admite dos sillas.
 - Las altas de personas y obligaciones recurrentes guardan en una sola transacción el registro y los periodos que corresponden hasta la fecha solicitada.
 - Los movimientos de inventario determinan la existencia. No se guarda una existencia editable paralela.
 - Venta, consumo o corrección se rechazan si producen inventario negativo.
@@ -39,7 +41,7 @@
 
 1. `InitialSettings`: crea la configuración general aprobada.
 2. `CompleteAdministration`: agrega las tablas operativas sin eliminar ni recrear `Settings`.
+3. `PersistentFormDrafts`: conserva silenciosamente formularios incompletos ante cierres bruscos.
+4. `Phase41BusinessModel`: agrega sillas, actividad, gastos extraoficiales, descripciones y precio predeterminado; convierte `TotalChairs` en `Silla 1`, `Silla 2`, etc. de forma idempotente.
 
-La Fase 3.1 no modifica el esquema ni agrega migraciones: refuerza reglas transaccionales y de lectura sobre el modelo existente.
-
-La prueba de integración migra primero hasta `InitialSettings`, guarda una configuración, aplica la migración completa y confirma que la fila anterior permanece. Antes de migrar una base existente con cambios pendientes, el inicializador crea una copia `pre-migration-*`.
+La prueba de integración migra una base alpha.1, conserva su configuración y tablas, convierte el conteo histórico de sillas y valida las entidades nuevas. Antes de migrar una base existente con cambios pendientes, el inicializador crea una copia `pre-migration-*`.
