@@ -1,19 +1,32 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using PeluqueriaAdmin.App.Updates;
 using PeluqueriaAdmin.App.ViewModels;
 using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.DataManagement;
 using PeluqueriaAdmin.Application.Settings;
+using PeluqueriaAdmin.Application.Updates;
 using PeluqueriaAdmin.Infrastructure.Administration;
 using PeluqueriaAdmin.Infrastructure.Persistence;
 using PeluqueriaAdmin.Infrastructure.Settings;
 using PeluqueriaAdmin.Infrastructure.Storage;
+using Velopack;
 
 namespace PeluqueriaAdmin.App;
 
 public partial class App : System.Windows.Application
 {
     private ServiceProvider? serviceProvider;
+
+    [STAThread]
+    private static void Main(string[] args)
+    {
+        VelopackApp.Build().SetArgs(args).SetAutoApplyOnStartup(false).Run();
+
+        var app = new App();
+        app.InitializeComponent();
+        app.Run();
+    }
 
     protected override async void OnStartup(System.Windows.StartupEventArgs e)
     {
@@ -33,6 +46,7 @@ public partial class App : System.Windows.Application
             MainWindow window = serviceProvider.GetRequiredService<MainWindow>();
             MainWindow = window;
             window.Show();
+            _ = settingsViewModel.CheckForUpdatesOnStartupAsync();
         }
         catch (Exception exception)
         {
@@ -60,7 +74,10 @@ public partial class App : System.Windows.Application
     private static ServiceProvider ConfigureServices()
     {
         var services = new ServiceCollection();
-        ApplicationPaths paths = ApplicationPaths.ForCurrentUser();
+        string? testDataRoot = Environment.GetEnvironmentVariable("PELUQUERIA_ADMIN_DATA_ROOT");
+        ApplicationPaths paths = string.IsNullOrWhiteSpace(testDataRoot)
+            ? ApplicationPaths.ForCurrentUser()
+            : ApplicationPaths.FromRoot(testDataRoot);
 
         services.AddSingleton(paths);
         services.AddSingleton(TimeProvider.System);
@@ -70,6 +87,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IAdministrationRepository, EfAdministrationRepository>();
         services.AddSingleton<DatabaseBackupService>();
         services.AddSingleton<IDataManagementService, CsvDataManagementService>();
+        services.AddSingleton<IUpdateService, VelopackUpdateService>();
         services.AddSingleton<DatabaseInitializer>();
         services.AddSingleton<AdministrationService>();
         services.AddSingleton<GetSettingsUseCase>();

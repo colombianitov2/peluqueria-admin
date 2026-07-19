@@ -1,0 +1,111 @@
+name: Publicar instalador
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  velopack-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Read and validate version
+        id: version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".Substring(1)
+          if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$') {
+            throw "La etiqueta debe usar SemVer, por ejemplo v0.1.0-alpha.1."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "prerelease=$($version.Contains('-').ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
+      - name: Restore packages
+        run: dotnet restore PeluqueriaAdmin.sln
+
+      - name: Verify format
+        run: dotnet format PeluqueriaAdmin.sln --verify-no-changes --no-restore
+
+      - name: Test Release
+        run: dotnet test PeluqueriaAdmin.sln --configuration Release --no-restore
+
+      - name: Publish Windows x64
+        shell: pwsh
+        run: |
+          dotnet publish src/PeluqueriaAdmin.App/PeluqueriaAdmin.App.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            --output artifacts/publish `
+            -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Install matching Velopack CLI
+        run: dotnet tool install --tool-path .tools vpk --version 1.2.0
+
+      - name: Download previous Velopack release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $feedCount = gh api "repos/$env:GITHUB_REPOSITORY/releases" `
+            --jq 'map(select(.draft == false) | .assets[]? | select(.name == "releases.win.json")) | length'
+          if ([int]$feedCount -gt 0) {
+            $arguments = @(
+              "download", "github",
+              "--repoUrl", "https://github.com/$env:GITHUB_REPOSITORY",
+              "--token", $env:GH_TOKEN,
+              "--outputDir", "Releases")
+            if ("${{ steps.version.outputs.prerelease }}" -eq "true") {
+              $arguments += @("--pre", "true")
+            }
+            & .\.tools\vpk.exe @arguments
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Build installer and update packages
+        shell: pwsh
+        run: |
+          .\.tools\vpk.exe pack `
+            --packId Colombianito.PeluqueriaAdmin `
+            --packVersion ${{ steps.version.outputs.version }} `
+            --packDir artifacts/publish `
+            --mainExe PeluqueriaAdmin.App.exe `
+            --packTitle "Peluquería Admin" `
+            --packAuthors "colombianitov2" `
+            --runtime win-x64 `
+            --outputDir Releases
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          VPK_TOKEN: ${{ github.token }}
+        run: |
+          $arguments = @(
+            "upload", "github",
+            "--repoUrl", "https://github.com/${{ github.repository }}",
+            "--token", $env:VPK_TOKEN,
+            "--outputDir", "Releases",
+            "--publish", "true",
+            "--releaseName", "Peluquería Admin ${{ steps.version.outputs.version }}",
+            "--tag", "${{ github.ref_name }}")
+          if ("${{ steps.version.outputs.prerelease }}" -eq "true") {
+            $arguments += @("--pre", "true")
+          }
+          & .\.tools\vpk.exe @arguments
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

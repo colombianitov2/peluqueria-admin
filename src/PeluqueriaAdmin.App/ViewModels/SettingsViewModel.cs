@@ -5,13 +5,15 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PeluqueriaAdmin.Application.DataManagement;
 using PeluqueriaAdmin.Application.Settings;
+using PeluqueriaAdmin.Application.Updates;
 
 namespace PeluqueriaAdmin.App.ViewModels;
 
 public sealed partial class SettingsViewModel(
     GetSettingsUseCase getSettings,
     SaveSettingsUseCase saveSettings,
-    IDataManagementService dataManagement) : ObservableObject
+    IDataManagementService dataManagement,
+    IUpdateService updateService) : ObservableObject
 {
     [ObservableProperty]
     private string weeklyUsageFee = string.Empty;
@@ -30,6 +32,9 @@ public sealed partial class SettingsViewModel(
 
     [ObservableProperty]
     private string restorePath = string.Empty;
+
+    [ObservableProperty]
+    private bool updateReady;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasStatusMessage))]
@@ -56,6 +61,24 @@ public sealed partial class SettingsViewModel(
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    public async Task CheckForUpdatesOnStartupAsync()
+    {
+        try
+        {
+            UpdateCheckResult result = await updateService.CheckAndDownloadAsync();
+            UpdateReady = updateService.CanApplyUpdate;
+            if (result.Status == UpdateCheckStatus.ReadyToInstall)
+            {
+                StatusMessage = $"La versión {result.Version} está descargada y lista para instalar.";
+                IsError = false;
+            }
+        }
+        catch
+        {
+            // Una falla de red o de GitHub nunca debe impedir el uso de la aplicación.
         }
     }
 
@@ -139,9 +162,56 @@ public sealed partial class SettingsViewModel(
     [RelayCommand]
     private void OpenExports() => OpenDirectory(dataManagement.ExportsDirectory);
 
+    [RelayCommand(CanExecute = nameof(CanSave))]
+    private async Task CheckForUpdatesAsync()
+    {
+        IsBusy = true;
+        StatusMessage = "Buscando actualizaciones…";
+        IsError = false;
+        try
+        {
+            UpdateCheckResult result = await updateService.CheckAndDownloadAsync();
+            UpdateReady = updateService.CanApplyUpdate;
+            StatusMessage = result.Status switch
+            {
+                UpdateCheckStatus.NotInstalled =>
+                    "La búsqueda de actualizaciones está disponible en la aplicación instalada.",
+                UpdateCheckStatus.UpToDate =>
+                    $"La aplicación está actualizada ({result.Version ?? "versión actual"}).",
+                UpdateCheckStatus.ReadyToInstall =>
+                    $"La versión {result.Version} está descargada y lista para instalar.",
+                _ => "La búsqueda de actualizaciones terminó.",
+            };
+        }
+        catch (Exception exception)
+        {
+            SetDataError("No fue posible buscar actualizaciones. Puedes seguir usando la aplicación.", exception);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApplyUpdate))]
+    private void ApplyUpdate()
+    {
+        try
+        {
+            updateService.ApplyAndRestart();
+        }
+        catch (Exception exception)
+        {
+            SetDataError("No fue posible iniciar la actualización.", exception);
+            UpdateReady = updateService.CanApplyUpdate;
+        }
+    }
+
     private bool CanSave() => !IsBusy;
 
     private bool CanRestore() => !IsBusy && !string.IsNullOrWhiteSpace(RestorePath);
+
+    private bool CanApplyUpdate() => !IsBusy && UpdateReady;
 
     partial void OnIsBusyChanged(bool value)
     {
@@ -149,9 +219,13 @@ public sealed partial class SettingsViewModel(
         CreateBackupCommand.NotifyCanExecuteChanged();
         RestoreBackupCommand.NotifyCanExecuteChanged();
         ExportDataCommand.NotifyCanExecuteChanged();
+        CheckForUpdatesCommand.NotifyCanExecuteChanged();
+        ApplyUpdateCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnRestorePathChanged(string value) => RestoreBackupCommand.NotifyCanExecuteChanged();
+
+    partial void OnUpdateReadyChanged(bool value) => ApplyUpdateCommand.NotifyCanExecuteChanged();
 
     private async Task RunDataOperationAsync<T>(
         Func<CancellationToken, Task<T>> operation,

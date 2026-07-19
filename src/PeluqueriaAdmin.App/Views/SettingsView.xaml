@@ -33,6 +33,7 @@
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
 
       <StackPanel Grid.Row="0" Margin="0,0,0,24">
@@ -111,7 +112,26 @@
         </StackPanel>
       </Border>
 
-      <Border Grid.Row="7"
+      <Border Grid.Row="7" Margin="0,0,0,24" Padding="18" Background="#F3F4F6" CornerRadius="6">
+        <StackPanel>
+          <TextBlock FontSize="20" FontWeight="SemiBold" Text="Actualizaciones" />
+          <TextBlock Margin="0,5,0,14"
+                     Foreground="#4B5563"
+                     Text="Busca y descarga versiones publicadas en GitHub. Instalar y reiniciar solo se habilita cuando la descarga terminó."
+                     TextWrapping="Wrap" />
+          <WrapPanel>
+            <Button Margin="0,0,8,0"
+                    Padding="12,8"
+                    Command="{Binding CheckForUpdatesCommand}"
+                    Content="Buscar actualización" />
+            <Button Padding="12,8"
+                    Command="{Binding ApplyUpdateCommand}"
+                    Content="Instalar y reiniciar" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Row="8"
               Margin="0,2,0,18"
               Padding="12"
               Background="#E8EEF6"
@@ -130,7 +150,7 @@
         </TextBlock>
       </Border>
 
-      <Button Grid.Row="8"
+      <Button Grid.Row="9"
               Width="132"
               Padding="14,9"
               HorizontalAlignment="Left"
