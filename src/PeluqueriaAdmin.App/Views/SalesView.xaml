@@ -1,0 +1,60 @@
+<UserControl x:Class="PeluqueriaAdmin.App.Views.SalesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:PeluqueriaAdmin.App.ViewModels"
+             d:DataContext="{d:DesignInstance Type=viewModels:SalesViewModel, IsDesignTimeCreatable=False}"
+             d:DesignHeight="760" d:DesignWidth="990" Language="es-ES" mc:Ignorable="d">
+  <UserControl.Resources>
+    <Style x:Key="FieldLabel" TargetType="TextBlock"><Setter Property="Margin" Value="0,0,0,5" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="#273449" /></Style>
+    <Style x:Key="FieldBox" TargetType="Control"><Setter Property="MinHeight" Value="38" /><Setter Property="Padding" Value="9,6" /></Style>
+    <Style x:Key="ActionButton" TargetType="Button"><Setter Property="Margin" Value="0,0,8,8" /><Setter Property="Padding" Value="13,8" /><Setter Property="Background" Value="#EEF2FF" /><Setter Property="BorderBrush" Value="#A5B4FC" /></Style>
+  </UserControl.Resources>
+  <Grid Background="#F5F7FA">
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+    <ScrollViewer Grid.Row="0" MaxHeight="430" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="26,26,26,12">
+        <DockPanel Margin="0,0,0,14">
+          <StackPanel DockPanel.Dock="Right" MinWidth="190"><TextBlock HorizontalAlignment="Right" Style="{StaticResource FieldLabel}" Text="Periodo a mostrar" /><ComboBox Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" /><WrapPanel Margin="0,6,0,0" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}"><DatePicker Width="135" Margin="0,0,6,0" SelectedDate="{Binding CustomPeriodFrom}" /><DatePicker Width="135" SelectedDate="{Binding CustomPeriodThrough}" /></WrapPanel></StackPanel>
+          <StackPanel><TextBlock FontSize="28" FontWeight="SemiBold" Text="Ventas" /><TextBlock Margin="0,5,0,0" Foreground="#5B6575" Text="Selecciona un producto, consulta su existencia y registra la venta." /></StackPanel>
+        </DockPanel>
+        <Border Padding="16" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
+          <StackPanel>
+            <DockPanel Margin="0,0,0,10"><Button DockPanel.Dock="Right" Style="{StaticResource ActionButton}" Command="{Binding ClearFormCommand}" Content="Limpiar formulario" /><TextBlock FontSize="18" FontWeight="SemiBold" Text="Registrar venta" /></DockPanel>
+            <WrapPanel>
+              <StackPanel Width="330" Margin="0,0,14,12">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Producto" />
+                <Grid>
+                  <ComboBox Style="{StaticResource FieldBox}" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"
+                            ItemsSource="{Binding FilteredProducts}" DisplayMemberPath="Display"
+                            Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                            SelectedItem="{Binding SelectedProduct, Mode=TwoWay}"
+                            IsDropDownOpen="{Binding IsProductDropDownOpen, Mode=TwoWay}" />
+                  <Path Width="16" Height="16" Margin="0,0,31,0" HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Stretch="Uniform" Stroke="#64748B" StrokeThickness="1.8" IsHitTestVisible="False"
+                        Data="M 7,1 A 6,6 0 1 0 7,13 A 6,6 0 1 0 7,1 M 11.2,11.2 L 16,16" />
+                </Grid>
+                <TextBlock Margin="2,5,0,0" Foreground="#B91C1C" Text="No se encontraron productos"
+                           Visibility="{Binding HasNoProducts, Converter={StaticResource BooleanToVisibilityConverter}}" />
+              </StackPanel>
+              <StackPanel Width="160" Margin="0,0,14,12"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding SaleDate}" /></StackPanel>
+              <StackPanel Width="150" Margin="0,0,14,12"><TextBlock Style="{StaticResource FieldLabel}" Text="Cantidad" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding QuantityText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+              <StackPanel Width="245" Margin="0,0,14,12"><TextBlock Style="{StaticResource FieldLabel}" Text="Precio de venta por unidad o paquete" /><TextBox Style="{StaticResource FieldBox}" IsReadOnly="True" Text="{Binding UnitPriceText}" /></StackPanel>
+              <StackPanel Width="310" Margin="0,0,14,12"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción opcional" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding DescriptionText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+            </WrapPanel>
+            <WrapPanel><TextBlock Margin="0,8,18,0" FontWeight="SemiBold" Text="{Binding SelectedAvailability}" /><TextBlock Margin="0,8,18,0" FontWeight="SemiBold" Text="{Binding CalculatedTotal}" /><Button Style="{StaticResource ActionButton}" Command="{Binding RegisterSaleCommand}" Content="Registrar venta" /></WrapPanel>
+            <TextBlock Margin="0,5,0,0" Foreground="#0F766E" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+    <Grid Grid.Row="1" Margin="26,0,26,26">
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+      <TextBlock Margin="0,0,0,7" FontSize="18" FontWeight="SemiBold" Text="Ventas registradas" />
+      <DataGrid Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding Sales}" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+        <DataGrid.Columns><DataGridTextColumn Width="110" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="2*" Binding="{Binding Product}" Header="Producto" /><DataGridTextColumn Width="110" Binding="{Binding Quantity}" Header="Cantidad" /><DataGridTextColumn Width="145" Binding="{Binding UnitPrice}" Header="Precio unitario" /><DataGridTextColumn Width="145" Binding="{Binding Total}" Header="Total" /><DataGridTextColumn Width="3*" Binding="{Binding Description}" Header="Descripción" /></DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+  </Grid>
+</UserControl>

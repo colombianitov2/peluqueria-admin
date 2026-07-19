@@ -5,6 +5,7 @@ using PeluqueriaAdmin.Domain.Common;
 using PeluqueriaAdmin.Domain.Finance;
 using PeluqueriaAdmin.Domain.Inventory;
 using PeluqueriaAdmin.Domain.LocalUse;
+using PeluqueriaAdmin.Domain.Maintenance;
 using PeluqueriaAdmin.Domain.Obligations;
 using PeluqueriaAdmin.Domain.Reports;
 using PeluqueriaAdmin.Domain.Settings;
@@ -343,6 +344,83 @@ public sealed class AdministrationService(
         await repository.SaveAsync(added, updated, cancellationToken);
     }
 
+    public async Task DeleteLocalUsePersonAsync(
+        Guid personId,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        LocalUsePerson person = data.LocalUsePeople.SingleOrDefault(item => item.Id == personId)
+            ?? throw new InvalidOperationException("El trabajador seleccionado ya no está disponible.");
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        Chair? chair = data.Chairs.SingleOrDefault(item => item.AssignedPersonId == personId);
+        if (chair is not null)
+        {
+            chair.Unassign(utcNow);
+        }
+
+        person.MarkDeleted(utcNow);
+        ActivityRecord activity = ActivityRecord.Create(
+            DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+            "Uso del local",
+            "Eliminación lógica de trabajador",
+            person.Name,
+            person.Id,
+            "El historial de cuotas y pagos se conserva; la silla quedó disponible.",
+            utcNow);
+        await repository.SaveAsync(
+            [activity],
+            new AuditableEntity[] { person }.Concat(chair is null ? [] : [chair]).ToArray(),
+            cancellationToken);
+    }
+
+    public async Task DeleteCollaboratorAsync(
+        Guid collaboratorId,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        Collaborator collaborator = data.Collaborators.SingleOrDefault(item => item.Id == collaboratorId)
+            ?? throw new InvalidOperationException("El colaborador seleccionado ya no está disponible.");
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        collaborator.MarkDeleted(utcNow);
+        ActivityRecord activity = ActivityRecord.Create(
+            DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+            "Colaboradores",
+            "Eliminación lógica de colaborador",
+            collaborator.Name,
+            collaborator.Id,
+            "Los aportes, cierres, distribuciones y pagos históricos se conservan.",
+            utcNow);
+        await repository.SaveAsync([activity], [collaborator], cancellationToken);
+    }
+
+    public async Task DeleteChairAsync(
+        Guid chairId,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        Chair chair = data.Chairs.SingleOrDefault(item => item.Id == chairId)
+            ?? throw new InvalidOperationException("La silla seleccionada ya no está disponible.");
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        Guid? formerPersonId = chair.AssignedPersonId;
+        if (formerPersonId.HasValue)
+        {
+            chair.Unassign(utcNow);
+        }
+
+        chair.MarkDeleted(utcNow);
+        ActivityRecord activity = ActivityRecord.Create(
+            DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+            "Uso del local",
+            "Eliminación lógica de silla",
+            chair.Name,
+            chair.Id,
+            formerPersonId.HasValue
+                ? "La silla ocupada fue desasignada antes de eliminarse; el trabajador permanece sin silla."
+                : "La silla vacía fue eliminada lógicamente.",
+            utcNow);
+        await repository.SaveAsync([activity], [chair], cancellationToken);
+    }
+
     public async Task AddCollaboratorContributionAsync(
         CollaboratorContribution contribution,
         CancellationToken cancellationToken = default,
@@ -388,6 +466,55 @@ public sealed class AdministrationService(
             [],
             completedDraftKey,
             cancellationToken);
+    }
+
+    public Task ScheduleMaintenanceAsync(
+        MaintenanceRecord maintenance,
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
+    {
+        ArgumentNullException.ThrowIfNull(maintenance);
+        return SaveAsync([maintenance], [], completedDraftKey, cancellationToken);
+    }
+
+    public async Task CompleteMaintenanceAsync(
+        Guid maintenanceId,
+        DateOnly completedDate,
+        Money actualCost,
+        string? description = null,
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        MaintenanceRecord maintenance = data.MaintenanceRecords.SingleOrDefault(item => item.Id == maintenanceId)
+            ?? throw new InvalidOperationException("El mantenimiento seleccionado ya no está disponible.");
+        if (maintenance.CompletedDate.HasValue)
+        {
+            return;
+        }
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        maintenance.Complete(completedDate, actualCost, utcNow, description);
+        MaintenanceRecord[] additions = maintenance.IsRecurring
+            && !data.MaintenanceRecords.Any(item => item.SeriesId == maintenance.SeriesId
+                && item.OccurrenceNumber == maintenance.OccurrenceNumber + 1)
+            ? [maintenance.CreateNext(utcNow)]
+            : [];
+        await SaveAsync(additions, [maintenance], completedDraftKey, cancellationToken);
+    }
+
+    public async Task StopFutureMaintenanceAsync(
+        Guid maintenanceId,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        MaintenanceRecord maintenance = data.MaintenanceRecords.SingleOrDefault(item => item.Id == maintenanceId)
+            ?? throw new InvalidOperationException("El mantenimiento seleccionado ya no está disponible.");
+        if (maintenance.CompletedDate.HasValue)
+        {
+            throw new InvalidOperationException("Un mantenimiento realizado se conserva como historial y no se elimina.");
+        }
+        maintenance.MarkDeleted(timeProvider.GetUtcNow().UtcDateTime);
+        await repository.SaveAsync([], [maintenance], cancellationToken);
     }
 
     public async Task AddProductAsync(

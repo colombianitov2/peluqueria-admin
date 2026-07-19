@@ -19,18 +19,12 @@
       <StackPanel Margin="26">
         <DockPanel Margin="0,0,0,14">
           <StackPanel DockPanel.Dock="Right" MinWidth="190">
-            <TextBlock HorizontalAlignment="Right" Style="{StaticResource FieldLabel}" Text="Periodo de actividad" />
+            <TextBlock HorizontalAlignment="Right" Style="{StaticResource FieldLabel}" Text="Periodo a mostrar" />
             <ComboBox Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" />
             <WrapPanel Margin="0,6,0,0" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}"><DatePicker Width="138" Margin="0,0,6,0" SelectedDate="{Binding CustomPeriodFrom}" /><DatePicker Width="138" SelectedDate="{Binding CustomPeriodThrough}" /></WrapPanel>
           </StackPanel>
           <StackPanel><TextBlock FontSize="28" FontWeight="SemiBold" Text="Colaboradores" /><TextBlock Margin="0,5,0,0" Foreground="#5B6575" Text="Inversionistas, aportes de capital y distribuciones; nunca ocupan sillas." /></StackPanel>
         </DockPanel>
-        <TextBlock Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Actividad del periodo" />
-        <Border Height="150" Margin="0,0,0,14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
-          <DataGrid AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" BorderThickness="0" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ItemsSource="{Binding ActivityRows}">
-            <DataGrid.Columns><DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="180" Binding="{Binding Principal}" Header="Operación" /><DataGridTextColumn Width="3*" Binding="{Binding Detail}" Header="Descripción" /><DataGridTextColumn Width="180" Binding="{Binding Status}" Header="Actividad" /></DataGrid.Columns>
-          </DataGrid>
-        </Border>
         <Border Margin="0,0,0,16" Padding="16" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
           <StackPanel>
             <DockPanel><Button DockPanel.Dock="Right" Style="{StaticResource ActionButton}" Command="{Binding ClearFormCommand}" Content="Limpiar formulario" /><TextBlock Margin="0,5,0,12" FontSize="18" FontWeight="SemiBold" Text="Añadir colaborador" /></DockPanel>
@@ -81,6 +75,11 @@
           <Button Margin="0,23,8,8" Style="{StaticResource ActionButton}" Command="{Binding EditSelectedContributionCommand}" Content="Editar aporte seleccionado" />
           <CheckBox Margin="8,31,8,0" IsChecked="{Binding ConfirmContributionDelete}" Content="Confirmo eliminar" />
           <Button Margin="0,23,0,8" Style="{StaticResource ActionButton}" Command="{Binding DeleteSelectedContributionCommand}" Content="Eliminar aporte" />
+        </WrapPanel>
+        <WrapPanel Margin="0,0,0,8">
+          <CheckBox Margin="0,8,12,0" IsChecked="{Binding ConfirmCollaboratorDelete}" Content="Confirmo eliminar al colaborador" />
+          <Button Style="{StaticResource ActionButton}" Command="{Binding DeleteCollaboratorCommand}" Content="Eliminar colaborador" />
+          <TextBlock Margin="8,7,0,0" Foreground="#9A3412" Text="Se conservarán aportes, cierres, distribuciones y pagos históricos." TextWrapping="Wrap" />
         </WrapPanel>
         <TextBlock Margin="0,0,0,6" Foreground="#0F766E" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
       </StackPanel>

@@ -85,6 +85,8 @@ public sealed class ExcelExportTests
             Assert.Contains("2027", workbook.Worksheet("Obligaciones").Cell(2, 3).GetFormattedString());
             Assert.Contains("Eliminado lógicamente", workbook.Worksheet("Historial eliminado").Column(4).CellsUsed().Select(x => x.GetString()));
             Assert.Contains("Aporte de colaborador", workbook.Worksheet("Historial eliminado").Column(1).CellsUsed().Select(x => x.GetString()));
+            Assert.Contains("Trabajador eliminado con historial", workbook.Worksheet("Cuotas semanales").Column(1).CellsUsed().Select(x => x.GetString()));
+            Assert.Contains("Trabajador eliminado con historial", workbook.Worksheet("Pagos por uso del local").Column(1).CellsUsed().Select(x => x.GetString()));
             Assert.Contains("no finalizado", workbook.Worksheet("Borradores sin finalizar").Cell(2, 3).GetString(), StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("+borrador", workbook.Worksheet("Otros ingresos").Column(2).CellsUsed().Select(x => x.GetString()));
 
@@ -159,6 +161,12 @@ public sealed class ExcelExportTests
         await service.AddChairAsync(chair, cancellationToken);
         var person = LocalUsePerson.Create("Persona histórica", new DateOnly(2026, 6, 1), null, utc, "Trabajador vigente");
         await service.AddLocalUsePersonWithChairAsync(person, chair.Id, new DateOnly(2026, 7, 18), cancellationToken);
+        var deletedChair = Chair.Create("Silla histórica", new DateOnly(2026, 6, 1), null, utc);
+        await service.AddChairAsync(deletedChair, cancellationToken);
+        var deletedPerson = LocalUsePerson.Create("Trabajador eliminado con historial", new DateOnly(2026, 6, 1), null, utc);
+        await service.AddLocalUsePersonWithChairAsync(deletedPerson, deletedChair.Id, new DateOnly(2026, 7, 18), cancellationToken);
+        await service.RegisterLocalUsePaymentAsync(deletedPerson.Id, new DateOnly(2026, 6, 8), Money.FromDecimal(12m), cancellationToken);
+        await service.DeleteLocalUsePersonAsync(deletedPerson.Id, cancellationToken);
         var product = Product.Create("=SUM(1,1)", ProductCategory.ProductForSale, "unidad", utc, Money.FromDecimal(10m), "Producto de prueba");
         await service.AddProductAsync(product, cancellationToken);
         await service.AddInventoryMovementAsync(InventoryMovement.Initial(product.Id, new DateOnly(2026, 6, 1), Quantity.Positive(10), Money.FromDecimal(100), utc), cancellationToken);

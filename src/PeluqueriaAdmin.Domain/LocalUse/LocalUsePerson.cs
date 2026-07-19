@@ -39,7 +39,7 @@ public sealed class LocalUsePerson : AuditableEntity
         string? description = null) => new(Guid.NewGuid(), name, entryDate, exitDate, utcNow, description);
 
     public bool IsCurrentOn(DateOnly date) =>
-        !IsDeleted && EntryDate <= date && (!ExitDate.HasValue || ExitDate.Value >= date);
+        !IsDeleted && EntryDate <= date && (!ExitDate.HasValue || date < ExitDate.Value);
 
     public void Update(
         string name,

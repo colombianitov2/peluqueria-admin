@@ -39,7 +39,7 @@ public sealed class Collaborator : AuditableEntity
         string? description = null) => new(Guid.NewGuid(), name, startDate, exitDate, utcNow, description);
 
     public bool IsCurrentOn(DateOnly date) =>
-        !IsDeleted && StartDate <= date && (!ExitDate.HasValue || ExitDate.Value >= date);
+        !IsDeleted && StartDate <= date && (!ExitDate.HasValue || date < ExitDate.Value);
 
     public void Update(
         string name,

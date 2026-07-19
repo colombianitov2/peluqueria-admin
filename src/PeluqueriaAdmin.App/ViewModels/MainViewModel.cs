@@ -21,6 +21,9 @@ public sealed partial class MainViewModel : ObservableObject
         AdministrationViewModel administration,
         LocalUseViewModel localUse,
         CollaboratorsViewModel collaborators,
+        SalesViewModel sales,
+        InventoryViewModel inventory,
+        MaintenanceViewModel maintenance,
         AdministrationService administrationService,
         GetSettingsUseCase getSettings,
         TimeProvider timeProvider)
@@ -29,6 +32,9 @@ public sealed partial class MainViewModel : ObservableObject
         Administration = administration;
         LocalUse = localUse;
         Collaborators = collaborators;
+        Sales = sales;
+        Inventory = inventory;
+        Maintenance = maintenance;
         this.administrationService = administrationService;
         this.getSettings = getSettings;
         this.timeProvider = timeProvider;
@@ -61,6 +67,12 @@ public sealed partial class MainViewModel : ObservableObject
     public LocalUseViewModel LocalUse { get; }
 
     public CollaboratorsViewModel Collaborators { get; }
+
+    public SalesViewModel Sales { get; }
+
+    public InventoryViewModel Inventory { get; }
+
+    public MaintenanceViewModel Maintenance { get; }
 
     public ObservableCollection<NavigationItem> NavigationItems { get; }
 
@@ -149,6 +161,27 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        if (item.Name == AdministrationViewModel.SalesModule)
+        {
+            await Sales.LoadAsync();
+            CurrentPage = Sales;
+            return;
+        }
+
+        if (item.Name == AdministrationViewModel.InventoryModule)
+        {
+            await Inventory.LoadAsync();
+            CurrentPage = Inventory;
+            return;
+        }
+
+        if (item.Name == AdministrationViewModel.MaintenanceModule)
+        {
+            await Maintenance.LoadAsync();
+            CurrentPage = Maintenance;
+            return;
+        }
+
         await Administration.SelectModuleAsync(item.Name);
         CurrentPage = Administration;
     }
@@ -203,5 +236,8 @@ public sealed partial class MainViewModel : ObservableObject
         await Administration.FlushPendingAsync();
         await LocalUse.FlushPendingAsync();
         await Collaborators.FlushPendingAsync();
+        await Sales.FlushPendingAsync();
+        await Inventory.FlushPendingAsync();
+        await Maintenance.FlushPendingAsync();
     }
 }

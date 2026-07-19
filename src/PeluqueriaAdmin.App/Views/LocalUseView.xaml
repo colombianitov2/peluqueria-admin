@@ -30,16 +30,15 @@
         <Style TargetType="ScrollViewer">
           <Setter Property="Visibility" Value="Visible" />
           <Style.Triggers>
-            <DataTrigger Binding="{Binding IsWorkerProfileOpen}" Value="True">
-              <Setter Property="Visibility" Value="Collapsed" />
-            </DataTrigger>
+            <DataTrigger Binding="{Binding IsWorkerProfileOpen}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+            <DataTrigger Binding="{Binding IsChairProfileOpen}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
           </Style.Triggers>
         </Style>
       </ScrollViewer.Style>
       <StackPanel Margin="26">
         <DockPanel Margin="0,0,0,14" LastChildFill="True">
           <StackPanel DockPanel.Dock="Right" Margin="18,0,0,0" MinWidth="190">
-            <TextBlock HorizontalAlignment="Right" Style="{StaticResource FieldLabel}" Text="Periodo de actividad" />
+            <TextBlock HorizontalAlignment="Right" Style="{StaticResource FieldLabel}" Text="Periodo a mostrar" />
             <ComboBox Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" />
             <WrapPanel Margin="0,6,0,0" HorizontalAlignment="Right"
                        Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -65,20 +64,6 @@
             <StackPanel><TextBlock Foreground="#475569" Text="Sillas disponibles" /><TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding AvailableChairs}" /></StackPanel>
           </Border>
         </WrapPanel>
-
-        <TextBlock Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Actividad del periodo" />
-        <Border Height="150" Margin="0,0,0,14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
-          <DataGrid AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" BorderThickness="0"
-                    EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True"
-                    VirtualizingPanel.VirtualizationMode="Recycling" ItemsSource="{Binding ActivityRows}">
-            <DataGrid.Columns>
-              <DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" />
-              <DataGridTextColumn Width="180" Binding="{Binding Principal}" Header="Operación" />
-              <DataGridTextColumn Width="2*" Binding="{Binding Detail}" Header="Descripción" />
-              <DataGridTextColumn Width="180" Binding="{Binding Status}" Header="Actividad" />
-            </DataGrid.Columns>
-          </DataGrid>
-        </Border>
 
         <Border Margin="0,0,0,16" Padding="16" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
           <StackPanel>
@@ -136,12 +121,15 @@
           </DataGrid>
         </Border>
 
-        <TextBlock Margin="0,0,0,6" FontSize="18" FontWeight="SemiBold" Text="Sillas" />
+        <DockPanel Margin="0,0,0,8">
+          <Button DockPanel.Dock="Right" Padding="12,5" Command="{Binding OpenSelectedChairProfileCommand}" Content="Abrir perfil seleccionado" />
+          <TextBlock VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Text="Sillas" />
+        </DockPanel>
         <Border MinHeight="190" Margin="0,0,0,12" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
           <DataGrid AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" BorderThickness="0"
                     EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True"
                     VirtualizingPanel.VirtualizationMode="Recycling" ItemsSource="{Binding Chairs}"
-                    SelectedItem="{Binding SelectedChairRow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                    SelectedItem="{Binding SelectedChairRow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MouseDoubleClick="OnChairDoubleClick">
             <DataGrid.Columns>
               <DataGridTextColumn Width="150" Binding="{Binding Name}" Header="Nombre" />
               <DataGridTextColumn Width="120" Binding="{Binding CreationDate}" Header="Creación" />
@@ -150,21 +138,6 @@
               <DataGridTextColumn Width="110" Binding="{Binding State}" Header="Estado" />
             </DataGrid.Columns>
           </DataGrid>
-        </Border>
-        <Border Padding="14" Background="#F8FAFC" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
-          <StackPanel>
-            <TextBlock Margin="0,0,0,10" FontWeight="SemiBold" Text="Editar silla seleccionada" />
-            <WrapPanel>
-              <StackPanel Width="210" Margin="0,0,12,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Nombre" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ChairEditName, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
-              <StackPanel Width="170" Margin="0,0,12,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de creación" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding ChairEditCreationDate}" /></StackPanel>
-              <StackPanel Width="300" Margin="0,0,12,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción opcional" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ChairEditDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
-            </WrapPanel>
-            <WrapPanel>
-              <Button Style="{StaticResource ActionButton}" Command="{Binding SaveSelectedChairCommand}" Content="Guardar cambios" />
-              <CheckBox Margin="8,8,12,0" IsChecked="{Binding ConfirmChairDelete}" Content="Confirmo eliminar" />
-              <Button Style="{StaticResource ActionButton}" Command="{Binding DeleteSelectedChairCommand}" Content="Eliminar silla" />
-            </WrapPanel>
-          </StackPanel>
         </Border>
         <TextBlock Margin="0,12,0,0" Foreground="#0F766E" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
       </StackPanel>
@@ -208,6 +181,11 @@
             <DatePicker Width="150" Margin="8,0,10,10" Style="{StaticResource FieldBox}" SelectedDate="{Binding RetirementDate}" />
             <Button Style="{StaticResource ActionButton}" Command="{Binding RetireWorkerCommand}" Content="Retirar trabajador del local" />
           </WrapPanel>
+          <WrapPanel Margin="0,0,0,8">
+            <CheckBox Margin="0,8,12,0" IsChecked="{Binding ConfirmWorkerDelete}" Content="Confirmo eliminar al trabajador" />
+            <Button Style="{StaticResource ActionButton}" Command="{Binding DeleteWorkerCommand}" Content="Eliminar trabajador" />
+            <TextBlock Margin="8,7,0,0" Foreground="#9A3412" Text="Se conserva su historial y se libera la silla." />
+          </WrapPanel>
           <DockPanel Margin="0,4,0,8">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
               <ComboBox Width="190" Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" />
@@ -230,6 +208,34 @@
           <DataGridTextColumn Width="130" Binding="{Binding Amount}" Header="Valor" />
           <DataGridTextColumn Width="180" Binding="{Binding Status}" Header="Estado" />
         </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+
+    <Grid Margin="26">
+      <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsChairProfileOpen}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Grid.Style>
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+      <StackPanel Grid.Row="0">
+        <DockPanel Margin="0,0,0,12">
+          <Button DockPanel.Dock="Right" Style="{StaticResource ActionButton}" Command="{Binding CloseChairProfileCommand}" Content="Cerrar perfil" />
+          <StackPanel><TextBlock FontSize="26" FontWeight="SemiBold" Text="Perfil de la silla" /><TextBlock Foreground="#5B6575" Text="Los cambios válidos se guardan automáticamente." /></StackPanel>
+        </DockPanel>
+        <WrapPanel>
+          <StackPanel Width="220" Margin="0,0,12,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Nombre" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ChairEditName, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+          <StackPanel Width="175" Margin="0,0,12,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de creación" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding ChairEditCreationDate}" /></StackPanel>
+          <StackPanel Width="340" Margin="0,0,12,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ChairEditDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+        </WrapPanel>
+        <WrapPanel>
+          <TextBlock Margin="0,7,18,0" FontWeight="SemiBold" Text="{Binding SelectedChairRow.Worker, StringFormat=Trabajador: {0}}" />
+          <TextBlock Margin="0,7,18,0" FontWeight="SemiBold" Text="{Binding SelectedChairRow.State, StringFormat=Estado: {0}}" />
+          <CheckBox Margin="0,8,12,0" IsChecked="{Binding ConfirmChairDelete}" Content="Confirmo eliminar la silla" />
+          <Button Style="{StaticResource ActionButton}" Command="{Binding DeleteSelectedChairCommand}" Content="Eliminar silla" />
+        </WrapPanel>
+        <TextBlock Margin="0,0,0,8" Foreground="#9A3412" Text="Si está ocupada, el trabajador permanecerá registrado y quedará Sin silla." TextWrapping="Wrap" />
+        <DockPanel Margin="0,4,0,8"><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><TextBlock Margin="0,8,8,0" Text="Periodo a mostrar" /><ComboBox Width="190" Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" /></StackPanel><TextBlock FontSize="18" FontWeight="SemiBold" Text="Historial de la silla" /></DockPanel>
+        <TextBlock Margin="0,0,0,8" Foreground="#0F766E" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+      </StackPanel>
+      <DataGrid Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding ChairHistoryRows}" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+        <DataGrid.Columns><DataGridTextColumn Width="110" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="210" Binding="{Binding Principal}" Header="Evento" /><DataGridTextColumn Width="3*" Binding="{Binding Detail}" Header="Detalle" /><DataGridTextColumn Width="2*" Binding="{Binding Status}" Header="Información" /></DataGrid.Columns>
       </DataGrid>
     </Grid>
   </Grid>

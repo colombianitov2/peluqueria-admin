@@ -193,6 +193,10 @@ internal sealed class MaintenanceRecordConfiguration : IEntityTypeConfiguration<
         builder.Property(item => item.Asset).HasMaxLength(200).IsRequired();
         builder.Property(item => item.MaintenanceType).HasMaxLength(200).IsRequired();
         builder.Property(item => item.Description).HasMaxLength(1000);
+        builder.Property(item => item.Frequency).HasConversion<string>().HasMaxLength(40).IsRequired();
+        builder.Property(item => item.CustomIntervalUnit).HasConversion<string>().HasMaxLength(20);
+        builder.HasIndex(item => new { item.SeriesId, item.OccurrenceNumber }).IsUnique();
+        builder.HasIndex(item => new { item.SeriesId, item.ScheduledDate }).IsUnique();
         AdministrationConfiguration.ConfigureNullableMoney(builder.Property(item => item.EstimatedCost))
             .HasColumnName("EstimatedCostMinorUnits");
         AdministrationConfiguration.ConfigureNullableMoney(builder.Property(item => item.ActualCost))

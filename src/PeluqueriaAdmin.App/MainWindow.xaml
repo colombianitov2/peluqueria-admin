@@ -26,6 +26,15 @@
     <DataTemplate DataType="{x:Type viewModels:CollaboratorsViewModel}">
       <views:CollaboratorsView />
     </DataTemplate>
+    <DataTemplate DataType="{x:Type viewModels:SalesViewModel}">
+      <views:SalesView />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type viewModels:InventoryViewModel}">
+      <views:InventoryView />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type viewModels:MaintenanceViewModel}">
+      <views:MaintenanceView />
+    </DataTemplate>
   </Window.Resources>
   <DockPanel>
     <Border DockPanel.Dock="Left"

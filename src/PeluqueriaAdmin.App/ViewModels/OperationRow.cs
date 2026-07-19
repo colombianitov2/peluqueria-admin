@@ -25,3 +25,11 @@ public sealed record OperationRow(
 
     public bool CanEdit => Entity is not null and not MonthlyClose and not MonthlyCloseParticipant;
 }
+
+public sealed record SimpleFinancialRow(
+    PeluqueriaAdmin.Domain.Finance.FinancialEntry Entry,
+    string Date,
+    string Concept,
+    string Category,
+    string Amount,
+    string Description);

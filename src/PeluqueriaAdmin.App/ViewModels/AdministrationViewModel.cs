@@ -61,6 +61,9 @@ public sealed partial class AdministrationViewModel(
     private OperationRow? selectedRow;
 
     [ObservableProperty]
+    private SimpleFinancialRow? selectedSimpleFinancialRow;
+
+    [ObservableProperty]
     private string primaryText = string.Empty;
 
     [ObservableProperty]
@@ -249,6 +252,12 @@ public sealed partial class AdministrationViewModel(
 
     public ObservableCollection<OperationRow> CollaboratorHistoryRows { get; } = [];
 
+    public ObservableCollection<SimpleFinancialRow> SimpleFinancialRows { get; } = [];
+
+    public bool ShowSimpleFinancialTable => Title is OtherIncomeModule or ExpensesModule or UnexpectedModule;
+
+    public bool ShowGeneralRecordsTable => !ShowSimpleFinancialTable;
+
     public ObservableCollection<string> PeriodOptions { get; } =
         ["Hoy", "Esta semana", "Este mes", "Últimos 3 meses", "Últimos 6 meses", "Este año", "Rango personalizado"];
 
@@ -304,6 +313,8 @@ public sealed partial class AdministrationViewModel(
                 Rows.Add(row);
             }
 
+            PopulateSimpleFinancialRows(data, settings, today);
+
             ActivityRows.Clear();
             foreach (OperationRow row in BuildActivityRows(data, today))
             {
@@ -332,6 +343,54 @@ public sealed partial class AdministrationViewModel(
         {
             IsBusy = false;
         }
+    }
+
+    private void PopulateSimpleFinancialRows(AdministrationData data, SettingsDto settings, DateOnly today)
+    {
+        SimpleFinancialRows.Clear();
+        FinancialEntryType? type = Title switch
+        {
+            OtherIncomeModule => FinancialEntryType.OtherIncome,
+            ExpensesModule => FinancialEntryType.Expense,
+            UnexpectedModule => FinancialEntryType.UnexpectedExpense,
+            _ => null,
+        };
+        if (!type.HasValue) return;
+        ActivityPeriod period = SelectedPeriod switch
+        {
+            "Esta semana" => ActivityPeriod.ThisWeek,
+            "Este mes" => ActivityPeriod.ThisMonth,
+            "Últimos 3 meses" => ActivityPeriod.LastThreeMonths,
+            "Últimos 6 meses" => ActivityPeriod.LastSixMonths,
+            "Este año" => ActivityPeriod.ThisYear,
+            "Rango personalizado" => ActivityPeriod.Custom,
+            _ => ActivityPeriod.Today,
+        };
+        ActivityDateRange range = ActivityPeriodCalculator.Calculate(
+            period, today,
+            CustomPeriodFrom.HasValue ? DateOnly.FromDateTime(CustomPeriodFrom.Value) : null,
+            CustomPeriodThrough.HasValue ? DateOnly.FromDateTime(CustomPeriodThrough.Value) : null);
+        foreach (FinancialEntry entry in data.FinancialEntries
+            .Where(item => item.Type == type.Value && range.Contains(item.Date))
+            .OrderByDescending(item => item.Date).ThenByDescending(item => item.CreatedUtc))
+        {
+            SimpleFinancialRows.Add(new SimpleFinancialRow(
+                entry,
+                entry.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                entry.Concept,
+                entry.Category.HasValue ? SpanishText.For(entry.Category.Value) : SpanishText.For(entry.Type),
+                $"{settings.CurrencyCode} {entry.Amount.ToDecimal():N2}",
+                entry.Description ?? string.Empty));
+        }
+        OnPropertyChanged(nameof(ShowSimpleFinancialTable));
+        OnPropertyChanged(nameof(ShowGeneralRecordsTable));
+    }
+
+    partial void OnSelectedSimpleFinancialRowChanged(SimpleFinancialRow? value)
+    {
+        SelectedRow = value is null
+            ? null
+            : new OperationRow(value.Date, value.Concept, value.Category, string.Empty, value.Amount, string.Empty, value.Entry);
     }
 
     [RelayCommand]
@@ -1165,12 +1224,20 @@ public sealed partial class AdministrationViewModel(
         categoryAxis.Labels.Add("Ingresos");
         categoryAxis.Labels.Add("Meta mensual");
         IncomeGoalChart.Axes.Add(categoryAxis);
-        IncomeGoalChart.Axes.Add(new LinearAxis { Position = AxisPosition.Bottom, Minimum = 0, Title = settings.CurrencyCode });
+        double incomeGoalMaximum = Math.Max(Math.Abs(result.IncomeMinorUnits / 100d), Math.Abs(result.GoalMinorUnits / 100d));
+        IncomeGoalChart.Axes.Add(new LinearAxis
+        {
+            Position = AxisPosition.Bottom,
+            Minimum = 0,
+            Title = settings.CurrencyCode,
+            LabelFormatter = FormatChartAxisValue,
+            MajorStep = ChartMajorStep(incomeGoalMaximum),
+            MaximumPadding = 0.08,
+        });
         var columns = new BarSeries
         {
             FillColor = OxyColor.FromRgb(46, 91, 255),
-            LabelPlacement = LabelPlacement.Outside,
-            LabelFormatString = "{0:N2}",
+            TrackerFormatString = "{0}\n{1}: {2}\n{3}: {4:N0}",
         };
         columns.Items.Add(new BarItem(result.IncomeMinorUnits / 100d));
         columns.Items.Add(new BarItem(result.GoalMinorUnits / 100d));
@@ -1183,7 +1250,8 @@ public sealed partial class AdministrationViewModel(
         {
             StrokeThickness = 1,
             InsideLabelPosition = 0.65,
-            OutsideLabelFormat = "{1}: {0:N2}",
+            OutsideLabelFormat = "{1}: {0:N0}",
+            Diameter = 0.62,
         };
         AddSlice(pie, "Servicios", expenses.ServicesMinorUnits, OxyColor.FromRgb(37, 99, 235));
         AddSlice(pie, "Impuestos", expenses.TaxesMinorUnits, OxyColor.FromRgb(124, 58, 237));
@@ -1203,28 +1271,45 @@ public sealed partial class AdministrationViewModel(
         ResultEvolutionChart.Series.Clear();
         ResultEvolutionChart.Axes.Clear();
         var monthsAxis = new CategoryAxis { Position = AxisPosition.Bottom, Angle = -35 };
-        var resultAxis = new LinearAxis { Position = AxisPosition.Left, Title = settings.CurrencyCode };
+        var resultAxis = new LinearAxis
+        {
+            Position = AxisPosition.Left,
+            Title = settings.CurrencyCode,
+            LabelFormatter = FormatChartAxisValue,
+            MaximumPadding = 0.08,
+            MinimumPadding = 0.08,
+        };
         var line = new LineSeries
         {
             Title = "Resultado retenido",
             Color = OxyColor.FromRgb(5, 150, 105),
             MarkerType = MarkerType.Circle,
             MarkerFill = OxyColor.FromRgb(5, 150, 105),
+            TrackerFormatString = "{0}\n{1}: {2}\n{3}: {4:N0}",
         };
         DateOnly firstMonth = month.FirstDay.AddMonths(-11);
+        double resultMaximum = 0d;
         for (int index = 0; index < 12; index++)
         {
             DateOnly date = firstMonth.AddMonths(index);
             YearMonth itemMonth = YearMonth.From(date);
             MonthlySummaryResult item = AdministrationReports.MonthlySummary(data, optionalBudget, percentage, itemMonth);
             monthsAxis.Labels.Add($"{itemMonth.Month:00}/{itemMonth.Year}");
-            line.Points.Add(new DataPoint(index, item.RetainedResultMinorUnits / 100d));
+            double value = item.RetainedResultMinorUnits / 100d;
+            line.Points.Add(new DataPoint(index, value));
+            resultMaximum = Math.Max(resultMaximum, Math.Abs(value));
         }
+        resultAxis.MajorStep = ChartMajorStep(resultMaximum);
         ResultEvolutionChart.Axes.Add(monthsAxis);
         ResultEvolutionChart.Axes.Add(resultAxis);
         ResultEvolutionChart.Series.Add(line);
         ResultEvolutionChart.InvalidatePlot(true);
     }
+
+    public static string FormatChartAxisValue(double value) =>
+        value.ToString("N0", CultureInfo.GetCultureInfo("es-CO"));
+
+    private static double ChartMajorStep(double maximum) => maximum > 0d ? maximum / 2d : 1d;
 
     private static void AddSlice(PieSeries pie, string label, long minorUnits, OxyColor color)
     {
@@ -1789,6 +1874,8 @@ public sealed partial class AdministrationViewModel(
         ShowLocalUseSummary = Title == LocalUseModule;
         ShowCharts = Title == MonthlySummaryModule;
         ShowCollaboratorHistory = Title == CollaboratorsModule;
+        OnPropertyChanged(nameof(ShowSimpleFinancialTable));
+        OnPropertyChanged(nameof(ShowGeneralRecordsTable));
         ConfigureFieldPresentation();
     }
 

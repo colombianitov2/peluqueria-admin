@@ -134,4 +134,17 @@ public sealed class LocalUseTests
         Assert.Empty(WeeklyChargeCalculator.Generate(
             retiredEarly, [], [rate], entry.AddDays(30), UtcNow));
     }
+
+    [Fact]
+    public void ExitDate_IsExclusiveForCurrentState_WithoutChangingCompletedWeeks()
+    {
+        DateOnly entry = new(2026, 7, 1);
+        DateOnly exit = entry.AddDays(7);
+        LocalUsePerson person = LocalUsePerson.Create("Ana", entry, exit, UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(entry, Money.FromDecimal(12m), UtcNow);
+
+        Assert.True(person.IsCurrentOn(exit.AddDays(-1)));
+        Assert.False(person.IsCurrentOn(exit));
+        Assert.Single(WeeklyChargeCalculator.Generate(person, [], [rate], exit, UtcNow));
+    }
 }

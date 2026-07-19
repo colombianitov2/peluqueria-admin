@@ -19,4 +19,13 @@ public partial class LocalUseView : UserControl
             e.Handled = true;
         }
     }
+
+    private void OnChairDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is LocalUseViewModel viewModel && viewModel.SelectedChairRow is not null)
+        {
+            viewModel.OpenSelectedChairProfileCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
 }

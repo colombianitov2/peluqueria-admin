@@ -393,6 +393,127 @@ public sealed class AdministrationServiceTests
     }
 
     [Fact]
+    public async Task LogicalWorkerDeletion_PreservesHistoryAndReleasesChairAtomically()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        DateOnly date = new(2026, 7, 1);
+        Chair chair = Chair.Create("Silla 1", date, null, UtcNow);
+        LocalUsePerson worker = LocalUsePerson.Create("Ana", date, null, UtcNow);
+        await service.AddChairAsync(chair, cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(worker, chair.Id, date.AddDays(7), cancellationToken);
+        await service.RegisterLocalUsePaymentAsync(
+            worker.Id, date.AddDays(7), Money.FromDecimal(12m), cancellationToken);
+
+        await service.DeleteLocalUsePersonAsync(worker.Id, cancellationToken);
+
+        Assert.True(worker.IsDeleted);
+        Assert.Null(chair.AssignedPersonId);
+        Assert.Single(repository.Entities.OfType<WeeklyCharge>());
+        Assert.Single(repository.Entities.OfType<LocalUsePayment>());
+        Assert.Contains(repository.Entities.OfType<PeluqueriaAdmin.Domain.Activity.ActivityRecord>(),
+            item => item.Action == "Eliminación lógica de trabajador");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LogicalChairDeletion_WorksForEmptyAndOccupiedChair(bool occupied)
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        DateOnly date = new(2026, 7, 1);
+        Chair chair = Chair.Create("Silla", date, null, UtcNow);
+        await service.AddChairAsync(chair, cancellationToken);
+        LocalUsePerson? worker = null;
+        if (occupied)
+        {
+            worker = LocalUsePerson.Create("Ana", date, null, UtcNow);
+            await service.AddLocalUsePersonWithChairAsync(worker, chair.Id, date, cancellationToken);
+        }
+
+        await service.DeleteChairAsync(chair.Id, cancellationToken);
+
+        Assert.True(chair.IsDeleted);
+        Assert.Null(chair.AssignedPersonId);
+        if (worker is not null)
+        {
+            Assert.False(worker.IsDeleted);
+        }
+    }
+
+    [Fact]
+    public async Task LogicalCollaboratorDeletion_PreservesContributionsAndClosedMonth()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        DateOnly date = new(2026, 7, 1);
+        Collaborator collaborator = Collaborator.Create("Inversionista", date, null, UtcNow);
+        await service.AddAsync(collaborator, cancellationToken);
+        await service.AddCollaboratorContributionAsync(
+            CollaboratorContribution.Create(collaborator.Id, date, Money.FromDecimal(100m), null, UtcNow),
+            cancellationToken);
+        await service.CloseMonthAsync(
+            new YearMonth(2026, 7),
+            new MonthlySummaryInput(10_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+            Percentage.FromPercent(20m), [collaborator.Id], cancellationToken);
+
+        await service.DeleteCollaboratorAsync(collaborator.Id, cancellationToken);
+
+        Assert.True(collaborator.IsDeleted);
+        Assert.Single(repository.Entities.OfType<CollaboratorContribution>());
+        Assert.Single(repository.Entities.OfType<MonthlyCloseParticipant>());
+        Assert.Contains(repository.Entities.OfType<PeluqueriaAdmin.Domain.Activity.ActivityRecord>(),
+            item => item.Action == "Eliminación lógica de colaborador");
+    }
+
+    [Fact]
+    public async Task CompletingRecurringMaintenance_GeneratesOneNextOccurrenceIdempotently()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        MaintenanceRecord first = MaintenanceRecord.Schedule(
+            "Silla", "Preventivo", new DateOnly(2026, 1, 31), Money.FromDecimal(10m),
+            MaintenanceFrequency.Monthly, null, null, UtcNow);
+        await service.ScheduleMaintenanceAsync(first, cancellationToken);
+
+        await service.CompleteMaintenanceAsync(
+            first.Id, new DateOnly(2026, 1, 31), Money.FromDecimal(9m), cancellationToken: cancellationToken);
+        await service.CompleteMaintenanceAsync(
+            first.Id, new DateOnly(2026, 1, 31), Money.FromDecimal(9m), cancellationToken: cancellationToken);
+
+        MaintenanceRecord[] records = repository.Entities.OfType<MaintenanceRecord>().ToArray();
+        Assert.Equal(2, records.Length);
+        Assert.Equal(new DateOnly(2026, 2, 28), records.Single(item => item.OccurrenceNumber == 1).ScheduledDate);
+        Assert.Equal(900, first.ActualCost?.MinorUnits);
+    }
+
+    [Fact]
+    public async Task StoppingPendingMaintenance_PreservesCompletedOccurrence()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        MaintenanceRecord first = MaintenanceRecord.Schedule(
+            "Silla", "Preventivo", new DateOnly(2026, 1, 1), null,
+            MaintenanceFrequency.Weekly, null, null, UtcNow);
+        await service.ScheduleMaintenanceAsync(first, cancellationToken);
+        await service.CompleteMaintenanceAsync(
+            first.Id, new DateOnly(2026, 1, 1), Money.FromDecimal(5m), cancellationToken: cancellationToken);
+        MaintenanceRecord next = repository.Entities.OfType<MaintenanceRecord>().Single(item => item.OccurrenceNumber == 1);
+
+        await service.StopFutureMaintenanceAsync(next.Id, cancellationToken);
+
+        Assert.False(first.IsDeleted);
+        Assert.True(next.IsDeleted);
+        Assert.Equal(500, first.GoalAmountFor(new YearMonth(2026, 1)).MinorUnits);
+    }
+
+    [Fact]
     public async Task Sale_UsesProductDefaultPriceUpdatesStockAndRejectsOverselling()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;

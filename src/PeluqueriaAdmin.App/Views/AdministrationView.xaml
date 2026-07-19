@@ -29,7 +29,7 @@
     <StackPanel Margin="26">
       <DockPanel Margin="0,0,0,14" LastChildFill="True">
         <StackPanel DockPanel.Dock="Right" Margin="18,0,0,0" MinWidth="190">
-          <TextBlock HorizontalAlignment="Right" Style="{StaticResource FieldLabel}" Text="Periodo de actividad" />
+          <TextBlock HorizontalAlignment="Right" Style="{StaticResource FieldLabel}" Text="Periodo a mostrar" />
           <ComboBox Style="{StaticResource FieldBox}"
                     ItemsSource="{Binding PeriodOptions}"
                     SelectedItem="{Binding SelectedPeriod}" />
@@ -62,20 +62,6 @@
       <Separator Margin="0,0,0,12"
                  Visibility="{Binding ShowLocalUseSummary, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
-      <TextBlock Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Actividad del periodo" />
-      <Border Height="150" Margin="0,0,0,14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
-        <DataGrid AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" BorderThickness="0"
-                  ItemsSource="{Binding ActivityRows}">
-          <DataGrid.Columns>
-            <DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" />
-            <DataGridTextColumn Width="2*" Binding="{Binding Principal}" Header="Operación" />
-            <DataGridTextColumn Width="3*" Binding="{Binding Detail}" Header="Descripción" />
-            <DataGridTextColumn Width="170" Binding="{Binding Status}" Header="Actividad" />
-          </DataGrid.Columns>
-        </DataGrid>
-      </Border>
-
       <StackPanel Margin="0,0,0,16"
                   Visibility="{Binding ShowCharts, Converter={StaticResource BooleanToVisibilityConverter}}">
         <TextBlock Margin="0,0,0,8" FontSize="16" FontWeight="SemiBold" Text="Gráficos del resumen mensual" />
@@ -92,8 +78,8 @@
         </UniformGrid>
       </StackPanel>
 
-      <TextBlock Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Registros y estado actual" />
-      <Border Height="220" Margin="0,0,0,14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
+      <TextBlock Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Registros" Visibility="{Binding ShowGeneralRecordsTable, Converter={StaticResource BooleanToVisibilityConverter}}" />
+      <Border Height="220" Margin="0,0,0,14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7" Visibility="{Binding ShowGeneralRecordsTable, Converter={StaticResource BooleanToVisibilityConverter}}">
         <DataGrid AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
                   HeadersVisibility="Column" IsReadOnly="True" BorderThickness="0"
                   ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}">
@@ -141,6 +127,13 @@
             <DataGridTextColumn Width="135" Binding="{Binding Amount}" Header="Valor" />
             <DataGridTextColumn Width="165" Binding="{Binding Status}" Header="Estado" />
           </DataGrid.Columns>
+        </DataGrid>
+      </Border>
+
+      <TextBlock Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Registros del periodo" Visibility="{Binding ShowSimpleFinancialTable, Converter={StaticResource BooleanToVisibilityConverter}}" />
+      <Border Height="220" Margin="0,0,0,14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7" Visibility="{Binding ShowSimpleFinancialTable, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <DataGrid AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" BorderThickness="0" ItemsSource="{Binding SimpleFinancialRows}" SelectedItem="{Binding SelectedSimpleFinancialRow}">
+          <DataGrid.Columns><DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="2*" Binding="{Binding Concept}" Header="Nombre" /><DataGridTextColumn Width="140" Binding="{Binding Amount}" Header="Valor" /><DataGridTextColumn Width="3*" Binding="{Binding Description}" Header="Descripción" /></DataGrid.Columns>
         </DataGrid>
       </Border>
 
@@ -202,11 +195,6 @@
                 </ComboBox.Style>
               </ComboBox>
               <TextBlock Margin="0,5,0,0" Foreground="#475569" Text="{Binding SelectedProductAvailability}" TextWrapping="Wrap" />
-              <StackPanel Visibility="{Binding ShowProductSearch, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock Margin="0,8,0,5" Style="{StaticResource FieldLabel}" Text="Buscar por nombre" />
-                <TextBox Text="{Binding ProductSearchText, UpdateSourceTrigger=PropertyChanged}" />
-                <TextBlock Margin="0,5,0,0" Foreground="#475569" Text="{Binding ProductSelectionExplanation}" TextWrapping="Wrap" />
-              </StackPanel>
             </StackPanel>
             <StackPanel Width="220" Margin="0,0,14,12" Visibility="{Binding ShowSecondary, Converter={StaticResource BooleanToVisibilityConverter}}">
               <TextBlock Style="{StaticResource FieldLabel}" Text="{Binding SecondaryLabel}" />

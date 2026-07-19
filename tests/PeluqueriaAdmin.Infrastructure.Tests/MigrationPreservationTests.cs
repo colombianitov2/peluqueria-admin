@@ -147,6 +147,47 @@ public sealed class MigrationPreservationTests
         }
     }
 
+    [Fact]
+    public async Task Phase42Maintenance_MigratesAsOneTimeSeriesWithoutDataLoss()
+    {
+        string root = Path.Combine(AppContext.BaseDirectory, "TestData", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        try
+        {
+            var factory = new TestFactory(Path.Combine(root, "phase42-maintenance.db"));
+            Guid id = Guid.NewGuid();
+            DateTime utc = new(2026, 7, 19, 12, 0, 0, DateTimeKind.Utc);
+            await using (PeluqueriaDbContext context = factory.CreateDbContext())
+            {
+                string phase42 = context.Database.GetMigrations()
+                    .Single(item => item.EndsWith("_Phase42WorkersAndContributions", StringComparison.Ordinal));
+                await context.GetService<IMigrator>().MigrateAsync(phase42, cancellationToken);
+                await context.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO MaintenanceRecords
+                    (Id, Asset, MaintenanceType, ScheduledDate, EstimatedCostMinorUnits, CompletedDate,
+                     ActualCostMinorUnits, Description, CreatedUtc, UpdatedUtc, DeletedUtc)
+                    VALUES ({id}, {"Silla heredada"}, {"Preventivo"}, {new DateOnly(2026, 8, 1)}, {500L},
+                            {null}, {null}, {"Registro Fase 4.2"}, {utc}, {utc}, {null});
+                    """, cancellationToken);
+                await context.GetService<IMigrator>().MigrateAsync(cancellationToken: cancellationToken);
+            }
+
+            await using PeluqueriaDbContext verified = factory.CreateDbContext();
+            MaintenanceRecord record = await verified.MaintenanceRecords.SingleAsync(cancellationToken);
+            Assert.Equal(MaintenanceFrequency.Once, record.Frequency);
+            Assert.Equal(id, record.SeriesId);
+            Assert.Equal(record.ScheduledDate, record.FirstScheduledDate);
+            Assert.Equal(0, record.OccurrenceNumber);
+            Assert.Equal("Registro Fase 4.2", record.Description);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
     private sealed class FixedClock(DateTime utc) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(utc);

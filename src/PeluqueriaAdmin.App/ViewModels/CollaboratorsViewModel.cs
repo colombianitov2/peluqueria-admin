@@ -57,6 +57,7 @@ public sealed partial class CollaboratorsViewModel(
     [ObservableProperty] private ContributionRow? selectedContributionRow;
     [ObservableProperty] private bool isEditingContribution;
     [ObservableProperty] private bool confirmContributionDelete;
+    [ObservableProperty] private bool confirmCollaboratorDelete;
     [ObservableProperty] private string statusMessage = string.Empty;
     [ObservableProperty] private bool isError;
     [ObservableProperty] private bool isBusy;
@@ -183,6 +184,26 @@ public sealed partial class CollaboratorsViewModel(
         SelectedContributionRow = null;
         Contributions.Clear();
         HistoryRows.Clear();
+    }
+
+    [RelayCommand]
+    private async Task DeleteCollaboratorAsync()
+    {
+        if (SelectedCollaboratorRow is null) return;
+        if (!ConfirmCollaboratorDelete)
+        {
+            StatusMessage = "Marca “Confirmo eliminar” antes de eliminar al colaborador.";
+            IsError = true;
+            return;
+        }
+
+        Guid collaboratorId = SelectedCollaboratorRow.Collaborator.Id;
+        await service.DeleteCollaboratorAsync(collaboratorId);
+        ConfirmCollaboratorDelete = false;
+        CloseProfile();
+        StatusMessage = "El colaborador se eliminó lógicamente; su historial permanece conservado.";
+        IsError = false;
+        await RefreshAsync();
     }
 
     [RelayCommand]

@@ -125,16 +125,6 @@
               <DataGridTextColumn Width="2*" Header="Descripción" Binding="{Binding Detail}" />
             </DataGrid.Columns>
           </DataGrid>
-          <TextBlock Margin="0,14,0,6" FontWeight="SemiBold" Text="Actividad del periodo" />
-          <DataGrid MinHeight="120" AutoGenerateColumns="False" IsReadOnly="True"
-                    ItemsSource="{Binding UnofficialExpenseActivity}">
-            <DataGrid.Columns>
-              <DataGridTextColumn Width="110" Header="Fecha" Binding="{Binding Date}" />
-              <DataGridTextColumn Width="*" Header="Operación" Binding="{Binding Principal}" />
-              <DataGridTextColumn Width="2*" Header="Descripción" Binding="{Binding Detail}" />
-              <DataGridTextColumn Width="120" Header="Actividad" Binding="{Binding Status}" />
-            </DataGrid.Columns>
-          </DataGrid>
         </StackPanel>
       </Border>
 

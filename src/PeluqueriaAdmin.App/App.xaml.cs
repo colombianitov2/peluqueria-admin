@@ -104,6 +104,9 @@ public partial class App : System.Windows.Application
         services.AddSingleton<AdministrationViewModel>();
         services.AddSingleton<LocalUseViewModel>();
         services.AddSingleton<CollaboratorsViewModel>();
+        services.AddSingleton<SalesViewModel>();
+        services.AddSingleton<InventoryViewModel>();
+        services.AddSingleton<MaintenanceViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 

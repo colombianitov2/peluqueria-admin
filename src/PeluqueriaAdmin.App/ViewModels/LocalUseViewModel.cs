@@ -26,6 +26,7 @@ public sealed partial class LocalUseViewModel(
     private CancellationTokenSource? chairEditCancellation;
     private bool suppressChanges;
     private Guid? profileWorkerId;
+    private Guid? profileChairId;
 
     public ObservableCollection<string> ActionOptions { get; } = ["Añadir silla", "Añadir trabajador"];
 
@@ -41,6 +42,8 @@ public sealed partial class LocalUseViewModel(
     public ObservableCollection<OperationRow> ActivityRows { get; } = [];
 
     public ObservableCollection<OperationRow> WorkerHistoryRows { get; } = [];
+
+    public ObservableCollection<OperationRow> ChairHistoryRows { get; } = [];
 
     [ObservableProperty] private string selectedAction = "Añadir silla";
     [ObservableProperty] private string selectedPeriod = "Hoy";
@@ -58,6 +61,7 @@ public sealed partial class LocalUseViewModel(
     [ObservableProperty] private WorkerRow? selectedWorkerRow;
     [ObservableProperty] private ChairRow? selectedChairRow;
     [ObservableProperty] private bool isWorkerProfileOpen;
+    [ObservableProperty] private bool isChairProfileOpen;
     [ObservableProperty] private string profileName = string.Empty;
     [ObservableProperty] private string profileDescription = string.Empty;
     [ObservableProperty] private DateTime? profileEntryDate;
@@ -70,6 +74,7 @@ public sealed partial class LocalUseViewModel(
     [ObservableProperty] private string paymentDescription = string.Empty;
     [ObservableProperty] private EntityOption? profileSelectedChair;
     [ObservableProperty] private DateTime? retirementDate = DateTime.Today;
+    [ObservableProperty] private bool confirmWorkerDelete;
     [ObservableProperty] private string chairEditName = string.Empty;
     [ObservableProperty] private DateTime? chairEditCreationDate;
     [ObservableProperty] private string chairEditDescription = string.Empty;
@@ -128,9 +133,14 @@ public sealed partial class LocalUseViewModel(
                     chair,
                     chair.Name,
                     chair.CreationDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                    assigned?.Name ?? "Disponible",
+                    assigned?.Name ?? "Vacía",
                     chair.Description ?? string.Empty,
-                    assigned is null ? "Disponible" : "Ocupada"));
+                    assigned is null ? "Vacía" : "Ocupada"));
+            }
+
+            if (IsChairProfileOpen && profileChairId.HasValue)
+            {
+                SelectedChairRow = Chairs.SingleOrDefault(item => item.Chair.Id == profileChairId.Value);
             }
 
             AvailableChairOptions.Clear();
@@ -163,6 +173,11 @@ public sealed partial class LocalUseViewModel(
             if (IsWorkerProfileOpen)
             {
                 await LoadWorkerProfileAsync(data, settings, range, today);
+            }
+
+            if (IsChairProfileOpen)
+            {
+                LoadChairProfile(data, range);
             }
 
             StatusMessage = string.Empty;
@@ -252,6 +267,48 @@ public sealed partial class LocalUseViewModel(
         SelectedWorkerRow = null;
         WorkerHistoryRows.Clear();
         ProfileSelectedChair = null;
+        await RefreshAsync();
+    }
+
+    [RelayCommand]
+    private async Task DeleteWorkerAsync()
+    {
+        if (SelectedWorkerRow is null) return;
+        if (!ConfirmWorkerDelete)
+        {
+            StatusMessage = "Marca “Confirmo eliminar” antes de eliminar al trabajador.";
+            IsError = true;
+            return;
+        }
+
+        Guid workerId = SelectedWorkerRow.Worker.Id;
+        await RunProfileOperationAsync(() => service.DeleteLocalUsePersonAsync(workerId));
+        ConfirmWorkerDelete = false;
+        await CloseWorkerProfileAsync();
+    }
+
+    [RelayCommand]
+    private async Task OpenSelectedChairProfileAsync()
+    {
+        if (SelectedChairRow is null) return;
+        profileChairId = SelectedChairRow.Chair.Id;
+        IsChairProfileOpen = true;
+        suppressChanges = true;
+        ChairEditName = SelectedChairRow.Chair.Name;
+        ChairEditCreationDate = SelectedChairRow.Chair.CreationDate.ToDateTime(TimeOnly.MinValue);
+        ChairEditDescription = SelectedChairRow.Chair.Description ?? string.Empty;
+        ConfirmChairDelete = false;
+        suppressChanges = false;
+        await RefreshAsync();
+    }
+
+    [RelayCommand]
+    private async Task CloseChairProfileAsync()
+    {
+        IsChairProfileOpen = false;
+        profileChairId = null;
+        SelectedChairRow = null;
+        ChairHistoryRows.Clear();
         await RefreshAsync();
     }
 
@@ -363,8 +420,10 @@ public sealed partial class LocalUseViewModel(
             return;
         }
 
-        await RunProfileOperationAsync(() => service.DeleteAsync(SelectedChairRow.Chair));
+        Guid chairId = SelectedChairRow.Chair.Id;
+        await RunProfileOperationAsync(() => service.DeleteChairAsync(chairId));
         ConfirmChairDelete = false;
+        await CloseChairProfileAsync();
     }
 
     [RelayCommand]
@@ -479,6 +538,34 @@ public sealed partial class LocalUseViewModel(
         foreach (OperationRow row in history.OrderBy(item => item.Date).ThenBy(item => item.Order).Select(item => item.Row))
         {
             WorkerHistoryRows.Add(row);
+        }
+    }
+
+    private void LoadChairProfile(AdministrationData data, ActivityDateRange range)
+    {
+        if (SelectedChairRow is null)
+        {
+            IsChairProfileOpen = false;
+            return;
+        }
+
+        Guid chairId = SelectedChairRow.Chair.Id;
+        ChairHistoryRows.Clear();
+        Chair chair = SelectedChairRow.Chair;
+        if (range.Contains(chair.CreationDate))
+        {
+            ChairHistoryRows.Add(History(
+                chair.CreationDate, "Creación de silla", chair.Description, string.Empty, "Registrada", chair));
+        }
+
+        foreach (var activity in data.ActivityRecords
+            .Where(item => item.EntityId == chairId && item.Action != "Alta" && range.Contains(item.ActivityDate))
+            .OrderBy(item => item.ActivityDate)
+            .ThenBy(item => item.OccurredUtc))
+        {
+            ChairHistoryRows.Add(History(
+                activity.ActivityDate, activity.Action, activity.Summary, string.Empty,
+                activity.Description ?? string.Empty, activity));
         }
     }
 

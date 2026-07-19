@@ -9,7 +9,7 @@ namespace PeluqueriaAdmin.App.Tests;
 public sealed class ResponsiveLayoutTests
 {
     [Fact]
-    public void AdministrationAndSettings_FitAt1366x768EquivalentFor100125And150Percent()
+    public void Phase43Views_FitAt1366x768EquivalentFor100125And150Percent()
     {
         Exception? failure = null;
         var thread = new Thread(() =>
@@ -52,6 +52,15 @@ public sealed class ResponsiveLayoutTests
                         DataContext = new LayoutContext { IsProfileOpen = true },
                     };
                     AssertFits(collaboratorProfile, width, height, scale);
+
+                    var sales = new SalesView { DataContext = new LayoutContext() };
+                    AssertFits(sales, width, height, scale);
+
+                    var inventory = new InventoryView { DataContext = new LayoutContext() };
+                    AssertFits(inventory, width, height, scale);
+
+                    var maintenance = new MaintenanceView { DataContext = new LayoutContext() };
+                    AssertFits(maintenance, width, height, scale);
                 }
             }
             catch (Exception exception)
