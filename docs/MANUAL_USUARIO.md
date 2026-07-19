@@ -44,7 +44,7 @@ Seleccione una fila y use **Editar/Cargar** para llevar sus valores al formulari
 
 Permite configurar tarifa semanal, porcentaje de colaboradores, reserva opcional, sillas y moneda. Cambiar moneda no convierte importes previos; cambiar tarifa solo afecta cuotas futuras.
 
-En **Datos** puede crear/restaurar copias, abrir las carpetas y exportar CSV. Reinicie después de restaurar.
+En **Datos** puede crear/restaurar copias, abrir las carpetas, exportar CSV o crear una exportación completa a Excel en el Escritorio. Reinicie después de restaurar. Los Ajustes válidos se guardan automáticamente; una entrada temporalmente inválida queda como borrador recuperable.
 
 En **Actualizaciones** puede buscar, descargar e instalar una versión publicada. Sin Internet, el resto de la administración local continúa funcionando.
 

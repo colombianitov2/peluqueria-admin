@@ -6,10 +6,10 @@ La solución contiene cuatro proyectos de pruebas:
 
 - Domain.Tests: reglas puras de cuotas, inventario, obligaciones, mantenimiento, reportes y cierres.
 - Application.Tests: transacciones y casos de uso críticos.
-- Infrastructure.Tests: SQLite, migraciones, eliminación lógica, copias, restauración y CSV.
+- Infrastructure.Tests: SQLite, migraciones, borradores, política de durabilidad, eliminación lógica, copias, restauración, CSV y Excel.
 - App.Tests: comandos y presentación segura de la interfaz WPF sin abrir una ventana real.
 
-En la validación local de la Fase 3.1 pasan 57 pruebas: 34 de dominio, 15 de aplicación, 5 de infraestructura y 3 de interfaz.
+En la validación local de la Fase 4 pasan 65 pruebas: 34 de dominio, 15 de aplicación, 10 de infraestructura y 6 de interfaz.
 
 ## Cobertura funcional comprobada
 
@@ -30,6 +30,11 @@ En la validación local de la Fase 3.1 pasan 57 pruebas: 34 de dominio, 15 de ap
 - filtros estrictos de Inicio, capacidad/sobrecupo y desglose anual con indicador;
 - nombres de producto únicos, invariantes de corrección y existencia cronológica no negativa;
 - protección de personas, productos, obligaciones, colaboradores, cierres y asignaciones con relaciones.
+- libro Excel real, nombre único, hojas obligatorias, apertura, filtros, filas inmovilizadas y tipos de fecha/dinero/porcentaje;
+- datos históricos, futuros, eliminados y borradores separados, neutralización de fórmulas y eliminación del temporal ante fallas;
+- persistencia de borradores tras reinicio y finalización atómica junto con la operación registrada;
+- `foreign_keys=ON`, WAL, `synchronous=FULL` y `busy_timeout=5000` en cada conexión SQLite.
+- disposición de Administración y Ajustes en los espacios lógicos equivalentes a 1366×768 con escalas de 100 %, 125 % y 150 %.
 
 ## Comandos finales
 

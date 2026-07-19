@@ -1,4 +1,4 @@
-# Dependencias de la Fase 3
+# Dependencias de la aplicación
 
 Las versiones se administran centralmente en `Directory.Packages.props`. No se usan versiones preliminares. Las dependencias transitivas continúan sujetas a la restauración y auditoría de NuGet.
 
@@ -10,6 +10,7 @@ Las versiones se administran centralmente en `Directory.Packages.props`. No se u
 | CommunityToolkit.Mvvm | 8.4.2 | Propiedades observables y comandos MVVM | MIT | Generadores de código y biblioteca ligera en la interfaz | App |
 | Microsoft.Extensions.DependencyInjection | 10.0.10 | Composición de dependencias al arrancar | MIT | Contenedor de servicios en tiempo de ejecución | App |
 | Velopack | 1.2.0 | Instalación, consulta, descarga y aplicación de actualizaciones | MIT | Agrega el bootstrap y cliente de GitHub Releases al ejecutable | App |
+| ClosedXML | 0.105.0 | Creación y lectura de libros `.xlsx` sin automatizar Microsoft Excel | MIT | Exportación completa con tablas, filtros y formatos de Excel | Infrastructure |
 | Microsoft.NET.Test.Sdk | 18.8.1 | Descubrimiento y ejecución de pruebas .NET | MIT | Solo desarrollo y CI | Los tres proyectos Tests |
 | xunit.v3 | 3.2.2 | Marco de pruebas | Apache-2.0 | Solo desarrollo y CI | Los tres proyectos Tests |
 | xunit.runner.visualstudio | 3.1.5 | Adaptador de xUnit para `dotnet test` y Visual Studio | Apache-2.0 | Solo desarrollo y CI; activo privado | Los tres proyectos Tests |
@@ -18,3 +19,5 @@ Las versiones se administran centralmente en `Directory.Packages.props`. No se u
 Todos los paquetes de Entity Framework Core y la herramienta `dotnet-ef` usan exactamente la versión 10.0.10. `SQLitePCLRaw.lib.e_sqlite3` 2.1.12 se referencia directamente para evitar la versión 2.1.11, retirada por problemas críticos y una vulnerabilidad conocida.
 
 El CLI `vpk` debe ejecutarse siempre en la misma versión 1.2.0 que el paquete Velopack. El workflow lo instala en una carpeta efímera; no requiere una instalación global ni almacena tokens en el repositorio.
+
+ClosedXML se usa únicamente para generar el libro local. No requiere Microsoft Excel instalado. Su versión está centralizada, igual que el resto de paquetes, y su licencia MIT es compatible con la licencia del repositorio.

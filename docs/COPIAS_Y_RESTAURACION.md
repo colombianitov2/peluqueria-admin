@@ -43,7 +43,14 @@ No seleccione una base desconocida ni cierre Windows durante el reemplazo. Las c
 
 Los campos se escapan según CSV y los importes se expresan con punto decimal. La exportación es una fotografía de consulta: no modifica SQLite y no requiere Excel.
 
+## Exportación completa a Excel
+
+**Exportar toda la información a Excel** crea automáticamente en el Escritorio un libro real `.xlsx` con nombre `PeluqueriaAdmin-AAAA-MM-DD_HH-mm-ss.xlsx`. Si el nombre ya existe, añade un sufijo y nunca sobrescribe el archivo anterior.
+
+La exportación usa una única fecha de corte y una lectura transaccional consistente. Incluye datos actuales, históricos y futuros ya conocidos, snapshots de cierres, desglose anual, inventario acumulado, eliminaciones lógicas y, en una hoja separada, borradores que aún no son operaciones registradas. Los textos peligrosos para fórmulas se escriben como texto. Primero se crea un temporal y solo se mueve al Escritorio cuando el libro está completo; ante una falla se elimina el temporal.
+
+El libro no modifica SQLite, no genera movimientos, no importa datos y no requiere Microsoft Excel instalado. Al finalizar, Ajustes muestra la ruta y habilita **Abrir archivo** y **Abrir carpeta**.
+
 ## Verificación realizada
 
 Las pruebas crean una base controlada dentro de resultados de prueba, generan una copia, modifican Ajustes, restauran y confirman el valor anterior. También verifican la creación y codificación de los cinco CSV. No se usaron datos reales.
-
