@@ -49,6 +49,21 @@ public sealed class ObligationAndMaintenanceTests
     }
 
     [Fact]
+    public void MonthlyRecurrence_AnchoredOnDay31DoesNotDriftAfterFebruary()
+    {
+        Obligation template = Obligation.Create(
+            "Servicio", ObligationType.Service, new DateOnly(2026, 1, 31),
+            Money.FromDecimal(10m), RecurrenceFrequency.Monthly, UtcNow);
+
+        IReadOnlyList<Obligation> generated = ObligationRecurrenceGenerator.Generate(
+            template, [template], new DateOnly(2026, 5, 31), UtcNow);
+
+        Assert.Equal(
+            [new DateOnly(2026, 2, 28), new DateOnly(2026, 3, 31), new DateOnly(2026, 4, 30), new DateOnly(2026, 5, 31)],
+            generated.Select(item => item.DueDate));
+    }
+
+    [Fact]
     public void Maintenance_UsesEstimatedOrActualButNeverBoth()
     {
         var july = new YearMonth(2026, 7);

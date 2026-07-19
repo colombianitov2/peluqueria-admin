@@ -4,9 +4,6 @@ using CommunityToolkit.Mvvm.Input;
 using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Domain.Common;
-using PeluqueriaAdmin.Domain.LocalUse;
-using PeluqueriaAdmin.Domain.Obligations;
-using PeluqueriaAdmin.Domain.Reports;
 using PeluqueriaAdmin.Domain.Settings;
 
 namespace PeluqueriaAdmin.App.ViewModels;
@@ -15,17 +12,20 @@ public sealed partial class MainViewModel : ObservableObject
 {
     private readonly AdministrationService administrationService;
     private readonly GetSettingsUseCase getSettings;
+    private readonly TimeProvider timeProvider;
 
     public MainViewModel(
         SettingsViewModel settings,
         AdministrationViewModel administration,
         AdministrationService administrationService,
-        GetSettingsUseCase getSettings)
+        GetSettingsUseCase getSettings,
+        TimeProvider timeProvider)
     {
         Settings = settings;
         Administration = administration;
         this.administrationService = administrationService;
         this.getSettings = getSettings;
+        this.timeProvider = timeProvider;
     }
 
     public SettingsViewModel Settings { get; }
@@ -81,38 +81,32 @@ public sealed partial class MainViewModel : ObservableObject
 
     public async Task RefreshHomeAsync()
     {
-        DateOnly today = DateOnly.FromDateTime(DateTime.Today);
-        AdministrationData data = await administrationService.LoadAsync();
+        DateTime localNow = timeProvider.GetLocalNow().DateTime;
+        DateOnly today = DateOnly.FromDateTime(localNow);
+        YearMonth month = YearMonth.From(today);
+        AdministrationData data = await administrationService.GenerateScheduledRecordsAsync(month.LastDay);
         SettingsDto settings = await getSettings.ExecuteAsync();
-        FechaActual = DateTime.Today.ToString("D", CultureInfo.GetCultureInfo("es-ES"));
+        FechaActual = localNow.ToString("D", CultureInfo.GetCultureInfo("es-ES"));
 
-        string[] pendingObligations = data.Obligations
-            .Where(item => item.Status(data.ObligationPayments, today) != ObligationStatus.Paid)
-            .OrderBy(item => item.DueDate)
+        HomeDashboard dashboard = HomeDashboardCalculator.Calculate(
+            data,
+            Money.FromDecimal(settings.OptionalSuppliesMonthlyBudget),
+            Percentage.FromPercent(settings.CollaboratorProfitPercent),
+            today);
+        string[] pendingObligations = dashboard.Obligations
             .Select(item => $"{item.DueDate:yyyy-MM-dd} · {item.Name}")
             .ToArray();
         EstadoServiciosEImpuestos = pendingObligations.Length == 0
             ? "Sin obligaciones pendientes"
             : string.Join(Environment.NewLine, pendingObligations);
 
-        string[] debts = data.LocalUsePeople.Select(person => new
-        {
-            person.Name,
-            Debt = WeeklyChargeCalculator.CalculateDebt(
-                    data.WeeklyCharges.Where(item => item.PersonId == person.Id),
-                    data.LocalUsePayments.Where(item => item.PersonId == person.Id)),
-        })
-            .Where(item => item.Debt.MinorUnits > 0)
-            .OrderBy(item => item.Name)
-            .Select(item => $"{item.Name} · {settings.CurrencyCode} {item.Debt.ToDecimal():N2}")
+        string[] debts = dashboard.Debts
+            .Select(item => $"{item.Name} · {settings.CurrencyCode} {item.Amount.ToDecimal():N2}")
             .ToArray();
         EstadoPersonasConPagosPendientes = debts.Length == 0
             ? "Sin personas con deuda"
             : string.Join(Environment.NewLine, debts);
 
-        MonthlySummaryResult summary = MonthlySummaryCalculator.Calculate(
-            AdministrationViewModel.BuildMonthlyInput(data, settings, YearMonth.From(today)),
-            Percentage.FromPercent(settings.CollaboratorProfitPercent));
-        EstadoPuntoDeEquilibrio = $"{settings.CurrencyCode} {summary.MissingMinorUnits / 100m:N2}";
+        EstadoPuntoDeEquilibrio = $"{settings.CurrencyCode} {dashboard.MissingMinorUnits / 100m:N2}";
     }
 }

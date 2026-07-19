@@ -86,4 +86,32 @@ public sealed class InventoryTests
     {
         Assert.Throws<ArgumentException>(() => Quantity.Positive(1.0001m));
     }
+
+    [Fact]
+    public void Correct_EnforcesQuantityAndCashInvariantsByMovementType()
+    {
+        Guid productId = Guid.NewGuid();
+        InventoryMovement initial = InventoryMovement.Initial(
+            productId, Date, Quantity.Positive(2m), Money.FromDecimal(10m), UtcNow);
+        InventoryMovement purchase = InventoryMovement.Purchase(
+            productId, Date, Quantity.Positive(2m), Money.FromDecimal(10m), UtcNow);
+        InventoryMovement sale = InventoryMovement.Sale(
+            productId, Date, Quantity.Positive(1m), Money.FromDecimal(5m),
+            Money.FromDecimal(2m), 2m, UtcNow);
+        InventoryMovement consumption = InventoryMovement.Consumption(
+            productId, Date, Quantity.Positive(1m), 2m, UtcNow);
+        InventoryMovement count = InventoryMovement.PhysicalCount(
+            productId, Date, Quantity.NonNegative(2m), 2m, UtcNow);
+
+        Assert.Throws<InvalidOperationException>(() => initial.Correct(
+            Date, -1m, null, Money.FromDecimal(10m), UtcNow.AddMinutes(1)));
+        Assert.Throws<InvalidOperationException>(() => purchase.Correct(
+            Date, 1m, null, Money.FromDecimal(10m), UtcNow.AddMinutes(1)));
+        Assert.Throws<InvalidOperationException>(() => sale.Correct(
+            Date, 1m, Money.FromDecimal(5m), Money.FromDecimal(2m), UtcNow.AddMinutes(1)));
+        Assert.Throws<InvalidOperationException>(() => consumption.Correct(
+            Date, -1m, Money.FromDecimal(1m), null, UtcNow.AddMinutes(1)));
+        Assert.Throws<InvalidOperationException>(() => count.Correct(
+            Date, 0m, null, Money.FromDecimal(1m), UtcNow.AddMinutes(1)));
+    }
 }

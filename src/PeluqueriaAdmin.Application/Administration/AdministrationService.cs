@@ -71,17 +71,133 @@ public sealed class AdministrationService(
         return repository.SaveAsync([entity], [], cancellationToken);
     }
 
+    public async Task AddLocalUsePersonAsync(
+        LocalUsePerson person,
+        DateOnly throughDate,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(person);
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        (IReadOnlyCollection<WeeklyRate> rates, WeeklyRate? newRate) =
+            await EnsureRatesAsync(data, cancellationToken);
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        IReadOnlyList<WeeklyCharge> charges = WeeklyChargeCalculator.Generate(
+            person, [], rates, throughDate, utcNow);
+        await repository.SaveAsync(
+            new AuditableEntity[] { person }
+                .Concat(newRate is null ? [] : [newRate])
+                .Concat(charges)
+                .ToArray(),
+            [],
+            cancellationToken);
+    }
+
+    public async Task UpdateLocalUsePersonAsync(
+        Guid personId,
+        string name,
+        DateOnly entryDate,
+        DateOnly? exitDate,
+        DateOnly throughDate,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        LocalUsePerson person = data.LocalUsePeople.SingleOrDefault(item => item.Id == personId)
+            ?? throw new InvalidOperationException("La persona seleccionada ya no está disponible.");
+        HashSet<DateOnly> expected = WeeklyChargeCalculator.ExpectedPeriodStarts(entryDate, exitDate, throughDate).ToHashSet();
+        WeeklyCharge[] existing = data.WeeklyCharges.Where(item => item.PersonId == personId).ToArray();
+        WeeklyCharge[] invalid = existing.Where(item => !expected.Contains(item.PeriodStart)).ToArray();
+        if (invalid.Length > 0 && data.LocalUsePayments.Any(item => item.PersonId == personId))
+        {
+            throw new InvalidOperationException(
+                "No se pueden cambiar ingreso o retiro porque invalidarían cuotas de una persona que ya tiene pagos.");
+        }
+
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        person.Update(name, entryDate, exitDate, utcNow);
+        foreach (WeeklyCharge charge in invalid)
+        {
+            charge.MarkDeleted(utcNow);
+        }
+
+        (IReadOnlyCollection<WeeklyRate> rates, WeeklyRate? newRate) =
+            await EnsureRatesAsync(data, cancellationToken);
+        IReadOnlyList<WeeklyCharge> additions = WeeklyChargeCalculator.Generate(
+            person, existing, rates, throughDate, utcNow);
+        await repository.SaveAsync(
+            (newRate is null ? Array.Empty<AuditableEntity>() : [newRate])
+                .Concat(additions)
+                .ToArray(),
+            new AuditableEntity[] { person }.Concat(invalid).ToArray(),
+            cancellationToken);
+    }
+
+    public async Task AddObligationAsync(
+        Obligation obligation,
+        DateOnly throughDate,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(obligation);
+        IReadOnlyList<Obligation> occurrences = ObligationRecurrenceGenerator.Generate(
+            obligation, [obligation], throughDate, timeProvider.GetUtcNow().UtcDateTime);
+        await repository.SaveAsync(new AuditableEntity[] { obligation }.Concat(occurrences).ToArray(), [], cancellationToken);
+    }
+
+    public async Task AddProductAsync(Product product, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(product);
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        EnsureUniqueProductName(data, product.Name, null);
+        await repository.SaveAsync([product], [], cancellationToken);
+    }
+
+    public async Task UpdateProductAsync(
+        Guid productId,
+        string name,
+        ProductCategory category,
+        string unitOfMeasure,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        Product product = data.Products.SingleOrDefault(item => item.Id == productId)
+            ?? throw new InvalidOperationException("El producto seleccionado ya no está disponible.");
+        EnsureUniqueProductName(data, name, productId);
+        product.Update(name, category, unitOfMeasure, timeProvider.GetUtcNow().UtcDateTime);
+        await repository.SaveAsync([], [product], cancellationToken);
+    }
+
     public Task UpdateAsync(AuditableEntity entity, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entity);
         return repository.SaveAsync([], [entity], cancellationToken);
     }
 
-    public Task DeleteAsync(AuditableEntity entity, CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(AuditableEntity entity, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entity);
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        string? blockedReason = entity switch
+        {
+            LocalUsePerson person when data.WeeklyCharges.Any(item => item.PersonId == person.Id)
+                || data.LocalUsePayments.Any(item => item.PersonId == person.Id) =>
+                "No se puede eliminar la persona porque tiene cuotas o pagos históricos.",
+            Product product when data.InventoryMovements.Any(item => item.ProductId == product.Id)
+                || data.RestockPlans.Any(item => item.ProductId == product.Id) =>
+                "No se puede eliminar el producto porque tiene movimientos o planes mensuales.",
+            Obligation obligation when data.ObligationPayments.Any(item => item.ObligationId == obligation.Id) =>
+                "No se puede eliminar la obligación porque tiene pagos registrados.",
+            Collaborator collaborator when data.MonthlyCloseParticipants.Any(item => item.CollaboratorId == collaborator.Id) =>
+                "No se puede eliminar el colaborador porque participa en cierres históricos.",
+            MonthlyClose => "Los cierres mensuales no se eliminan; usa la reapertura segura.",
+            MonthlyCloseParticipant => "Las asignaciones calculadas no se eliminan manualmente.",
+            _ => null,
+        };
+        if (blockedReason is not null)
+        {
+            throw new InvalidOperationException(blockedReason);
+        }
+
         entity.MarkDeleted(timeProvider.GetUtcNow().UtcDateTime);
-        return repository.SaveAsync([], [entity], cancellationToken);
+        await repository.SaveAsync([], [entity], cancellationToken);
     }
 
     public async Task<LocalUsePayment> RegisterLocalUsePaymentAsync(
@@ -164,5 +280,84 @@ public sealed class AdministrationService(
             [],
             cancellationToken);
         return (close, participants);
+    }
+
+    public async Task ReopenMonthAsync(Guid closeId, CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        MonthlyClose close = data.MonthlyCloses.SingleOrDefault(item => item.Id == closeId)
+            ?? throw new InvalidOperationException("El cierre seleccionado ya no está disponible.");
+        MonthlyCloseParticipant[] participants = data.MonthlyCloseParticipants
+            .Where(item => item.CloseId == close.Id)
+            .ToArray();
+        Guid[] participantIds = participants.Select(item => item.Id).ToArray();
+        if (data.DistributionPayments.Any(item => participantIds.Contains(item.ParticipantId)))
+        {
+            throw new InvalidOperationException(
+                "No se puede reabrir el cierre porque ya tiene pagos de distribución registrados.");
+        }
+
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        close.Reopen(utcNow);
+        foreach (MonthlyCloseParticipant participant in participants)
+        {
+            participant.MarkDeleted(utcNow);
+        }
+
+        await repository.SaveAsync([], new AuditableEntity[] { close }.Concat(participants).ToArray(), cancellationToken);
+    }
+
+    public async Task<DistributionPayment> RegisterDistributionPaymentAsync(
+        Guid participantId,
+        DateOnly date,
+        Money amount,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        MonthlyCloseParticipant participant = data.MonthlyCloseParticipants
+            .SingleOrDefault(item => item.Id == participantId)
+            ?? throw new InvalidOperationException("La asignación seleccionada ya no está disponible.");
+        MonthlyClose close = data.MonthlyCloses.SingleOrDefault(item => item.Id == participant.CloseId)
+            ?? throw new InvalidOperationException("El cierre de la asignación ya no está disponible.");
+        if (!close.IsConfirmed)
+        {
+            throw new InvalidOperationException("Solo se pueden pagar asignaciones de cierres confirmados.");
+        }
+
+        long paid = data.DistributionPayments
+            .Where(item => item.ParticipantId == participant.Id)
+            .Sum(item => item.Amount.MinorUnits);
+        Money pending = Money.FromMinorUnits(participant.Amount.MinorUnits - paid);
+        DistributionPayment payment = DistributionPayment.Create(
+            participant.Id, date, amount, pending, timeProvider.GetUtcNow().UtcDateTime);
+        await repository.SaveAsync([payment], [], cancellationToken);
+        return payment;
+    }
+
+    private async Task<(IReadOnlyCollection<WeeklyRate> Rates, WeeklyRate? NewRate)> EnsureRatesAsync(
+        AdministrationData data,
+        CancellationToken cancellationToken)
+    {
+        if (data.WeeklyRates.Count > 0)
+        {
+            return (data.WeeklyRates, null);
+        }
+
+        GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
+        WeeklyRate rate = WeeklyRate.Create(
+            DateOnly.FromDateTime(settings.CreatedUtc),
+            settings.WeeklyUsageFee,
+            timeProvider.GetUtcNow().UtcDateTime);
+        return ([rate], rate);
+    }
+
+    private static void EnsureUniqueProductName(AdministrationData data, string name, Guid? exceptId)
+    {
+        string normalized = name.Trim();
+        if (data.Products.Any(item => item.Id != exceptId
+            && string.Equals(item.Name, normalized, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("Ya existe un producto con ese nombre.");
+        }
     }
 }

@@ -53,6 +53,14 @@ public sealed class MonthlyClose : AuditableEntity
         MonthlySummaryResult summary,
         DateTime utcNow) => new(Guid.NewGuid(), month, percentage, summary, utcNow);
 
+    public MonthlySummaryResult ToSummary() => new(
+        IncomeMinorUnits,
+        GoalMinorUnits,
+        Math.Max(0, GoalMinorUnits - IncomeMinorUnits),
+        BaseResultMinorUnits,
+        FundMinorUnits,
+        RetainedResultMinorUnits);
+
     public void Reopen(DateTime utcNow)
     {
         if (!IsConfirmed)

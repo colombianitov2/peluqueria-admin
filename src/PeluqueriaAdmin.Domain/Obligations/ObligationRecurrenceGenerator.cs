@@ -20,8 +20,14 @@ public static class ObligationRecurrenceGenerator
             .ToHashSet();
         var generated = new List<Obligation>();
 
-        for (DateOnly dueDate = template.DueDate; dueDate <= throughDate; dueDate = Next(dueDate, template.Recurrence))
+        for (int occurrence = 0; ; occurrence++)
         {
+            DateOnly dueDate = AtOccurrence(template.DueDate, template.Recurrence, occurrence);
+            if (dueDate > throughDate)
+            {
+                break;
+            }
+
             if (!existingDates.Contains(dueDate))
             {
                 generated.Add(Obligation.CreateOccurrence(template, dueDate, utcNow));
@@ -31,10 +37,13 @@ public static class ObligationRecurrenceGenerator
         return generated;
     }
 
-    private static DateOnly Next(DateOnly date, RecurrenceFrequency frequency) => frequency switch
-    {
-        RecurrenceFrequency.Monthly => date.AddMonths(1),
-        RecurrenceFrequency.Annual => date.AddYears(1),
-        _ => throw new InvalidOperationException("La recurrencia no genera nuevas obligaciones."),
-    };
+    private static DateOnly AtOccurrence(
+        DateOnly anchorDate,
+        RecurrenceFrequency frequency,
+        int occurrence) => frequency switch
+        {
+            RecurrenceFrequency.Monthly => anchorDate.AddMonths(occurrence),
+            RecurrenceFrequency.Annual => anchorDate.AddYears(occurrence),
+            _ => throw new InvalidOperationException("La recurrencia no genera nuevas obligaciones."),
+        };
 }

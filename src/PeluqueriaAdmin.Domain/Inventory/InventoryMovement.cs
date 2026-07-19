@@ -46,16 +46,52 @@ public sealed class InventoryMovement : AuditableEntity
         Money? estimatedCost,
         DateTime utcNow)
     {
-        if (decimal.Round(quantityDelta, 3) != quantityDelta)
-        {
-            throw new ArgumentException("La cantidad no puede tener más de tres decimales.", nameof(quantityDelta));
-        }
+        ValidateCorrection(Type, quantityDelta, cashAmount, estimatedCost);
 
         Date = date;
         QuantityDelta = quantityDelta;
         CashAmount = cashAmount;
         EstimatedCost = estimatedCost;
         MarkUpdated(utcNow);
+    }
+
+    private static void ValidateCorrection(
+        InventoryMovementType type,
+        decimal quantityDelta,
+        Money? cashAmount,
+        Money? estimatedCost)
+    {
+        if (decimal.Round(quantityDelta, 3) != quantityDelta)
+        {
+            throw new ArgumentException("La cantidad no puede tener más de tres decimales.", nameof(quantityDelta));
+        }
+
+        if (type is InventoryMovementType.InitialStock or InventoryMovementType.Purchase && quantityDelta <= 0m)
+        {
+            throw new InvalidOperationException("La existencia inicial y la compra deben tener cantidad positiva.");
+        }
+
+        if (type is InventoryMovementType.Sale or InventoryMovementType.InternalConsumption && quantityDelta >= 0m)
+        {
+            throw new InvalidOperationException("La venta y el consumo deben reducir la existencia.");
+        }
+
+        if (type is InventoryMovementType.Purchase or InventoryMovementType.Sale
+            && (!cashAmount.HasValue || cashAmount.Value.MinorUnits <= 0))
+        {
+            throw new InvalidOperationException("La compra y la venta requieren un importe monetario positivo.");
+        }
+
+        if (type == InventoryMovementType.InitialStock && cashAmount.HasValue)
+        {
+            throw new InvalidOperationException("La existencia inicial no genera un movimiento de caja.");
+        }
+
+        if (type is InventoryMovementType.InternalConsumption or InventoryMovementType.PhysicalCountAdjustment
+            && (cashAmount.HasValue || estimatedCost.HasValue))
+        {
+            throw new InvalidOperationException("El consumo y el conteo físico no generan movimientos de caja ni costos nuevos.");
+        }
     }
 
     public static InventoryMovement Initial(

@@ -3,6 +3,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PeluqueriaAdmin.Application.Administration;
+using PeluqueriaAdmin.Application.Localization;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Domain.Collaborators;
 using PeluqueriaAdmin.Domain.Common;
@@ -104,7 +105,18 @@ public sealed partial class AdministrationViewModel(
         IsBusy = true;
         try
         {
-            AdministrationData data = await service.LoadAsync();
+            DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+            DateOnly throughDate = new YearMonth(today.Year, today.Month).LastDay;
+            if (Title == MonthlySummaryModule && TryParseDate(DateText, out DateOnly monthlyDate))
+            {
+                throughDate = YearMonth.From(monthlyDate).LastDay;
+            }
+            else if (Title == AnnualBalanceModule && TryParseDate(DateText, out DateOnly annualDate))
+            {
+                throughDate = new DateOnly(annualDate.Year, 12, 31);
+            }
+
+            AdministrationData data = await service.GenerateScheduledRecordsAsync(throughDate);
             SettingsDto settings = await getSettings.ExecuteAsync();
             Rows.Clear();
             foreach (OperationRow row in BuildRows(data, settings))
@@ -184,13 +196,6 @@ public sealed partial class AdministrationViewModel(
             return;
         }
 
-        if (!ConfirmDelete)
-        {
-            StatusMessage = "Marca la confirmación antes de eliminar.";
-            IsError = true;
-            return;
-        }
-
         IsBusy = true;
         try
         {
@@ -220,6 +225,13 @@ public sealed partial class AdministrationViewModel(
         if (SelectedRow?.Entity is not { } entity)
         {
             StatusMessage = "Selecciona un registro para eliminar.";
+            IsError = true;
+            return;
+        }
+
+        if (!ConfirmDelete)
+        {
+            StatusMessage = "Marca “Confirmo eliminar” antes de eliminar el registro.";
             IsError = true;
             return;
         }
@@ -264,8 +276,9 @@ public sealed partial class AdministrationViewModel(
         switch (Title, SelectedAction)
         {
             case (LocalUseModule, "Agregar persona"):
-                await service.AddAsync(LocalUsePerson.Create(
-                    PrimaryText, date, ParseOptionalDate(EndDateText), utcNow));
+                await service.AddLocalUsePersonAsync(
+                    LocalUsePerson.Create(PrimaryText, date, ParseOptionalDate(EndDateText), utcNow),
+                    DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime));
                 break;
             case (LocalUseModule, "Registrar pago"):
                 await service.RegisterLocalUsePaymentAsync(
@@ -279,7 +292,7 @@ public sealed partial class AdministrationViewModel(
                 await AddSaleAsync(date, utcNow);
                 break;
             case (InventoryModule, "Agregar producto"):
-                await service.AddAsync(Product.Create(
+                await service.AddProductAsync(Product.Create(
                     PrimaryText, ParseProductCategory(SecondaryText), ExtraText, utcNow));
                 break;
             case (InventoryModule, "Existencia inicial"):
@@ -309,13 +322,17 @@ public sealed partial class AdministrationViewModel(
                     date, PrimaryText, ParseMoney(AmountText), utcNow));
                 break;
             case (ObligationsModule, "Agregar obligación"):
-                await service.AddAsync(Obligation.Create(
-                    PrimaryText,
-                    ParseObligationType(SecondaryText),
-                    date,
-                    ParseMoney(AmountText),
-                    ParseRecurrence(ExtraText),
-                    utcNow));
+                await service.AddObligationAsync(
+                    Obligation.Create(
+                        PrimaryText,
+                        ParseObligationType(SecondaryText),
+                        date,
+                        ParseMoney(AmountText),
+                        ParseRecurrence(ExtraText),
+                        utcNow),
+                    new YearMonth(
+                        timeProvider.GetLocalNow().Year,
+                        timeProvider.GetLocalNow().Month).LastDay);
                 break;
             case (ObligationsModule, "Registrar pago"):
                 await service.AddAsync(ObligationPayment.Create(
@@ -335,12 +352,10 @@ public sealed partial class AdministrationViewModel(
                 await CloseMonthAsync(date);
                 break;
             case (PayrollModule, "Pagar distribución"):
-                await PayDistributionAsync(date, utcNow);
+                await PayDistributionAsync(date);
                 break;
             case (PayrollModule, "Reabrir cierre"):
-                MonthlyClose close = RequireSelected<MonthlyClose>();
-                close.Reopen(utcNow);
-                await service.UpdateAsync(close);
+                await service.ReopenMonthAsync(RequireSelected<MonthlyClose>().Id);
                 break;
             case (MonthlySummaryModule or AnnualBalanceModule or CashFlowModule, "Consultar"):
                 break;
@@ -429,16 +444,10 @@ public sealed partial class AdministrationViewModel(
             participantIds);
     }
 
-    private async Task PayDistributionAsync(DateOnly date, DateTime utcNow)
+    private async Task PayDistributionAsync(DateOnly date)
     {
         MonthlyCloseParticipant participant = RequireSelected<MonthlyCloseParticipant>();
-        AdministrationData data = await service.LoadAsync();
-        long paid = data.DistributionPayments
-            .Where(item => item.ParticipantId == participant.Id)
-            .Sum(item => item.Amount.MinorUnits);
-        Money pending = Money.FromMinorUnits(participant.Amount.MinorUnits - paid);
-        await service.AddAsync(DistributionPayment.Create(
-            participant.Id, date, ParseMoney(AmountText), pending, utcNow));
+        await service.RegisterDistributionPaymentAsync(participant.Id, date, ParseMoney(AmountText));
     }
 
     private async Task UpdateEntityAsync(AuditableEntity entity)
@@ -448,8 +457,12 @@ public sealed partial class AdministrationViewModel(
         switch (entity)
         {
             case LocalUsePerson person:
-                person.Update(PrimaryText, date, ParseOptionalDate(EndDateText), utcNow);
-                await service.UpdateAsync(person);
+                await service.UpdateLocalUsePersonAsync(
+                    person.Id,
+                    PrimaryText,
+                    date,
+                    ParseOptionalDate(EndDateText),
+                    DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime));
                 break;
             case LocalUsePayment payment:
                 AdministrationData localData = await service.LoadAsync();
@@ -464,8 +477,8 @@ public sealed partial class AdministrationViewModel(
                 await service.UpdateAsync(collaborator);
                 break;
             case Product product:
-                product.Update(PrimaryText, ParseProductCategory(SecondaryText), ExtraText, utcNow);
-                await service.UpdateAsync(product);
+                await service.UpdateProductAsync(
+                    product.Id, PrimaryText, ParseProductCategory(SecondaryText), ExtraText);
                 break;
             case InventoryMovement movement:
                 movement.Correct(
@@ -501,6 +514,9 @@ public sealed partial class AdministrationViewModel(
                     ParseRecurrence(ExtraText),
                     utcNow);
                 await service.UpdateAsync(obligation);
+                await service.GenerateScheduledRecordsAsync(new YearMonth(
+                    timeProvider.GetLocalNow().Year,
+                    timeProvider.GetLocalNow().Month).LastDay);
                 break;
             case ObligationPayment obligationPayment:
                 obligationPayment.Update(date, ParseMoney(AmountText), utcNow);
@@ -561,6 +577,19 @@ public sealed partial class AdministrationViewModel(
 
     private static IEnumerable<OperationRow> BuildLocalUseRows(AdministrationData data, SettingsDto settings)
     {
+        DateOnly today = DateOnly.FromDateTime(DateTime.Today);
+        ChairCapacity capacity = HomeDashboardCalculator.Capacity(data, settings.TotalChairs, today);
+        yield return Row(null, "Total de sillas", "Capacidad configurada", capacity.Total.ToString(CultureInfo.CurrentCulture), string.Empty, "Calculado", null);
+        yield return Row(null, "Personas vigentes", "Uso del local", capacity.CurrentPeople.ToString(CultureInfo.CurrentCulture), string.Empty, "Calculado", null);
+        yield return Row(
+            null,
+            "Sillas disponibles",
+            "Capacidad actual",
+            capacity.Available.ToString(CultureInfo.CurrentCulture),
+            string.Empty,
+            capacity.Overcapacity > 0 ? $"Sobrecupo: {capacity.Overcapacity}" : "Sin sobrecupo",
+            null);
+
         foreach (LocalUsePerson person in data.LocalUsePeople)
         {
             Money debt = WeeklyChargeCalculator.CalculateDebt(
@@ -623,7 +652,7 @@ public sealed partial class AdministrationViewModel(
         FinancialEntryType type) => data.FinancialEntries
         .Where(item => item.Type == type)
         .Select(item => Row(
-            item.Date, item.Concept, item.Category?.ToString() ?? type.ToString(), string.Empty,
+            item.Date, item.Concept, item.Category.HasValue ? SpanishText.For(item.Category.Value) : SpanishText.For(type), string.Empty,
             item.Amount.ToDecimal().ToString("0.00"), "Registrado", item));
 
     private static IEnumerable<OperationRow> BuildObligationRows(AdministrationData data)
@@ -635,13 +664,14 @@ public sealed partial class AdministrationViewModel(
                 .Where(payment => payment.ObligationId == item.Id)
                 .ToArray();
             yield return Row(
-                item.DueDate, item.Name, $"{item.Type} · {item.Recurrence}", string.Empty,
-                item.GoalAmount(payments).ToDecimal().ToString("0.00"), item.Status(payments, today).ToString(), item);
+                item.DueDate, item.Name, $"{SpanishText.For(item.Type)} · {SpanishText.For(item.Recurrence)}", string.Empty,
+                item.GoalAmount(payments).ToDecimal().ToString("0.00"), SpanishText.For(item.Status(payments, today)), item);
         }
 
         foreach (ObligationPayment payment in data.ObligationPayments)
         {
-            string name = data.Obligations.Single(item => item.Id == payment.ObligationId).Name;
+            string name = data.Obligations.SingleOrDefault(item => item.Id == payment.ObligationId)?.Name
+                ?? "Obligación eliminada";
             yield return Row(
                 payment.Date, name, "Pago de obligación", string.Empty,
                 payment.Amount.ToDecimal().ToString("0.00"), "Registrado", payment);
@@ -661,9 +691,15 @@ public sealed partial class AdministrationViewModel(
         foreach (MonthlyCloseParticipant participant in data.MonthlyCloseParticipants)
         {
             string name = data.Collaborators.SingleOrDefault(item => item.Id == participant.CollaboratorId)?.Name ?? "Colaborador eliminado";
+            MonthlyClose? close = data.MonthlyCloses.SingleOrDefault(item => item.Id == participant.CloseId);
+            if (close is null || !close.IsConfirmed)
+            {
+                continue;
+            }
+
             long paid = data.DistributionPayments.Where(item => item.ParticipantId == participant.Id).Sum(item => item.Amount.MinorUnits);
             yield return Row(
-                null, name, "Participación mensual", string.Empty,
+                close.Month.FirstDay, name, $"Asignación · {close.Month}", string.Empty,
                 FormatMinorUnits(participant.Amount.MinorUnits, settings.CurrencyCode),
                 paid >= participant.Amount.MinorUnits ? "Pagado" : $"Pendiente {FormatMinorUnits(participant.Amount.MinorUnits - paid, settings.CurrencyCode)}",
                 participant);
@@ -671,8 +707,20 @@ public sealed partial class AdministrationViewModel(
 
         foreach (DistributionPayment payment in data.DistributionPayments)
         {
+            MonthlyCloseParticipant? participant = data.MonthlyCloseParticipants
+                .SingleOrDefault(item => item.Id == payment.ParticipantId);
+            MonthlyClose? close = participant is null
+                ? null
+                : data.MonthlyCloses.SingleOrDefault(item => item.Id == participant.CloseId);
+            if (participant is null || close is null || !close.IsConfirmed)
+            {
+                continue;
+            }
+
+            string collaborator = data.Collaborators
+                .SingleOrDefault(item => item.Id == participant.CollaboratorId)?.Name ?? "Colaborador eliminado";
             yield return Row(
-                payment.Date, "Pago a colaborador", "Distribución", string.Empty,
+                payment.Date, collaborator, $"Pago de distribución · {close.Month}", string.Empty,
                 FormatMoney(payment.Amount, settings.CurrencyCode), "Registrado", payment);
         }
     }
@@ -680,9 +728,11 @@ public sealed partial class AdministrationViewModel(
     private IEnumerable<OperationRow> BuildMonthlySummaryRows(AdministrationData data, SettingsDto settings)
     {
         YearMonth month = YearMonth.From(ParseDate(DateText, "mes a consultar"));
-        MonthlySummaryResult result = MonthlySummaryCalculator.Calculate(
-            BuildMonthlyInput(data, settings, month),
-            Percentage.FromPercent(settings.CollaboratorProfitPercent));
+        MonthlySummaryResult result = AdministrationReports.MonthlySummary(
+            data,
+            Money.FromDecimal(settings.OptionalSuppliesMonthlyBudget),
+            Percentage.FromPercent(settings.CollaboratorProfitPercent),
+            month);
         return
         [
             SummaryRow(month, "Ingresos", result.IncomeMinorUnits, settings.CurrencyCode),
@@ -697,22 +747,13 @@ public sealed partial class AdministrationViewModel(
     private IEnumerable<OperationRow> BuildAnnualRows(AdministrationData data, SettingsDto settings)
     {
         int year = ParseDate(DateText, "año a consultar").Year;
-        MonthlySummaryResult[] months = Enumerable.Range(1, 12)
-            .Select(month => MonthlySummaryCalculator.Calculate(
-                BuildMonthlyInput(data, settings, new YearMonth(year, month)),
-                Percentage.FromPercent(settings.CollaboratorProfitPercent)))
-            .ToArray();
-        long distributions = data.DistributionPayments
-            .Where(item => item.Date.Year == year)
-            .Sum(item => item.Amount.MinorUnits);
-        long pending = data.Obligations
-            .Where(item => item.DueDate.Year == year)
-            .Sum(item => Math.Max(
-                0,
-                item.ExpectedAmount.MinorUnits - data.ObligationPayments
-                    .Where(payment => payment.ObligationId == item.Id)
-                    .Sum(payment => payment.Amount.MinorUnits)));
-        AnnualBalanceResult annual = AnnualBalanceCalculator.Calculate(months, distributions, pending);
+        AnnualAdministrationReport report = AdministrationReports.Annual(
+            data,
+            Money.FromDecimal(settings.OptionalSuppliesMonthlyBudget),
+            Percentage.FromPercent(settings.CollaboratorProfitPercent),
+            year);
+        AnnualBalanceResult annual = report.Balance;
+        MonthlyExpenseBreakdown expenses = report.Expenses;
         YearMonth january = new(year, 1);
         return
         [
@@ -722,6 +763,18 @@ public sealed partial class AdministrationViewModel(
             SummaryRow(january, "Resultado retenido", annual.RetainedMinorUnits, settings.CurrencyCode),
             SummaryRow(january, "Pendientes", annual.PendingMinorUnits, settings.CurrencyCode),
             SummaryRow(january, "Faltante anual", annual.MissingMinorUnits, settings.CurrencyCode),
+            SummaryRow(january, "Servicios", expenses.ServicesMinorUnits, settings.CurrencyCode),
+            SummaryRow(january, "Impuestos", expenses.TaxesMinorUnits, settings.CurrencyCode),
+            SummaryRow(january, "Otras obligaciones", expenses.OtherObligationsMinorUnits, settings.CurrencyCode),
+            SummaryRow(january, "Mercancía para venta", expenses.MerchandiseMinorUnits, settings.CurrencyCode),
+            SummaryRow(january, "Insumos obligatorios", expenses.MandatorySuppliesMinorUnits, settings.CurrencyCode),
+            SummaryRow(january, "Insumos opcionales", expenses.OptionalSuppliesMinorUnits, settings.CurrencyCode),
+            SummaryRow(january, "Mantenimiento", expenses.MaintenanceMinorUnits, settings.CurrencyCode),
+            SummaryRow(january, "Imprevistos", expenses.UnexpectedMinorUnits, settings.CurrencyCode),
+            SummaryRow(january, "Otros gastos", expenses.OtherExpensesMinorUnits, settings.CurrencyCode),
+            SummaryRow(january, "Planes de reposición", expenses.PendingPlansMinorUnits, settings.CurrencyCode),
+            SummaryRow(january, "Ajuste histórico de cierres", expenses.HistoricalAdjustmentMinorUnits, settings.CurrencyCode),
+            Row(january.FirstDay, "Indicador", report.Indicator, string.Empty, string.Empty, report.Indicator, null),
         ];
     }
 
@@ -738,62 +791,19 @@ public sealed partial class AdministrationViewModel(
     internal static MonthlySummaryInput BuildMonthlyInput(
         AdministrationData data,
         SettingsDto settings,
-        YearMonth month)
-    {
-        bool InMonth(DateOnly date) => YearMonth.From(date) == month;
-        long localUse = data.LocalUsePayments.Where(item => InMonth(item.PaymentDate)).Sum(item => item.Amount.MinorUnits);
-        InventoryMovement[] purchases = data.InventoryMovements
-            .Where(item => item.Type == InventoryMovementType.Purchase && InMonth(item.Date))
-            .ToArray();
-        long PurchaseFor(ProductCategory category) => purchases
-            .Where(item => data.Products.Any(product => product.Id == item.ProductId && product.Category == category))
-            .Sum(item => item.CashAmount?.MinorUnits ?? 0);
-        long mandatoryInventory = PurchaseFor(ProductCategory.MandatorySupply) + PurchaseFor(ProductCategory.DurableEquipment);
-        long optionalInventory = PurchaseFor(ProductCategory.OptionalCustomerSupply);
-        long merchandise = PurchaseFor(ProductCategory.ProductForSale);
-        long mandatoryExpenses = data.FinancialEntries
-            .Where(item => item.Type == FinancialEntryType.Expense
-                && item.Category != ExpenseCategory.OptionalSupply
-                && InMonth(item.Date))
-            .Sum(item => item.Amount.MinorUnits) + mandatoryInventory;
-        long optionalExpenses = data.FinancialEntries
-            .Where(item => item.Type == FinancialEntryType.Expense
-                && item.Category == ExpenseCategory.OptionalSupply
-                && InMonth(item.Date))
-            .Sum(item => item.Amount.MinorUnits) + optionalInventory;
-        long planCost = data.RestockPlans.Where(item => item.Month == month).Sum(plan =>
-        {
-            InventoryMovement[] productMovements = data.InventoryMovements
-                .Where(item => item.ProductId == plan.ProductId && item.Date <= month.LastDay)
-                .ToArray();
-            decimal suggestion = plan.SuggestedPurchase(InventoryCalculator.CurrentQuantity(productMovements));
-            return checked((long)decimal.Round(
-                InventoryCalculator.AverageUnitCost(productMovements).MinorUnits * suggestion,
-                0,
-                MidpointRounding.AwayFromZero));
-        });
-
-        return new MonthlySummaryInput(
-            localUse,
-            data.InventoryMovements.Where(item => item.Type == InventoryMovementType.Sale && InMonth(item.Date))
-                .Sum(item => item.CashAmount?.MinorUnits ?? 0),
-            data.FinancialEntries.Where(item => item.Type == FinancialEntryType.OtherIncome && InMonth(item.Date))
-                .Sum(item => item.Amount.MinorUnits),
-            data.Obligations.Where(item => InMonth(item.DueDate))
-                .Sum(item => item.GoalAmount(data.ObligationPayments).MinorUnits),
-            merchandise,
-            mandatoryExpenses,
-            optionalExpenses,
-            Money.FromDecimal(settings.OptionalSuppliesMonthlyBudget).MinorUnits,
-            data.FinancialEntries.Where(item => item.Type == FinancialEntryType.UnexpectedExpense && InMonth(item.Date))
-                .Sum(item => item.Amount.MinorUnits),
-            data.MaintenanceRecords.Sum(item => item.GoalAmountFor(month).MinorUnits),
-            planCost);
-    }
+        YearMonth month) => AdministrationReports.BuildMonthlyInput(
+            data,
+            Money.FromDecimal(settings.OptionalSuppliesMonthlyBudget),
+            month);
 
     internal static IReadOnlyList<CashMovement> BuildCashMovements(AdministrationData data)
     {
         var result = new List<CashMovement>();
+        Guid[] confirmedCloseIds = data.MonthlyCloses.Where(item => item.IsConfirmed).Select(item => item.Id).ToArray();
+        Guid[] validParticipantIds = data.MonthlyCloseParticipants
+            .Where(item => confirmedCloseIds.Contains(item.CloseId))
+            .Select(item => item.Id)
+            .ToArray();
         result.AddRange(data.LocalUsePayments.Select(item =>
             new CashMovement(item.PaymentDate, LocalUseModule, "Pago por uso del local", item.Amount.MinorUnits)));
         result.AddRange(data.InventoryMovements.Where(item => item.Type == InventoryMovementType.Sale).Select(item =>
@@ -802,7 +812,7 @@ public sealed partial class AdministrationViewModel(
             new CashMovement(item.Date, "Compras", "Compra de inventario", -(item.CashAmount?.MinorUnits ?? 0))));
         result.AddRange(data.FinancialEntries.Select(item => new CashMovement(
             item.Date,
-            item.Type.ToString(),
+            SpanishText.For(item.Type),
             item.Concept,
             item.Type == FinancialEntryType.OtherIncome ? item.Amount.MinorUnits : -item.Amount.MinorUnits)));
         result.AddRange(data.ObligationPayments.Select(item =>
@@ -811,7 +821,7 @@ public sealed partial class AdministrationViewModel(
             .Where(item => item.CompletedDate.HasValue && item.ActualCost.HasValue)
             .Select(item => new CashMovement(
                 item.CompletedDate!.Value, MaintenanceModule, item.Asset, -item.ActualCost!.Value.MinorUnits)));
-        result.AddRange(data.DistributionPayments.Select(item =>
+        result.AddRange(data.DistributionPayments.Where(item => validParticipantIds.Contains(item.ParticipantId)).Select(item =>
             new CashMovement(item.Date, PayrollModule, "Distribución pagada", -item.Amount.MinorUnits)));
         return result;
     }
@@ -883,14 +893,14 @@ public sealed partial class AdministrationViewModel(
                 break;
             case FinancialEntry item:
                 PrimaryText = item.Concept;
-                SecondaryText = item.Category?.ToString() ?? string.Empty;
+                SecondaryText = item.Category.HasValue ? SpanishText.For(item.Category.Value) : string.Empty;
                 DateText = FormatDate(item.Date);
                 AmountText = item.Amount.ToDecimal().ToString("0.00");
                 break;
             case Obligation item:
                 PrimaryText = item.Name;
-                SecondaryText = item.Type.ToString();
-                ExtraText = item.Recurrence.ToString();
+                SecondaryText = SpanishText.For(item.Type);
+                ExtraText = SpanishText.For(item.Recurrence);
                 DateText = FormatDate(item.DueDate);
                 AmountText = item.ExpectedAmount.ToDecimal().ToString("0.00");
                 break;
@@ -921,15 +931,29 @@ public sealed partial class AdministrationViewModel(
         ? entity
         : throw new InvalidOperationException($"Selecciona primero un registro de tipo {typeof(T).Name}.");
 
-    private static Product FindProduct(AdministrationData data, string name) => data.Products
-        .SingleOrDefault(item => string.Equals(item.Name, name.Trim(), StringComparison.OrdinalIgnoreCase))
-        ?? throw new InvalidOperationException("No existe un producto activo con ese nombre.");
+    private static Product FindProduct(AdministrationData data, string name)
+    {
+        Product[] matches = data.Products
+            .Where(item => string.Equals(item.Name, name.Trim(), StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        return matches.Length switch
+        {
+            0 => throw new InvalidOperationException("No existe un producto activo con ese nombre."),
+            1 => matches[0],
+            _ => throw new InvalidOperationException(
+                "Hay más de un producto con ese nombre. Corrige los nombres duplicados antes de continuar."),
+        };
+    }
 
     private static DateOnly ParseDate(string value, string field) =>
         DateOnly.TryParse(value, CultureInfo.CurrentCulture, DateTimeStyles.None, out DateOnly result)
         || DateOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out result)
             ? result
             : throw new ArgumentException($"El campo {field} debe ser una fecha válida.");
+
+    private static bool TryParseDate(string value, out DateOnly result) =>
+        DateOnly.TryParse(value, CultureInfo.CurrentCulture, DateTimeStyles.None, out result)
+        || DateOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out result);
 
     private static DateOnly? ParseOptionalDate(string value) => string.IsNullOrWhiteSpace(value)
         ? null
@@ -952,7 +976,7 @@ public sealed partial class AdministrationViewModel(
         "producto para venta" or "productforsale" => ProductCategory.ProductForSale,
         "insumo obligatorio" or "mandatorysupply" => ProductCategory.MandatorySupply,
         "insumo opcional" or "optionalcustomersupply" => ProductCategory.OptionalCustomerSupply,
-        "equipo" or "bien duradero" or "durableequipment" => ProductCategory.DurableEquipment,
+        "equipo" or "bien duradero" or "equipo o bien duradero" or "durableequipment" => ProductCategory.DurableEquipment,
         _ => throw new ArgumentException("Categoría válida: Producto para venta, Insumo obligatorio, Insumo opcional o Equipo."),
     };
 
@@ -961,7 +985,7 @@ public sealed partial class AdministrationViewModel(
         "insumo obligatorio" or "mandatorysupply" => ExpenseCategory.MandatorySupply,
         "insumo opcional" or "optionalsupply" => ExpenseCategory.OptionalSupply,
         "compra de mercancia" or "merchandisepurchase" => ExpenseCategory.MerchandisePurchase,
-        "otro" or "other" => ExpenseCategory.Other,
+        "otro" or "otro gasto" or "other" => ExpenseCategory.Other,
         _ => throw new ArgumentException("Categoría válida: Insumo obligatorio, Insumo opcional, Compra de mercancía u Otro."),
     };
 
@@ -969,7 +993,7 @@ public sealed partial class AdministrationViewModel(
     {
         "servicio" or "service" => ObligationType.Service,
         "impuesto" or "tax" => ObligationType.Tax,
-        "otra" or "otherrecurring" => ObligationType.OtherRecurring,
+        "otra" or "otra obligacion" or "otherrecurring" => ObligationType.OtherRecurring,
         _ => throw new ArgumentException("Tipo válido: Servicio, Impuesto u Otra."),
     };
 
@@ -1014,14 +1038,7 @@ public sealed partial class AdministrationViewModel(
 
     private static string FormatDate(DateOnly date) => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-    private static string ProductCategoryName(ProductCategory category) => category switch
-    {
-        ProductCategory.ProductForSale => "Producto para venta",
-        ProductCategory.MandatorySupply => "Insumo obligatorio",
-        ProductCategory.OptionalCustomerSupply => "Insumo opcional",
-        ProductCategory.DurableEquipment => "Equipo",
-        _ => category.ToString(),
-    };
+    private static string ProductCategoryName(ProductCategory category) => SpanishText.For(category);
 
     private static string MovementTypeName(InventoryMovementType type) => type switch
     {
@@ -1043,6 +1060,7 @@ public sealed partial class AdministrationViewModel(
         AmountText = string.Empty;
         SecondaryAmountText = string.Empty;
         QuantityText = string.Empty;
+        ConfirmDelete = false;
         if (!keepMessage)
         {
             StatusMessage = string.Empty;

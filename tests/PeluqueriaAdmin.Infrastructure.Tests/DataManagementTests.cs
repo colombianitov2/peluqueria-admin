@@ -1,7 +1,11 @@
 using System.Text;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using PeluqueriaAdmin.Application.Administration;
+using PeluqueriaAdmin.Domain.Collaborators;
 using PeluqueriaAdmin.Domain.Common;
+using PeluqueriaAdmin.Domain.Inventory;
+using PeluqueriaAdmin.Domain.Reports;
 using PeluqueriaAdmin.Domain.Settings;
 using PeluqueriaAdmin.Infrastructure.Administration;
 using PeluqueriaAdmin.Infrastructure.Persistence;
@@ -70,12 +74,33 @@ public sealed class DataManagementTests
             var backupService = new DatabaseBackupService(factory, paths, timeProvider);
             var initializer = new DatabaseInitializer(factory, paths, timeProvider, backupService);
             await initializer.InitializeAsync(cancellationToken);
-            var service = new CsvDataManagementService(
+            var settingsRepository = new EfSettingsRepository(factory);
+            var administrationService = new AdministrationService(
                 new EfAdministrationRepository(factory),
-                new EfSettingsRepository(factory),
+                settingsRepository,
+                timeProvider);
+            var service = new CsvDataManagementService(
+                administrationService,
+                settingsRepository,
                 backupService,
                 paths,
                 timeProvider);
+            Collaborator collaborator = Collaborator.Create(
+                "Ana", new DateOnly(2026, 7, 1), null, timeProvider.GetUtcNow().UtcDateTime);
+            await administrationService.AddAsync(collaborator, cancellationToken);
+            await administrationService.CloseMonthAsync(
+                new YearMonth(2026, 7),
+                new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0, 0, 0, 0),
+                Percentage.FromPercent(20m),
+                [collaborator.Id],
+                cancellationToken);
+            await administrationService.AddProductAsync(
+                Product.Create(
+                    "Agua",
+                    ProductCategory.ProductForSale,
+                    "unidad",
+                    timeProvider.GetUtcNow().UtcDateTime),
+                cancellationToken);
 
             IReadOnlyList<string> files = await service.ExportAsync(cancellationToken);
 
@@ -93,6 +118,21 @@ public sealed class DataManagementTests
                 Assert.False(bytes.AsSpan().StartsWith(Encoding.UTF8.Preamble));
                 Assert.StartsWith("\"", Encoding.UTF8.GetString(bytes), StringComparison.Ordinal);
             }
+
+            string monthly = await File.ReadAllTextAsync(
+                Assert.Single(files, file => Path.GetFileName(file).StartsWith("resumen-mensual-", StringComparison.Ordinal)),
+                cancellationToken);
+            string annual = await File.ReadAllTextAsync(
+                Assert.Single(files, file => Path.GetFileName(file).StartsWith("balance-anual-", StringComparison.Ordinal)),
+                cancellationToken);
+            string inventory = await File.ReadAllTextAsync(
+                Assert.Single(files, file => Path.GetFileName(file).StartsWith("inventario-actual-", StringComparison.Ordinal)),
+                cancellationToken);
+            Assert.Contains("\"2026-07\",\"USD\",\"100.00\",\"50.00\"", monthly, StringComparison.Ordinal);
+            Assert.Contains("\"Servicios\"", annual, StringComparison.Ordinal);
+            Assert.Contains("\"Indicador\"", annual, StringComparison.Ordinal);
+            Assert.Contains("\"Positivo\"", annual, StringComparison.Ordinal);
+            Assert.Contains("\"Producto para venta\"", inventory, StringComparison.Ordinal);
         }
         finally
         {

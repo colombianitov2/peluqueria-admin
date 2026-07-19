@@ -4,6 +4,28 @@ namespace PeluqueriaAdmin.Domain.LocalUse;
 
 public static class WeeklyChargeCalculator
 {
+    public static IReadOnlyList<DateOnly> ExpectedPeriodStarts(
+        DateOnly entryDate,
+        DateOnly? exitDate,
+        DateOnly throughDate)
+    {
+        DateOnly lastStart = exitDate.HasValue && exitDate.Value < throughDate
+            ? exitDate.Value
+            : throughDate;
+        if (entryDate > lastStart)
+        {
+            return [];
+        }
+
+        var starts = new List<DateOnly>();
+        for (DateOnly start = entryDate; start <= lastStart; start = start.AddDays(7))
+        {
+            starts.Add(start);
+        }
+
+        return starts;
+    }
+
     public static IReadOnlyList<WeeklyCharge> Generate(
         LocalUsePerson person,
         IEnumerable<WeeklyCharge> existingCharges,
@@ -35,12 +57,9 @@ public static class WeeklyChargeCalculator
             throw new InvalidOperationException("Debe existir al menos una tarifa semanal vigente.");
         }
 
-        DateOnly lastPermittedStart = person.ExitDate.HasValue && person.ExitDate.Value < throughDate
-            ? person.ExitDate.Value
-            : throughDate;
         var generated = new List<WeeklyCharge>();
 
-        for (DateOnly start = person.EntryDate; start <= lastPermittedStart; start = start.AddDays(7))
+        foreach (DateOnly start in ExpectedPeriodStarts(person.EntryDate, person.ExitDate, throughDate))
         {
             if (existingStarts.Contains(start))
             {
