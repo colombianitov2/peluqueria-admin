@@ -1,13 +1,17 @@
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PeluqueriaAdmin.Application.DataManagement;
 using PeluqueriaAdmin.Application.Settings;
 
 namespace PeluqueriaAdmin.App.ViewModels;
 
 public sealed partial class SettingsViewModel(
     GetSettingsUseCase getSettings,
-    SaveSettingsUseCase saveSettings) : ObservableObject
+    SaveSettingsUseCase saveSettings,
+    IDataManagementService dataManagement) : ObservableObject
 {
     [ObservableProperty]
     private string weeklyUsageFee = string.Empty;
@@ -23,6 +27,9 @@ public sealed partial class SettingsViewModel(
 
     [ObservableProperty]
     private string currencyCode = string.Empty;
+
+    [ObservableProperty]
+    private string restorePath = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasStatusMessage))]
@@ -98,9 +105,127 @@ public sealed partial class SettingsViewModel(
         }
     }
 
+    [RelayCommand(CanExecute = nameof(CanSave))]
+    private async Task CreateBackupAsync()
+    {
+        await RunDataOperationAsync(
+            dataManagement.CreateManualBackupAsync,
+            path => $"Copia de seguridad creada correctamente:{Environment.NewLine}{path}",
+            "No fue posible crear la copia de seguridad.");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRestore))]
+    private async Task RestoreBackupAsync()
+    {
+        string path = RestorePath.Trim();
+        await RunDataOperationAsync(
+            cancellationToken => dataManagement.RestoreAsync(path, cancellationToken),
+            () => "La copia se restauró correctamente. Reinicia la aplicación para trabajar con los datos restaurados.",
+            "No fue posible restaurar la copia. La base de datos anterior se conservó.");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSave))]
+    private async Task ExportDataAsync()
+    {
+        await RunDataOperationAsync(
+            dataManagement.ExportAsync,
+            files => $"Se exportaron {files.Count} archivos CSV en:{Environment.NewLine}{dataManagement.ExportsDirectory}",
+            "No fue posible exportar los datos.");
+    }
+
+    [RelayCommand]
+    private void OpenBackups() => OpenDirectory(dataManagement.BackupsDirectory);
+
+    [RelayCommand]
+    private void OpenExports() => OpenDirectory(dataManagement.ExportsDirectory);
+
     private bool CanSave() => !IsBusy;
 
-    partial void OnIsBusyChanged(bool value) => SaveCommand.NotifyCanExecuteChanged();
+    private bool CanRestore() => !IsBusy && !string.IsNullOrWhiteSpace(RestorePath);
+
+    partial void OnIsBusyChanged(bool value)
+    {
+        SaveCommand.NotifyCanExecuteChanged();
+        CreateBackupCommand.NotifyCanExecuteChanged();
+        RestoreBackupCommand.NotifyCanExecuteChanged();
+        ExportDataCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnRestorePathChanged(string value) => RestoreBackupCommand.NotifyCanExecuteChanged();
+
+    private async Task RunDataOperationAsync<T>(
+        Func<CancellationToken, Task<T>> operation,
+        Func<T, string> successMessage,
+        string errorMessage)
+    {
+        IsBusy = true;
+        StatusMessage = string.Empty;
+        IsError = false;
+        try
+        {
+            T result = await operation(CancellationToken.None);
+            StatusMessage = successMessage(result);
+        }
+        catch (Exception exception)
+        {
+            SetDataError(errorMessage, exception);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task RunDataOperationAsync(
+        Func<CancellationToken, Task> operation,
+        Func<string> successMessage,
+        string errorMessage)
+    {
+        IsBusy = true;
+        StatusMessage = string.Empty;
+        IsError = false;
+        try
+        {
+            await operation(CancellationToken.None);
+            StatusMessage = successMessage();
+        }
+        catch (Exception exception)
+        {
+            SetDataError(errorMessage, exception);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private void SetDataError(string message, Exception exception)
+    {
+        StatusMessage = message;
+#if DEBUG
+        StatusMessage += $"{Environment.NewLine}{exception.Message}";
+#else
+        _ = exception;
+#endif
+        IsError = true;
+    }
+
+    private void OpenDirectory(string path)
+    {
+        try
+        {
+            Directory.CreateDirectory(path);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception exception)
+        {
+            SetDataError("No fue posible abrir la carpeta.", exception);
+        }
+    }
 
     private bool TryCreateRequest(
         out SaveSettingsRequest request,

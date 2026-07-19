@@ -41,4 +41,16 @@ public sealed class DistributionPayment : AuditableEntity
 
         return new DistributionPayment(Guid.NewGuid(), participantId, date, amount, utcNow);
     }
+
+    public void Update(DateOnly date, Money amount, Money available, DateTime utcNow)
+    {
+        if (amount.MinorUnits == 0 || amount.MinorUnits > available.MinorUnits)
+        {
+            throw new InvalidOperationException("El pago editado no puede superar el pendiente disponible.");
+        }
+
+        Date = date;
+        Amount = amount;
+        MarkUpdated(utcNow);
+    }
 }

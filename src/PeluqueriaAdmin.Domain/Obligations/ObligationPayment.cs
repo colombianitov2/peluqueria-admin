@@ -34,4 +34,16 @@ public sealed class ObligationPayment : AuditableEntity
         DateOnly date,
         Money amount,
         DateTime utcNow) => new(Guid.NewGuid(), obligationId, date, amount, utcNow);
+
+    public void Update(DateOnly date, Money amount, DateTime utcNow)
+    {
+        if (amount.MinorUnits == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(amount));
+        }
+
+        Date = date;
+        Amount = amount;
+        MarkUpdated(utcNow);
+    }
 }

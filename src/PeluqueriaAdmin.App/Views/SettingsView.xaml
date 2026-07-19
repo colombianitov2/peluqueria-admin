@@ -31,6 +31,8 @@
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
 
       <StackPanel Grid.Row="0" Margin="0,0,0,24">
@@ -77,7 +79,39 @@
                  ToolTip="Código ISO de exactamente tres letras, por ejemplo USD." />
       </StackPanel>
 
-      <Border Grid.Row="6"
+      <Border Grid.Row="6" Margin="0,12,0,24" Padding="18" Background="#F3F4F6" CornerRadius="6">
+        <StackPanel>
+          <TextBlock FontSize="20" FontWeight="SemiBold" Text="Datos" />
+          <TextBlock Margin="0,5,0,14"
+                     Foreground="#4B5563"
+                     Text="Crea copias locales, restaura una copia compatible o exporta reportes CSV. Antes de restaurar se guarda automáticamente el estado actual."
+                     TextWrapping="Wrap" />
+
+          <WrapPanel Margin="0,0,0,14">
+            <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding CreateBackupCommand}" Content="Crear copia ahora" />
+            <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding OpenBackupsCommand}" Content="Abrir copias" />
+            <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding ExportDataCommand}" Content="Exportar CSV" />
+            <Button Margin="0,0,0,8" Padding="12,8" Command="{Binding OpenExportsCommand}" Content="Abrir exportaciones" />
+          </WrapPanel>
+
+          <TextBlock Style="{StaticResource FieldLabel}" Text="Archivo de copia para restaurar" />
+          <DockPanel LastChildFill="True">
+            <Button DockPanel.Dock="Right"
+                    Margin="8,6,0,18"
+                    Padding="12,7"
+                    Click="SelectBackup_Click"
+                    Content="Seleccionar…" />
+            <TextBox Text="{Binding RestorePath, UpdateSourceTrigger=PropertyChanged}" />
+          </DockPanel>
+          <Button Width="150"
+                  Padding="12,8"
+                  HorizontalAlignment="Left"
+                  Command="{Binding RestoreBackupCommand}"
+                  Content="Restaurar copia" />
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Row="7"
               Margin="0,2,0,18"
               Padding="12"
               Background="#E8EEF6"
@@ -96,7 +130,7 @@
         </TextBlock>
       </Border>
 
-      <Button Grid.Row="7"
+      <Button Grid.Row="8"
               Width="132"
               Padding="14,9"
               HorizontalAlignment="Left"

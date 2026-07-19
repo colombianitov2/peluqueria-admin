@@ -50,6 +50,27 @@ public sealed class Obligation : AuditableEntity
         DateTime utcNow) => new(
             Guid.NewGuid(), Guid.NewGuid(), name, type, dueDate, expectedAmount, recurrence, utcNow);
 
+    public void Update(
+        string name,
+        ObligationType type,
+        DateOnly dueDate,
+        Money expectedAmount,
+        RecurrenceFrequency recurrence,
+        DateTime utcNow)
+    {
+        if (expectedAmount.MinorUnits == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(expectedAmount));
+        }
+
+        Name = NormalizeRequiredText(name, nameof(name));
+        Type = type;
+        DueDate = dueDate;
+        ExpectedAmount = expectedAmount;
+        Recurrence = recurrence;
+        MarkUpdated(utcNow);
+    }
+
     internal static Obligation CreateOccurrence(Obligation template, DateOnly dueDate, DateTime utcNow) =>
         new(
             Guid.NewGuid(),

@@ -39,6 +39,25 @@ public sealed class InventoryMovement : AuditableEntity
 
     public Money? EstimatedCost { get; private set; }
 
+    public void Correct(
+        DateOnly date,
+        decimal quantityDelta,
+        Money? cashAmount,
+        Money? estimatedCost,
+        DateTime utcNow)
+    {
+        if (decimal.Round(quantityDelta, 3) != quantityDelta)
+        {
+            throw new ArgumentException("La cantidad no puede tener más de tres decimales.", nameof(quantityDelta));
+        }
+
+        Date = date;
+        QuantityDelta = quantityDelta;
+        CashAmount = cashAmount;
+        EstimatedCost = estimatedCost;
+        MarkUpdated(utcNow);
+    }
+
     public static InventoryMovement Initial(
         Guid productId,
         DateOnly date,

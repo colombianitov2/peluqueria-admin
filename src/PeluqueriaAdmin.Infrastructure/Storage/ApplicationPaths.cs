@@ -11,6 +11,7 @@ public sealed class ApplicationPaths
         DataDirectory = Path.Combine(rootDirectory, "Data");
         BackupsDirectory = Path.Combine(rootDirectory, "Backups");
         LogsDirectory = Path.Combine(rootDirectory, "Logs");
+        ExportsDirectory = Path.Combine(rootDirectory, "Exports");
         DatabaseFilePath = Path.Combine(DataDirectory, DatabaseFileName);
     }
 
@@ -21,6 +22,8 @@ public sealed class ApplicationPaths
     public string BackupsDirectory { get; }
 
     public string LogsDirectory { get; }
+
+    public string ExportsDirectory { get; }
 
     public string DatabaseFilePath { get; }
 
@@ -46,5 +49,6 @@ public sealed class ApplicationPaths
         Directory.CreateDirectory(DataDirectory);
         Directory.CreateDirectory(BackupsDirectory);
         Directory.CreateDirectory(LogsDirectory);
+        Directory.CreateDirectory(ExportsDirectory);
     }
 }

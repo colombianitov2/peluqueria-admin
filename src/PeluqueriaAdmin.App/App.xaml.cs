@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PeluqueriaAdmin.App.ViewModels;
 using PeluqueriaAdmin.Application.Administration;
+using PeluqueriaAdmin.Application.DataManagement;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Infrastructure.Administration;
 using PeluqueriaAdmin.Infrastructure.Persistence;
@@ -27,6 +28,7 @@ public partial class App : System.Windows.Application
 
             SettingsViewModel settingsViewModel = serviceProvider.GetRequiredService<SettingsViewModel>();
             await settingsViewModel.LoadAsync();
+            await serviceProvider.GetRequiredService<MainViewModel>().RefreshHomeAsync();
 
             MainWindow window = serviceProvider.GetRequiredService<MainWindow>();
             MainWindow = window;
@@ -66,11 +68,14 @@ public partial class App : System.Windows.Application
             options.UseSqlite(DatabaseConfiguration.CreateConnectionString(paths.DatabaseFilePath)));
         services.AddSingleton<ISettingsRepository, EfSettingsRepository>();
         services.AddSingleton<IAdministrationRepository, EfAdministrationRepository>();
+        services.AddSingleton<DatabaseBackupService>();
+        services.AddSingleton<IDataManagementService, CsvDataManagementService>();
         services.AddSingleton<DatabaseInitializer>();
         services.AddSingleton<AdministrationService>();
         services.AddSingleton<GetSettingsUseCase>();
         services.AddSingleton<SaveSettingsUseCase>();
         services.AddSingleton<SettingsViewModel>();
+        services.AddSingleton<AdministrationViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 

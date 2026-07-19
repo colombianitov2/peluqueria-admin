@@ -51,6 +51,25 @@ public sealed class MaintenanceRecord : AuditableEntity
             Guid.NewGuid(), asset, maintenanceType, scheduledDate,
             estimatedCost, completedDate, actualCost, utcNow);
 
+    public void Update(
+        string asset,
+        string maintenanceType,
+        DateOnly scheduledDate,
+        Money? estimatedCost,
+        DateOnly? completedDate,
+        Money? actualCost,
+        DateTime utcNow)
+    {
+        ValidateCompletion(completedDate, actualCost);
+        Asset = NormalizeRequiredText(asset, nameof(asset));
+        MaintenanceType = NormalizeRequiredText(maintenanceType, nameof(maintenanceType));
+        ScheduledDate = scheduledDate;
+        EstimatedCost = estimatedCost;
+        CompletedDate = completedDate;
+        ActualCost = actualCost;
+        MarkUpdated(utcNow);
+    }
+
     public bool NeedsAttention(DateOnly today) => !IsDeleted && !CompletedDate.HasValue && ScheduledDate <= today;
 
     public Money GoalAmountFor(YearMonth month)

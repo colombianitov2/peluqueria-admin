@@ -3,39 +3,56 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:PeluqueriaAdmin.App.Views"
         Title="Peluquería Admin"
-        Width="960"
-        Height="640"
-        MinWidth="720"
-        MinHeight="520"
+        Width="1220"
+        Height="760"
+        MinWidth="980"
+        MinHeight="620"
         WindowStartupLocation="CenterScreen">
+  <Window.Resources>
+    <Style x:Key="NavigationButton" TargetType="Button">
+      <Setter Property="Margin" Value="0,0,0,6" />
+      <Setter Property="Padding" Value="12,8" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+  </Window.Resources>
   <DockPanel>
     <Border DockPanel.Dock="Left"
-            Width="176"
-            Padding="16,24"
+            Width="230"
+            Padding="14,20"
             Background="#172033">
-      <StackPanel>
-        <TextBlock Margin="8,0,8,28"
-                   Foreground="White"
-                   FontSize="18"
-                   FontWeight="SemiBold"
-                   Text="Peluquería Admin"
-                   TextWrapping="Wrap" />
-        <Button Margin="0,0,0,8"
-                Padding="12,9"
-                HorizontalContentAlignment="Left"
-                Command="{Binding ShowHomeCommand}"
-                Content="Inicio" />
-        <Button Padding="12,9"
-                HorizontalContentAlignment="Left"
-                Command="{Binding ShowSettingsCommand}"
-                Content="Ajustes" />
-      </StackPanel>
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+          <TextBlock Margin="8,0,8,22"
+                     Foreground="White"
+                     FontSize="18"
+                     FontWeight="SemiBold"
+                     Text="Peluquería Admin"
+                     TextWrapping="Wrap" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowHomeCommand}" Content="Inicio" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowModuleCommand}" CommandParameter="Uso del local" Content="Uso del local" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowModuleCommand}" CommandParameter="Colaboradores" Content="Colaboradores" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowModuleCommand}" CommandParameter="Ventas" Content="Ventas" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowModuleCommand}" CommandParameter="Inventario" Content="Inventario" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowModuleCommand}" CommandParameter="Otros ingresos" Content="Otros ingresos" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowModuleCommand}" CommandParameter="Gastos" Content="Gastos" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowModuleCommand}" CommandParameter="Imprevistos" Content="Imprevistos" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowModuleCommand}" CommandParameter="Obligaciones" Content="Obligaciones" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowModuleCommand}" CommandParameter="Mantenimiento" Content="Mantenimiento" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowModuleCommand}" CommandParameter="Nómina de colaboradores" Content="Nómina de colaboradores" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowModuleCommand}" CommandParameter="Resumen mensual" Content="Resumen mensual" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowModuleCommand}" CommandParameter="Balance anual" Content="Balance anual" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowModuleCommand}" CommandParameter="Flujo de caja" Content="Flujo de caja" />
+          <Button Style="{StaticResource NavigationButton}" Command="{Binding ShowSettingsCommand}" Content="Ajustes" />
+        </StackPanel>
+      </ScrollViewer>
     </Border>
 
     <Grid Background="#F5F7FA">
       <views:HomeView Visibility="{Binding IsHomeVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
       <views:SettingsView DataContext="{Binding Settings}"
                           Visibility="{Binding IsSettingsVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
+      <views:AdministrationView DataContext="{Binding Administration}"
+                                Visibility="{Binding IsAdministrationVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
     </Grid>
   </DockPanel>
 </Window>

@@ -1,0 +1,120 @@
+<UserControl x:Class="PeluqueriaAdmin.App.Views.AdministrationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:PeluqueriaAdmin.App.ViewModels"
+             d:DataContext="{d:DesignInstance Type=viewModels:AdministrationViewModel, IsDesignTimeCreatable=False}"
+             d:DesignHeight="760"
+             d:DesignWidth="990"
+             Language="es-ES"
+             mc:Ignorable="d">
+  <Grid Margin="26">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="14" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="14" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <DockPanel Grid.Row="0">
+      <Button DockPanel.Dock="Right"
+              Width="96"
+              Padding="10,6"
+              Command="{Binding RefreshCommand}"
+              Content="Actualizar" />
+      <StackPanel>
+        <TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding Title}" />
+        <TextBlock Margin="0,5,18,0" Foreground="#4B5563" Text="{Binding Description}" TextWrapping="Wrap" />
+      </StackPanel>
+    </DockPanel>
+
+    <DataGrid Grid.Row="2"
+              AutoGenerateColumns="False"
+              CanUserAddRows="False"
+              IsReadOnly="True"
+              ItemsSource="{Binding Rows}"
+              SelectedItem="{Binding SelectedRow}">
+      <DataGrid.Columns>
+        <DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" />
+        <DataGridTextColumn Width="2*" Binding="{Binding Principal}" Header="Nombre o concepto" />
+        <DataGridTextColumn Width="2*" Binding="{Binding Detail}" Header="Detalle" />
+        <DataGridTextColumn Width="90" Binding="{Binding Quantity}" Header="Cantidad" />
+        <DataGridTextColumn Width="125" Binding="{Binding Amount}" Header="Monto" />
+        <DataGridTextColumn Width="150" Binding="{Binding Status}" Header="Estado calculado" />
+      </DataGrid.Columns>
+    </DataGrid>
+
+    <Border Grid.Row="4"
+            Padding="16"
+            Background="White"
+            BorderBrush="#D7DEE8"
+            BorderThickness="1"
+            CornerRadius="4">
+      <StackPanel>
+        <WrapPanel Visibility="{Binding IsFormVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+          <StackPanel Width="210" Margin="0,0,12,10">
+            <TextBlock FontWeight="SemiBold" Text="Operación" />
+            <ComboBox Margin="0,5,0,0" Padding="7" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding SelectedAction}" />
+          </StackPanel>
+          <StackPanel Width="210" Margin="0,0,12,10">
+            <TextBlock FontWeight="SemiBold" Text="Nombre, concepto o producto" />
+            <TextBox Margin="0,5,0,0" Padding="7" Text="{Binding PrimaryText, UpdateSourceTrigger=PropertyChanged}" />
+          </StackPanel>
+          <StackPanel Width="210" Margin="0,0,12,10">
+            <TextBlock FontWeight="SemiBold" Text="Tipo o categoría" />
+            <TextBox Margin="0,5,0,0" Padding="7" Text="{Binding SecondaryText, UpdateSourceTrigger=PropertyChanged}" />
+          </StackPanel>
+          <StackPanel Width="180" Margin="0,0,12,10">
+            <TextBlock FontWeight="SemiBold" Text="Unidad o repetición" />
+            <TextBox Margin="0,5,0,0" Padding="7" Text="{Binding ExtraText, UpdateSourceTrigger=PropertyChanged}" />
+          </StackPanel>
+          <StackPanel Width="160" Margin="0,0,12,10">
+            <TextBlock FontWeight="SemiBold" Text="Fecha (AAAA-MM-DD)" />
+            <TextBox Margin="0,5,0,0" Padding="7" Text="{Binding DateText, UpdateSourceTrigger=PropertyChanged}" />
+          </StackPanel>
+          <StackPanel Width="160" Margin="0,0,12,10">
+            <TextBlock FontWeight="SemiBold" Text="Retiro o realización" />
+            <TextBox Margin="0,5,0,0" Padding="7" Text="{Binding EndDateText, UpdateSourceTrigger=PropertyChanged}" />
+          </StackPanel>
+          <StackPanel Width="135" Margin="0,0,12,10">
+            <TextBlock FontWeight="SemiBold" Text="Monto principal" />
+            <TextBox Margin="0,5,0,0" Padding="7" Text="{Binding AmountText, UpdateSourceTrigger=PropertyChanged}" />
+          </StackPanel>
+          <StackPanel Width="135" Margin="0,0,12,10">
+            <TextBlock FontWeight="SemiBold" Text="Monto real/costo" />
+            <TextBox Margin="0,5,0,0" Padding="7" Text="{Binding SecondaryAmountText, UpdateSourceTrigger=PropertyChanged}" />
+          </StackPanel>
+          <StackPanel Width="125" Margin="0,0,12,10">
+            <TextBlock FontWeight="SemiBold" Text="Cantidad" />
+            <TextBox Margin="0,5,0,0" Padding="7" Text="{Binding QuantityText, UpdateSourceTrigger=PropertyChanged}" />
+          </StackPanel>
+        </WrapPanel>
+
+        <TextBlock Margin="0,2,0,10" Text="Selecciona una fila para pagos, edición o eliminación. Los campos no aplicables pueden dejarse vacíos." TextWrapping="Wrap" />
+
+        <WrapPanel>
+          <Button Margin="0,0,8,0" Padding="14,8" Command="{Binding SaveCommand}" Content="Guardar" />
+          <Button Margin="0,0,8,0" Padding="14,8" Command="{Binding LoadSelectedCommand}" Content="Cargar selección" />
+          <Button Margin="0,0,8,0" Padding="14,8" Command="{Binding SaveEditCommand}" Content="Guardar edición" />
+          <CheckBox Margin="12,0,8,0" VerticalAlignment="Center" IsChecked="{Binding ConfirmDelete}" Content="Confirmo eliminar" />
+          <Button Padding="14,8" Command="{Binding DeleteCommand}" Content="Eliminar" />
+        </WrapPanel>
+
+        <TextBlock Margin="0,12,0,0" Text="{Binding StatusMessage}" TextWrapping="Wrap">
+          <TextBlock.Style>
+            <Style TargetType="TextBlock">
+              <Setter Property="Foreground" Value="#166534" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding IsError}" Value="True">
+                  <Setter Property="Foreground" Value="#B91C1C" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </TextBlock.Style>
+        </TextBlock>
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

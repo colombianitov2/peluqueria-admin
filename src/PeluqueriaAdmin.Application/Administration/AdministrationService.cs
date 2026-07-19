@@ -117,6 +117,30 @@ public sealed class AdministrationService(
         await repository.SaveAsync([movement], [], cancellationToken);
     }
 
+    public async Task UpdateInventoryMovementAsync(
+        InventoryMovement movement,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        InventoryMovement[] productMovements = data.InventoryMovements
+            .Where(item => item.ProductId == movement.ProductId && item.Id != movement.Id)
+            .Append(movement)
+            .ToArray();
+        InventoryCalculator.EnsureNonNegative(productMovements);
+        await repository.SaveAsync([], [movement], cancellationToken);
+    }
+
+    public async Task DeleteInventoryMovementAsync(
+        InventoryMovement movement,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        movement.MarkDeleted(timeProvider.GetUtcNow().UtcDateTime);
+        InventoryCalculator.EnsureNonNegative(data.InventoryMovements
+            .Where(item => item.ProductId == movement.ProductId && item.Id != movement.Id));
+        await repository.SaveAsync([], [movement], cancellationToken);
+    }
+
     public async Task<(MonthlyClose Close, IReadOnlyList<MonthlyCloseParticipant> Participants)> CloseMonthAsync(
         YearMonth month,
         MonthlySummaryInput input,

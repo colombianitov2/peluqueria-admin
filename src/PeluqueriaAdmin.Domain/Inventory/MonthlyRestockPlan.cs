@@ -32,6 +32,13 @@ public sealed class MonthlyRestockPlan : AuditableEntity
         Quantity neededQuantity,
         DateTime utcNow) => new(Guid.NewGuid(), productId, month, neededQuantity, utcNow);
 
+    public void Update(YearMonth month, Quantity neededQuantity, DateTime utcNow)
+    {
+        Month = month;
+        NeededQuantity = neededQuantity;
+        MarkUpdated(utcNow);
+    }
+
     public decimal SuggestedPurchase(decimal availableQuantity) =>
         Math.Max(0m, NeededQuantity.Value - availableQuantity);
 }
