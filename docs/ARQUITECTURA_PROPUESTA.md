@@ -2,7 +2,7 @@
 
 ## Alcance y estado
 
-Este documento conserva la comparación técnica inicial y registra la arquitectura adoptada. La base técnica se creó en la Fase 1 y la Fase 2 implementa SQLite y la configuración general. Velopack, los módulos operativos y el instalador continúan pendientes.
+Este documento conserva la comparación técnica inicial y registra la arquitectura implementada hasta la Fase 3.
 
 ## Arquitectura adoptada (18 de julio de 2026)
 
@@ -16,7 +16,7 @@ Se adoptó la siguiente base tecnológica para el proyecto:
 - **Canal de actualización:** GitHub Releases públicos del mismo repositorio.
 - **Repositorio publicado:** [https://github.com/colombianitov2/peluqueria-admin](https://github.com/colombianitov2/peluqueria-admin), desde el 18 de julio de 2026.
 
-La solución base quedó creada en la Fase 1. En la Fase 2 se incorporan EF Core SQLite, migraciones, MVVM, inyección de dependencias y pruebas. Velopack todavía no está implementado. Las decisiones funcionales abiertas permanecen en `docs/DECISIONES_PENDIENTES.md`.
+La solución incorpora EF Core SQLite, migraciones, MVVM, inyección de dependencias, 15 módulos, copias, CSV, pruebas y Velopack 1.2.0. Las decisiones realmente abiertas permanecen en `docs/DECISIONES_PENDIENTES.md`.
 
 ## Comparación de alternativas
 
@@ -71,9 +71,9 @@ Infraestructura: SQLite, copias, migraciones, exportación y actualizaciones
 ```
 
 - **Presentación:** pantallas, navegación, validación visible y comandos. No contiene fórmulas financieras ni acceso directo a SQLite.
-- **Aplicación:** define contratos y coordina casos de uso. En la Fase 2 contiene exclusivamente consulta y guardado de Ajustes.
-- **Dominio:** concentra deuda semanal, inventario, punto de equilibrio y distribución de ganancias. Las reglas pendientes no se codifican hasta recibir respuesta.
-- **Infraestructura:** implementa persistencia, transacciones, copias, restauración, migraciones y consulta de actualizaciones.
+- **Aplicación:** define contratos y coordina Ajustes, operaciones administrativas, transacciones, datos y actualizaciones.
+- **Dominio:** concentra deuda semanal, inventario, obligaciones, mantenimiento, punto de equilibrio, caja, cierres y distribución.
+- **Infraestructura:** implementa SQLite, transacciones, migraciones, copias, restauración y CSV. El adaptador Velopack vive en la composición WPF y satisface un contrato de Application.
 
 Esta separación protege las reglas aprobadas y permite probarlas sin depender de la interfaz.
 
@@ -83,7 +83,7 @@ Almacenamiento adoptado para la aplicación:
 
 - El ejecutable y sus archivos de versión viven en la ubicación administrada por el instalador.
 - La base de datos vive en `%LocalAppData%\PeluqueriaAdmin\Data\peluqueria-admin.db`, fuera de la carpeta del ejecutable.
-- Las carpetas `%LocalAppData%\PeluqueriaAdmin\Backups` y `%LocalAppData%\PeluqueriaAdmin\Logs` quedan preparadas para funciones futuras.
+- Las carpetas `%LocalAppData%\PeluqueriaAdmin\Backups`, `Exports` y `Logs` separan copias, exportaciones y registros.
 - Las pruebas inyectan una raíz temporal y no usan datos reales.
 
 Reglas técnicas:
@@ -98,7 +98,7 @@ Reglas técnicas:
 - Antes de una migración importante se crea una copia verificada de la base de datos cerrada o mediante el mecanismo seguro de copia de SQLite.
 - Si una migración falla, se revierte la transacción y no se abre la aplicación sobre un esquema parcialmente actualizado.
 - La restauración manual valida la copia elegida y crea una copia del estado actual antes de reemplazarlo.
-- La frecuencia y retención de copias siguen pendientes de decisión.
+- Se crea como máximo una copia automática diaria cuando cambia la base y se retienen las 30 automáticas más recientes.
 
 Antes de crear cualquier base de datos o archivo de usuario, el repositorio deberá incorporar reglas de exclusión para bases reales, archivos auxiliares de SQLite, copias, configuraciones personales, registros, secretos, tokens y certificados.
 
@@ -107,7 +107,7 @@ Antes de crear cualquier base de datos o archivo de usuario, el repositorio debe
 ### Flujo recomendado
 
 1. Usar versiones semánticas y etiquetas como `v1.0.0`.
-2. Más adelante, una automatización de GitHub compila, prueba y empaqueta una etiqueta aprobada.
+2. El workflow de GitHub compila, prueba y empaqueta una etiqueta aprobada.
 3. Velopack genera el instalador inicial y los artefactos de actualización.
 4. Los artefactos se publican en un GitHub Release público.
 5. La aplicación consulta el Release al iniciar y también mediante **Buscar actualizaciones**.
@@ -147,13 +147,10 @@ Costos:
 
 Se adoptó la opción A: un único repositorio público para código y lanzamientos. El repositorio está publicado en [https://github.com/colombianitov2/peluqueria-admin](https://github.com/colombianitov2/peluqueria-admin). La opción B se conserva arriba únicamente como parte de la comparación histórica.
 
-Los GitHub Releases públicos serán el canal previsto para Velopack. Velopack todavía no está implementado y el ejecutable no debe incorporar credenciales de GitHub.
+Los GitHub Releases públicos son la fuente configurada para Velopack. La aplicación consulta sin credenciales; las publicaciones usan únicamente el `GITHUB_TOKEN` efímero del workflow.
 
-## Validaciones previstas para fases posteriores
+## Validaciones aún pendientes
 
-- pruebas unitarias de deuda, inventario, punto de equilibrio y reparto;
-- pruebas de integración de SQLite, eliminación lógica y migraciones;
-- restauración desde una copia real de prueba;
 - actualización entre dos versiones de prueba conservando la base de datos;
 - instalación limpia y actualización sobre cada versión de Windows aprobada;
 - comparación de resultados mensuales y anuales con ejemplos manuales aprobados.

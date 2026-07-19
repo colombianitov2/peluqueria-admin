@@ -2,7 +2,7 @@
 
 ## Carácter canónico y precedencia
 
-Este documento es la fuente canónica actual de requisitos del proyecto a partir de la instrucción de Fase 0 recibida el 18 de julio de 2026.
+Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 3 del 18 de julio de 2026.
 
 - Cuando exista contradicción con ideas iniciales de `Programa para peluquería.txt`, prevalece este documento.
 - `Instrucciones codex.txt` conserva las normas de trabajo y seguridad del proyecto, excepto cuando contradiga expresamente la solicitud vigente.
@@ -35,13 +35,13 @@ La aplicación:
 - Cada persona paga actualmente USD 12 semanales por utilizar el local y guardar sus pertenencias de trabajo.
 - Los USD 12 constituyen un valor general configurable en Ajustes, no una tarifa individual.
 - No está definido que el cobro sea los sábados y no se asumirá ningún día de cobro.
-- La regla exacta para generar las semanas cobradas permanece como decisión pendiente.
+- La primera cuota se genera al ingreso y las posteriores cada siete días exactos; cada periodo iniciado se cobra completo y conserva su tarifa histórica.
 - Los pagos registrados reducen la deuda de cada persona.
 - La página principal muestra el nombre de cada persona con deuda y el importe adeudado.
 
 ## 3. Personas que pagan por utilizar el local
 
-El módulo no se llamará **Trabajadores y alquiler de sillas**. Su nombre definitivo permanece pendiente.
+El módulo se llama **Uso del local** y no representa una relación laboral.
 
 Datos mínimos previstos:
 
@@ -317,6 +317,13 @@ No mostrar allí:
 - Se agregan internamente fechas de creación, modificación y eliminación cuando sean necesarias.
 - La base de datos real, sus copias de seguridad, archivos personales, contraseñas, tokens y certificados no se guardan en Git.
 
+Copias y exportación:
+
+- máximo una copia automática diaria cuando la base cambió y retención de las 30 automáticas más recientes;
+- copia diferenciada antes de migrar un esquema existente y antes de restaurar;
+- restauración manual después de validar compatibilidad y con recuperación de la base anterior ante fallo;
+- exportación CSV UTF-8 de resumen mensual, balance anual, flujo de caja, inventario y deudas por Uso del local.
+
 La arquitectura debe contemplar:
 
 - copias de seguridad automáticas;
@@ -347,7 +354,7 @@ Política de versiones y publicación:
 
 - usar versiones semánticas;
 - preparar versiones estables mediante GitHub Releases;
-- incorporar posteriormente automatización de compilación, pruebas, empaquetado y publicación por etiquetas de versión;
+- automatizar compilación, pruebas, empaquetado y publicación exclusivamente mediante etiquetas SemVer `v*` deliberadas;
 - no incrustar un token personal de GitHub en el ejecutable.
 
 El proyecto utiliza un único repositorio público para el código y los lanzamientos:
@@ -357,3 +364,5 @@ El proyecto utiliza un único repositorio público para el código y los lanzami
 - Los GitHub Releases públicos del mismo repositorio serán el canal previsto para las actualizaciones.
 
 El ejecutable nunca debe incluir un token personal de GitHub ni otra credencial para consultar o descargar actualizaciones públicas.
+
+La primera alpha es x64, sin certificado y puede activar una advertencia de SmartScreen. Windows 11 es la plataforma principal de validación; Windows 10 x64 sigue siendo un objetivo no verificado en un equipo real. No se declara verificada una actualización entre Releases hasta disponer de dos versiones publicadas.

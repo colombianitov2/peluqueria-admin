@@ -10,7 +10,7 @@ Este registro impide que la implementación convierta supuestos en reglas de neg
 - **Tecnología adoptada:** C#, .NET 10, WPF y SQLite.
 - **Actualizador previsto:** Velopack con GitHub Releases públicos.
 
-La creación de la solución base queda autorizada en la Fase 1. La implementación de módulos funcionales, SQLite, Velopack y paquetes externos continúa fuera del alcance de esta fase.
+Esta nota se conserva como antecedente histórico; esas funciones fueron autorizadas e implementadas en las fases posteriores.
 
 ## Decisiones resueltas en la Fase 2 (18 de julio de 2026)
 
@@ -35,6 +35,8 @@ La decisión de moneda queda cerrada. No define reglas semanales de cobro ni fó
 - **Obligaciones:** el punto de equilibrio usa el importe real si está completamente pagada y el esperado mientras esté pendiente o parcial, sin sumar ambos.
 - **Copias:** máximo una automática diaria cuando cambie la base, retención de 30, copias diferenciadas antes de migraciones y respaldo previo a restaurar.
 - **Firma:** el alfa se distribuye sin certificado; se documenta la advertencia posible de SmartScreen y se prepara configuración futura sin guardar certificados.
+- **Actualizaciones:** Velopack 1.2.0 consulta GitHub Releases públicos sin token; una etiqueta SemVer `v*` deliberada activa el workflow de publicación.
+- **Datos:** SQLite, copias y exportaciones viven bajo `%LocalAppData%\PeluqueriaAdmin`, fuera de la carpeta actualizada.
 
 La distribución de residuos de centavos será determinista por identificador estable de participante para que la suma coincida exactamente con el fondo.
 

@@ -17,14 +17,14 @@ Este documento registra el avance verificable para completar la primera versión
 | Etapa | Alcance | Verificación | Estado |
 |---|---|---|---|
 | 1 | Decisiones, modelo técnico y plan | Documentos coherentes con FASE 3 | Completada |
-| 2 | Uso del local e Inventario | Pruebas de cuotas, pagos, existencias y reposición | Dominio completado; persistencia/UI pendiente |
-| 3 | Obligaciones, mantenimiento, ingresos, gastos y colaboradores | Pruebas de recurrencia, caja y eliminación lógica | Dominio completado; UI pendiente |
-| 4 | Resumen mensual, cierres, nómina, balance anual y flujo de caja | Pruebas de fórmulas, centavos e inmutabilidad | Dominio completado; UI pendiente |
+| 2 | Uso del local e Inventario | Pruebas de cuotas, pagos, existencias y reposición | Completada |
+| 3 | Obligaciones, mantenimiento, ingresos, gastos y colaboradores | Pruebas de recurrencia, caja y eliminación lógica | Completada |
+| 4 | Resumen mensual, cierres, nómina, balance anual y flujo de caja | Pruebas de fórmulas, centavos e inmutabilidad | Completada |
 | 5 | Persistencia SQLite y casos de uso | Migración desde `InitialSettings` y pruebas temporales | Completada |
-| 6 | Interfaz de los 15 módulos | Compilación WPF, navegación y prueba controlada | Pendiente |
-| 7 | Copias, restauración y CSV | Pruebas con bases y carpetas temporales | Pendiente |
-| 8 | Velopack y actualización | Empaquetado alfa x64 local; workflow sin publicar Release | Pendiente |
-| 9 | Documentación y validación final | Formato, builds, pruebas, auditoría, CI y revisión Git | Pendiente |
+| 6 | Interfaz de los 15 módulos | Compilación WPF, navegación y prueba controlada | Completada |
+| 7 | Copias, restauración y CSV | Pruebas con bases y carpetas temporales | Completada |
+| 8 | Velopack y actualización | Empaquetado alfa x64 local; workflow sin publicar Release | Completada; actualización entre Releases no verificable aún |
+| 9 | Documentación y validación final | Formato, builds, pruebas, auditoría, CI y revisión Git | En curso |
 
 ## Estrategia de commits y publicación
 
