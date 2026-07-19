@@ -1,4 +1,4 @@
-# Plan de implementación de la Fase 3
+# Plan de implementación de las Fases 3 y 3.1
 
 Este documento registra el avance verificable para completar la primera versión alfa administrativa. Cada etapa conserva la migración `InitialSettings`, la ruta de datos aprobada y las funciones ya validadas de Inicio y Ajustes.
 
@@ -25,6 +25,7 @@ Este documento registra el avance verificable para completar la primera versión
 | 7 | Copias, restauración y CSV | Pruebas con bases y carpetas temporales | Completada |
 | 8 | Velopack y actualización | Empaquetado alfa x64 local; workflow sin publicar Release | Completada; actualización entre Releases no verificable aún |
 | 9 | Documentación y validación final | Formato, builds, pruebas, auditoría, CI y revisión Git | Completada |
+| 10 | Correcciones de aceptación 3.1 | 57 pruebas locales, compilación limpia y revisión de regresión | Completada localmente; publicación del PR pendiente |
 
 ## Estrategia de commits y publicación
 
@@ -34,4 +35,4 @@ Este documento registra el avance verificable para completar la primera versión
 4. Copias, exportación, interfaz y actualizaciones.
 5. Validación integral y documentación final.
 
-La rama se publicó después de cada bloque, el PR se abrió como borrador tras el primer commit sustancial y se marcó listo únicamente después de completar las verificaciones locales. El PR permanece sin fusionar y no se creó ninguna etiqueta ni Release.
+La rama se publicó después de cada bloque, el PR se abrió como borrador tras el primer commit sustancial y se marcó listo únicamente después de completar las verificaciones locales. Las correcciones 3.1 se preparan en el mismo worktree y rama del PR #3. La fusión, la etiqueta y el primer Release se realizan únicamente después de repetir todas las verificaciones y confirmar CI verde. La actualización entre Releases seguirá sin declararse verificada porque esta fase autoriza una sola publicación.

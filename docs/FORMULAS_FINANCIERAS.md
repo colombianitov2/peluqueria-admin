@@ -62,7 +62,10 @@ El fondo positivo se divide en partes iguales entre los participantes confirmado
 
 Un resultado base cero o negativo produce fondo cero y no crea deuda. Un cierre confirmado conserva mes, porcentaje, fondo, participantes e importes históricos.
 
+Mientras el cierre permanezca confirmado, sus totales guardados prevalecen sobre cambios posteriores de porcentaje, presupuesto o registros editables al consultar el resumen mensual, el balance anual y los CSV. Al reabrir, el mes vuelve a usar la fórmula dinámica.
+
 ## Balance anual y caja
 
-El balance suma los 12 resultados mensuales, distribuciones pagadas y obligaciones pendientes sin repetir obligaciones anuales ya incluidas en un mes. El flujo de caja lista solo entradas y salidas efectivas dentro del rango seleccionado.
+El balance suma los 12 resultados mensuales, distribuciones pagadas de cierres confirmados y obligaciones pendientes sin repetir obligaciones anuales ya incluidas en un mes. Desglosa servicios, impuestos, otras obligaciones, mercancía, insumos obligatorios y opcionales, mantenimiento, imprevistos, otros gastos y planes de reposición. El ajuste histórico reconcilia el desglose dinámico con la meta guardada de un cierre confirmado. El indicador es `Positivo` cuando el resultado retenido acumulado es mayor o igual a cero y `Negativo` cuando es inferior a cero.
 
+El flujo de caja lista solo entradas y salidas efectivas dentro del rango seleccionado y excluye distribuciones asociadas a cierres reabiertos.

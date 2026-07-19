@@ -2,7 +2,7 @@
 
 ## Carácter canónico y precedencia
 
-Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 3 del 18 de julio de 2026.
+Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 3.1 del 18 de julio de 2026.
 
 - Cuando exista contradicción con ideas iniciales de `Programa para peluquería.txt`, prevalece este documento.
 - `Instrucciones codex.txt` conserva las normas de trabajo y seguridad del proyecto, excepto cuando contradiga expresamente la solicitud vigente.
@@ -366,3 +366,19 @@ El proyecto utiliza un único repositorio público para el código y los lanzami
 El ejecutable nunca debe incluir un token personal de GitHub ni otra credencial para consultar o descargar actualizaciones públicas.
 
 La primera alpha es x64, sin certificado y puede activar una advertencia de SmartScreen. Windows 11 es la plataforma principal de validación; Windows 10 x64 sigue siendo un objetivo no verificado en un equipo real. No se declara verificada una actualización entre Releases hasta disponer de dos versiones publicadas.
+
+## 17. Correcciones de aceptación de la Fase 3.1
+
+- Editar y eliminar son acciones separadas: la confirmación se exige solo para eliminar y se reinicia después de usarla.
+- Al crear una persona de Uso del local se generan inmediatamente sus cuotas aplicables. Al crear una obligación recurrente se generan inmediatamente sus ocurrencias aplicables, sin reiniciar la aplicación y sin duplicados.
+- Una recurrencia mensual conserva como ancla la fecha original; por ejemplo, una obligación del día 31 pasa por el último día de febrero y vuelve al día 31 cuando el mes lo permite.
+- Un cambio de ingreso o retiro que invalide cuotas con pagos se rechaza. Sin pagos, las cuotas incompatibles pueden invalidarse de forma lógica y transaccional.
+- Reabrir un cierre con pagos de distribución se rechaza. Sin pagos, la reapertura invalida sus asignaciones calculadas; un cierre nuevo crea una sola distribución activa cuya suma coincide exactamente con el fondo.
+- Solo las asignaciones de cierres confirmados se pueden pagar o mostrar como pendientes.
+- Un cierre confirmado es una fotografía histórica para el resumen mensual, el balance anual y los CSV. Un mes reabierto vuelve al cálculo dinámico.
+- Inicio muestra exclusivamente servicios e impuestos pendientes vencidos o del mes actual, deudas por Uso del local y el faltante mensual.
+- La capacidad de sillas se muestra únicamente en Uso del local, incluyendo total, personas vigentes, disponibles y sobrecupo explícito.
+- El balance anual y su CSV desglosan las categorías aprobadas y muestran un indicador explícito `Positivo` o `Negativo`.
+- Las correcciones de inventario conservan las invariantes de cantidad, dinero y existencia cronológica no negativa. Los nombres activos de productos son únicos sin distinguir mayúsculas.
+- No se permite eliminar padres con historial dependiente ni registros calculados como cierres o asignaciones. Los datos históricos huérfanos heredados se muestran con una descripción segura en vez de cerrar la pantalla.
+- Los estados y categorías visibles y exportados se presentan en español.

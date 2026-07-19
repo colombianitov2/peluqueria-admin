@@ -40,6 +40,16 @@ La decisión de moneda queda cerrada. No define reglas semanales de cobro ni fó
 
 La distribución de residuos de centavos será determinista por identificador estable de participante para que la suma coincida exactamente con el fondo.
 
+## Decisiones resueltas en la Fase 3.1 (18 de julio de 2026)
+
+- **Cierres históricos:** un cierre confirmado es la fuente inmutable para resumen mensual, balance anual y CSV; la reapertura restaura el cálculo dinámico.
+- **Reapertura:** se bloquea si existen pagos de distribución. Sin pagos, las asignaciones anteriores se invalidan lógicamente en la misma transacción.
+- **Pagos calculados:** solo las asignaciones activas de cierres confirmados pueden pagarse.
+- **Inicio:** se limita a servicios e impuestos pendientes hasta el fin del mes, deudas de Uso del local y faltante mensual.
+- **Capacidad:** total, ocupación, disponibilidad y sobrecupo pertenecen únicamente a Uso del local.
+- **Integridad histórica:** no se eliminan padres con dependencias, cierres ni asignaciones calculadas.
+- **Informes:** el balance anual desglosa las categorías aprobadas y usa el indicador explícito `Positivo` o `Negativo`.
+
 ## Decisiones que permanecen abiertas
 
 - Compatibilidad comprobada en equipos Windows 10 reales; por ahora solo se declara como objetivo.
