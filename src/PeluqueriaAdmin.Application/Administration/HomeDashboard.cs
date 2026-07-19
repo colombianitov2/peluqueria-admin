@@ -37,7 +37,8 @@ public static class HomeDashboardCalculator
             person.Name,
             WeeklyChargeCalculator.CalculateDebt(
                 data.WeeklyCharges.Where(item => item.PersonId == person.Id),
-                data.LocalUsePayments.Where(item => item.PersonId == person.Id))))
+                data.LocalUsePayments.Where(item => item.PersonId == person.Id),
+                today)))
             .Where(item => item.Amount.MinorUnits > 0)
             .OrderBy(item => item.Name)
             .ToArray();
@@ -49,13 +50,22 @@ public static class HomeDashboardCalculator
         return new HomeDashboard(obligations, debts, summary.MissingMinorUnits);
     }
 
-    public static ChairCapacity Capacity(AdministrationData data, int totalChairs, DateOnly date)
+    public static ChairCapacity Capacity(AdministrationData data, DateOnly date)
     {
         int current = data.LocalUsePeople.Count(item => item.IsCurrentOn(date));
+        int totalChairs = data.Chairs.Count;
+        int occupied = data.Chairs.Count(item => item.AssignedPersonId.HasValue
+            && data.LocalUsePeople.Any(person => person.Id == item.AssignedPersonId && person.IsCurrentOn(date)));
         return new ChairCapacity(
             totalChairs,
             current,
-            Math.Max(0, totalChairs - current),
+            Math.Max(0, totalChairs - occupied),
             Math.Max(0, current - totalChairs));
+    }
+
+    public static ChairCapacity Capacity(AdministrationData data, int legacyTotalChairs, DateOnly date)
+    {
+        _ = legacyTotalChairs;
+        return Capacity(data, date);
     }
 }

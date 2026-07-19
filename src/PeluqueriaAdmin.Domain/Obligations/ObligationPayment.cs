@@ -14,13 +14,15 @@ public sealed class ObligationPayment : AuditableEntity
         Guid obligationId,
         DateOnly date,
         Money amount,
-        DateTime utcNow) : base(id, utcNow)
+        DateTime utcNow,
+        string? description = null) : base(id, utcNow)
     {
         ObligationId = obligationId;
         Date = date;
         Amount = amount.MinorUnits > 0
             ? amount
             : throw new ArgumentOutOfRangeException(nameof(amount), "El pago debe ser mayor que cero.");
+        Description = NormalizeOptionalText(description);
     }
 
     public Guid ObligationId { get; private set; }
@@ -29,13 +31,16 @@ public sealed class ObligationPayment : AuditableEntity
 
     public Money Amount { get; private set; }
 
+    public string? Description { get; private set; }
+
     public static ObligationPayment Create(
         Guid obligationId,
         DateOnly date,
         Money amount,
-        DateTime utcNow) => new(Guid.NewGuid(), obligationId, date, amount, utcNow);
+        DateTime utcNow,
+        string? description = null) => new(Guid.NewGuid(), obligationId, date, amount, utcNow, description);
 
-    public void Update(DateOnly date, Money amount, DateTime utcNow)
+    public void Update(DateOnly date, Money amount, DateTime utcNow, string? description = null)
     {
         if (amount.MinorUnits == 0)
         {
@@ -44,6 +49,7 @@ public sealed class ObligationPayment : AuditableEntity
 
         Date = date;
         Amount = amount;
+        Description = NormalizeOptionalText(description);
         MarkUpdated(utcNow);
     }
 }

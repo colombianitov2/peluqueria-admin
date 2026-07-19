@@ -26,7 +26,7 @@ public sealed class SaveSettingsUseCase(
             weeklyUsageFee,
             Percentage.FromPercent(request.CollaboratorProfitPercent),
             Money.FromDecimal(request.OptionalSuppliesMonthlyBudget),
-            request.TotalChairs,
+            settings.TotalChairs,
             CurrencyCode.From(request.CurrencyCode),
             utcNow);
 

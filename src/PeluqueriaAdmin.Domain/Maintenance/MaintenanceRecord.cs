@@ -17,7 +17,8 @@ public sealed class MaintenanceRecord : AuditableEntity
         Money? estimatedCost,
         DateOnly? completedDate,
         Money? actualCost,
-        DateTime utcNow) : base(id, utcNow)
+        DateTime utcNow,
+        string? description = null) : base(id, utcNow)
     {
         Asset = NormalizeRequiredText(asset, nameof(asset));
         MaintenanceType = NormalizeRequiredText(maintenanceType, nameof(maintenanceType));
@@ -26,6 +27,7 @@ public sealed class MaintenanceRecord : AuditableEntity
         CompletedDate = completedDate;
         ActualCost = actualCost;
         ValidateCompletion(completedDate, actualCost);
+        Description = NormalizeOptionalText(description);
     }
 
     public string Asset { get; private set; } = string.Empty;
@@ -40,6 +42,8 @@ public sealed class MaintenanceRecord : AuditableEntity
 
     public Money? ActualCost { get; private set; }
 
+    public string? Description { get; private set; }
+
     public static MaintenanceRecord Create(
         string asset,
         string maintenanceType,
@@ -47,9 +51,10 @@ public sealed class MaintenanceRecord : AuditableEntity
         Money? estimatedCost,
         DateOnly? completedDate,
         Money? actualCost,
-        DateTime utcNow) => new(
+        DateTime utcNow,
+        string? description = null) => new(
             Guid.NewGuid(), asset, maintenanceType, scheduledDate,
-            estimatedCost, completedDate, actualCost, utcNow);
+            estimatedCost, completedDate, actualCost, utcNow, description);
 
     public void Update(
         string asset,
@@ -58,7 +63,8 @@ public sealed class MaintenanceRecord : AuditableEntity
         Money? estimatedCost,
         DateOnly? completedDate,
         Money? actualCost,
-        DateTime utcNow)
+        DateTime utcNow,
+        string? description = null)
     {
         ValidateCompletion(completedDate, actualCost);
         Asset = NormalizeRequiredText(asset, nameof(asset));
@@ -67,6 +73,7 @@ public sealed class MaintenanceRecord : AuditableEntity
         EstimatedCost = estimatedCost;
         CompletedDate = completedDate;
         ActualCost = actualCost;
+        Description = NormalizeOptionalText(description);
         MarkUpdated(utcNow);
     }
 

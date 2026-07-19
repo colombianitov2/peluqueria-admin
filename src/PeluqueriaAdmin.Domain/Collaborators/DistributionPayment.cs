@@ -14,11 +14,13 @@ public sealed class DistributionPayment : AuditableEntity
         Guid participantId,
         DateOnly date,
         Money amount,
-        DateTime utcNow) : base(id, utcNow)
+        DateTime utcNow,
+        string? description = null) : base(id, utcNow)
     {
         ParticipantId = participantId;
         Date = date;
         Amount = amount;
+        Description = NormalizeOptionalText(description);
     }
 
     public Guid ParticipantId { get; private set; }
@@ -27,22 +29,25 @@ public sealed class DistributionPayment : AuditableEntity
 
     public Money Amount { get; private set; }
 
+    public string? Description { get; private set; }
+
     public static DistributionPayment Create(
         Guid participantId,
         DateOnly date,
         Money amount,
         Money pending,
-        DateTime utcNow)
+        DateTime utcNow,
+        string? description = null)
     {
         if (amount.MinorUnits == 0 || amount.MinorUnits > pending.MinorUnits)
         {
             throw new InvalidOperationException("El pago debe ser mayor que cero y no superar el pendiente.");
         }
 
-        return new DistributionPayment(Guid.NewGuid(), participantId, date, amount, utcNow);
+        return new DistributionPayment(Guid.NewGuid(), participantId, date, amount, utcNow, description);
     }
 
-    public void Update(DateOnly date, Money amount, Money available, DateTime utcNow)
+    public void Update(DateOnly date, Money amount, Money available, DateTime utcNow, string? description = null)
     {
         if (amount.MinorUnits == 0 || amount.MinorUnits > available.MinorUnits)
         {
@@ -51,6 +56,7 @@ public sealed class DistributionPayment : AuditableEntity
 
         Date = date;
         Amount = amount;
+        Description = NormalizeOptionalText(description);
         MarkUpdated(utcNow);
     }
 }

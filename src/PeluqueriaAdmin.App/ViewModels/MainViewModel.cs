@@ -43,7 +43,6 @@ public sealed partial class MainViewModel : ObservableObject
             new(AdministrationViewModel.PayrollModule, true),
             new(AdministrationViewModel.MonthlySummaryModule, true),
             new(AdministrationViewModel.AnnualBalanceModule, true),
-            new(AdministrationViewModel.CashFlowModule, true),
             new("Ajustes", false),
         ];
         currentPage = this;
@@ -77,6 +76,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string estadoPuntoDeEquilibrio = "Sin faltante calculado";
+
+    [ObservableProperty]
+    private string precioSugeridoPorSilla = "No se puede calcular: no hay sillas ocupadas";
 
     [RelayCommand]
     private Task ShowHomeAsync() => NavigateToAsync("Inicio");
@@ -134,7 +136,7 @@ public sealed partial class MainViewModel : ObservableObject
         DateTime localNow = timeProvider.GetLocalNow().DateTime;
         DateOnly today = DateOnly.FromDateTime(localNow);
         YearMonth month = YearMonth.From(today);
-        AdministrationData data = await administrationService.GenerateScheduledRecordsAsync(month.LastDay);
+        AdministrationData data = await administrationService.GenerateScheduledRecordsAsync(today);
         SettingsDto settings = await getSettings.ExecuteAsync();
         FechaActual = localNow.ToString("D", CultureInfo.GetCultureInfo("es-ES"));
 
@@ -158,6 +160,19 @@ public sealed partial class MainViewModel : ObservableObject
             : string.Join(Environment.NewLine, debts);
 
         EstadoPuntoDeEquilibrio = $"{settings.CurrencyCode} {dashboard.MissingMinorUnits / 100m:N2}";
+
+        SuggestedChairPrice suggested = SuggestedChairPriceCalculator.Calculate(
+            data,
+            Money.FromDecimal(settings.OptionalSuppliesMonthlyBudget),
+            Money.FromDecimal(settings.WeeklyUsageFee),
+            month,
+            today);
+        PrecioSugeridoPorSilla = suggested.CanCalculate
+            ? $"Precio semanal actual: {settings.CurrencyCode} {suggested.CurrentWeeklyMinorUnits / 100m:N2}{Environment.NewLine}"
+                + $"Precio semanal sugerido por silla ocupada: {settings.CurrencyCode} {suggested.SuggestedWeeklyPerChairMinorUnits / 100m:N2}{Environment.NewLine}"
+                + $"Equivalente mensual sugerido: {settings.CurrencyCode} {suggested.SuggestedMonthlyPerChairMinorUnits / 100m:N2}{Environment.NewLine}"
+                + suggested.Explanation
+            : suggested.Explanation;
     }
 
     public async Task FlushPendingAsync()

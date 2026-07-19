@@ -15,7 +15,8 @@ public sealed class MonthlyClose : AuditableEntity
         YearMonth month,
         Percentage percentage,
         MonthlySummaryResult summary,
-        DateTime utcNow) : base(id, utcNow)
+        DateTime utcNow,
+        string? description = null) : base(id, utcNow)
     {
         Month = month;
         CollaboratorPercentageBasisPoints = percentage.BasisPoints;
@@ -25,6 +26,7 @@ public sealed class MonthlyClose : AuditableEntity
         FundMinorUnits = summary.CollaboratorFundMinorUnits;
         RetainedResultMinorUnits = summary.RetainedResultMinorUnits;
         ClosedUtc = utcNow;
+        Description = NormalizeOptionalText(description);
     }
 
     public YearMonth Month { get; private set; }
@@ -45,13 +47,16 @@ public sealed class MonthlyClose : AuditableEntity
 
     public DateTime? ReopenedUtc { get; private set; }
 
+    public string? Description { get; private set; }
+
     public bool IsConfirmed => !ReopenedUtc.HasValue;
 
     public static MonthlyClose Create(
         YearMonth month,
         Percentage percentage,
         MonthlySummaryResult summary,
-        DateTime utcNow) => new(Guid.NewGuid(), month, percentage, summary, utcNow);
+        DateTime utcNow,
+        string? description = null) => new(Guid.NewGuid(), month, percentage, summary, utcNow, description);
 
     public MonthlySummaryResult ToSummary() => new(
         IncomeMinorUnits,

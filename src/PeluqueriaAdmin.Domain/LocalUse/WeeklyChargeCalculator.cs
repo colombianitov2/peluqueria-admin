@@ -9,16 +9,16 @@ public static class WeeklyChargeCalculator
         DateOnly? exitDate,
         DateOnly throughDate)
     {
-        DateOnly lastStart = exitDate.HasValue && exitDate.Value < throughDate
+        DateOnly lastUseDate = exitDate.HasValue && exitDate.Value < throughDate
             ? exitDate.Value
             : throughDate;
-        if (entryDate > lastStart)
+        if (entryDate.AddDays(7) > lastUseDate)
         {
             return [];
         }
 
         var starts = new List<DateOnly>();
-        for (DateOnly start = entryDate; start <= lastStart; start = start.AddDays(7))
+        for (DateOnly start = entryDate; start.AddDays(7) <= lastUseDate; start = start.AddDays(7))
         {
             starts.Add(start);
         }
@@ -76,9 +76,13 @@ public static class WeeklyChargeCalculator
 
     public static Money CalculateDebt(
         IEnumerable<WeeklyCharge> charges,
-        IEnumerable<LocalUsePayment> payments)
+        IEnumerable<LocalUsePayment> payments,
+        DateOnly? throughDate = null)
     {
-        long charged = charges.Where(item => !item.IsDeleted).Sum(item => item.Amount.MinorUnits);
+        DateOnly cutoff = throughDate ?? DateOnly.MaxValue;
+        long charged = charges
+            .Where(item => !item.IsDeleted && item.PeriodEnd <= cutoff)
+            .Sum(item => item.Amount.MinorUnits);
         long paid = payments.Where(item => !item.IsDeleted).Sum(item => item.Amount.MinorUnits);
         if (paid > charged)
         {

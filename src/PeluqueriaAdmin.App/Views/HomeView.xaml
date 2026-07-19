@@ -17,6 +17,8 @@
             <RowDefinition Height="16" />
             <RowDefinition Height="*" />
             <RowDefinition Height="16" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="16" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -50,6 +52,13 @@
                   Header="Cantidad faltante para alcanzar el punto de equilibrio mensual">
             <TextBlock VerticalAlignment="Center"
                        Text="{Binding EstadoPuntoDeEquilibrio}"
+                       TextWrapping="Wrap" />
+        </GroupBox>
+
+        <GroupBox Grid.Row="8"
+                  Padding="16"
+                  Header="Precio sugerido por silla para equilibrio mensual">
+            <TextBlock Text="{Binding PrecioSugeridoPorSilla}"
                        TextWrapping="Wrap" />
         </GroupBox>
     </Grid>

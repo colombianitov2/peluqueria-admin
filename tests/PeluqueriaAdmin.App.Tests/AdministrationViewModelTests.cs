@@ -1,7 +1,9 @@
+using OxyPlot.Series;
 using PeluqueriaAdmin.App.ViewModels;
 using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.Drafts;
 using PeluqueriaAdmin.Application.Settings;
+using PeluqueriaAdmin.Domain.Activity;
 using PeluqueriaAdmin.Domain.Collaborators;
 using PeluqueriaAdmin.Domain.Common;
 using PeluqueriaAdmin.Domain.Drafts;
@@ -162,11 +164,87 @@ public sealed class AdministrationViewModelTests
         await service.AddAsync(obligation, cancellationToken);
 
         await AssertEditRoundTripAsync(
-            viewModel, AdministrationViewModel.InventoryModule, product, "Equipo o bien duradero");
+            viewModel, AdministrationViewModel.InventoryModule, product, "Otro producto del local");
         await AssertEditRoundTripAsync(
             viewModel, AdministrationViewModel.ExpensesModule, expense, "Otro gasto");
         await AssertEditRoundTripAsync(
             viewModel, AdministrationViewModel.ObligationsModule, obligation, "Otra obligación");
+    }
+
+    [Fact]
+    public async Task NewlyAddedHairdresser_IsImmediatelyAvailableInPaymentSelector()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
+        var service = new AdministrationService(repository, settingsRepository, timeProvider);
+        Chair chair = Chair.Create("Silla 1", new DateOnly(2026, 7, 18), null, UtcNow);
+        await service.AddChairAsync(chair, cancellationToken);
+        LocalUsePerson person = LocalUsePerson.Create("Juan", new DateOnly(2026, 7, 18), null, UtcNow);
+        await service.AddLocalUsePersonWithChairAsync(person, chair.Id, new DateOnly(2026, 7, 18), cancellationToken);
+        var viewModel = new AdministrationViewModel(
+            service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
+
+        await viewModel.SelectModuleAsync(AdministrationViewModel.LocalUseModule);
+        await viewModel.SelectActionCommand.ExecuteAsync("Registrar pago");
+
+        Assert.Contains(viewModel.EntityOptions, option => option.Id == person.Id && option.Display == "Juan");
+    }
+
+    [Fact]
+    public async Task MonthlyCharts_UseTheSameMonthlySummaryValuesAndHaveSpanishSeries()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
+        var service = new AdministrationService(repository, settingsRepository, timeProvider);
+        await service.AddAsync(FinancialEntry.CreateIncome(
+            new DateOnly(2026, 7, 2), "Ingreso", Money.FromDecimal(100m), UtcNow), cancellationToken);
+        var viewModel = new AdministrationViewModel(
+            service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
+
+        await viewModel.SelectModuleAsync(AdministrationViewModel.MonthlySummaryModule);
+        viewModel.DateText = "2026-07-01";
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        BarSeries bars = Assert.IsType<BarSeries>(Assert.Single(viewModel.IncomeGoalChart.Series));
+        Assert.Equal(100d, bars.Items[0].Value);
+        Assert.NotEmpty(viewModel.ExpenseCompositionChart.Series);
+        LineSeries line = Assert.IsType<LineSeries>(Assert.Single(viewModel.ResultEvolutionChart.Series));
+        Assert.Equal(12, line.Points.Count);
+        Assert.Equal("Resultado retenido", line.Title);
+    }
+
+    [Fact]
+    public async Task ActivityDefaultsToTodayAndChangesDayWithoutDeletingPreviousHistory()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var timeProvider = new MutableTimeProvider(new DateTimeOffset(UtcNow));
+        await repository.SaveAsync(
+            [
+                ActivityRecord.Create(new DateOnly(2026, 7, 17), AdministrationViewModel.LocalUseModule, "Alta", "Ayer", null, null, UtcNow.AddDays(-1)),
+                ActivityRecord.Create(new DateOnly(2026, 7, 18), AdministrationViewModel.LocalUseModule, "Alta", "Hoy", null, null, UtcNow),
+            ], [], cancellationToken);
+        var viewModel = new AdministrationViewModel(
+            new AdministrationService(repository, settingsRepository, timeProvider),
+            new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
+
+        await viewModel.SelectModuleAsync(AdministrationViewModel.LocalUseModule);
+        Assert.Equal("Hoy", viewModel.SelectedPeriod);
+        Assert.Equal("Hoy", Assert.Single(viewModel.ActivityRows).Principal);
+
+        timeProvider.Now = new DateTimeOffset(UtcNow.AddDays(1));
+        await repository.SaveAsync(
+            [ActivityRecord.Create(new DateOnly(2026, 7, 19), AdministrationViewModel.LocalUseModule, "Alta", "Nuevo día", null, null, UtcNow.AddDays(1))],
+            [], cancellationToken);
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Equal("Nuevo día", Assert.Single(viewModel.ActivityRows).Principal);
+        Assert.Equal(3, (await repository.LoadAsync(cancellationToken)).ActivityRecords.Count);
     }
 
     private static async Task AssertEditRoundTripAsync(
@@ -212,7 +290,8 @@ public sealed class AdministrationViewModelTests
                 Active<LocalUsePerson>(), Active<WeeklyRate>(), Active<WeeklyCharge>(), Active<LocalUsePayment>(),
                 Active<Product>(), Active<InventoryMovement>(), Active<MonthlyRestockPlan>(), Active<FinancialEntry>(),
                 Active<Obligation>(), Active<ObligationPayment>(), Active<MaintenanceRecord>(), Active<Collaborator>(),
-                Active<MonthlyClose>(), Active<MonthlyCloseParticipant>(), Active<DistributionPayment>()));
+                Active<MonthlyClose>(), Active<MonthlyCloseParticipant>(), Active<DistributionPayment>(),
+                Active<Chair>(), Active<PeluqueriaAdmin.Domain.Activity.ActivityRecord>(), Active<UnofficialExpense>()));
 
         public Task SaveAsync(
             IReadOnlyCollection<AuditableEntity> additions,
@@ -257,5 +336,12 @@ public sealed class AdministrationViewModelTests
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
+    private sealed class MutableTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = now;
+
+        public override DateTimeOffset GetUtcNow() => Now;
     }
 }

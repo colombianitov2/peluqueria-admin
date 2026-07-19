@@ -132,7 +132,7 @@ public sealed class DataManagementTests
             Assert.Contains("\"Servicios\"", annual, StringComparison.Ordinal);
             Assert.Contains("\"Indicador\"", annual, StringComparison.Ordinal);
             Assert.Contains("\"Positivo\"", annual, StringComparison.Ordinal);
-            Assert.Contains("\"Producto para venta\"", inventory, StringComparison.Ordinal);
+            Assert.Contains("\"Otro producto para venta\"", inventory, StringComparison.Ordinal);
         }
         finally
         {

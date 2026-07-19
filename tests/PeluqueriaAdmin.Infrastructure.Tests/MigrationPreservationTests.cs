@@ -21,7 +21,7 @@ namespace PeluqueriaAdmin.Infrastructure.Tests;
 public sealed class MigrationPreservationTests
 {
     [Fact]
-    public async Task Alpha1SchemaToPersistentDrafts_PreservesEveryAdministrationTable()
+    public async Task Alpha1SchemaToPhase41_PreservesDataAndConvertsLegacyChairCount()
     {
         string root = Path.Combine(AppContext.BaseDirectory, "TestData", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -34,8 +34,14 @@ public sealed class MigrationPreservationTests
             {
                 string alpha1 = context.Database.GetMigrations().Single(x => x.EndsWith("_CompleteAdministration", StringComparison.Ordinal));
                 await context.GetService<IMigrator>().MigrateAsync(alpha1, cancellationToken);
-                context.Settings.Add(GeneralSettings.CreateDefault(utc));
+                GeneralSettings settings = GeneralSettings.CreateDefault(utc);
+                settings.Update(
+                    Money.FromDecimal(12m), Percentage.FromPercent(20m), Money.FromDecimal(0m),
+                    2, CurrencyCode.From("USD"), utc);
+                context.Settings.Add(settings);
                 await context.SaveChangesAsync(cancellationToken);
+                await context.GetService<IMigrator>().MigrateAsync(cancellationToken: cancellationToken);
+                Assert.Equal(2, await context.Chairs.CountAsync(cancellationToken));
             }
 
             var repository = new EfAdministrationRepository(factory);
@@ -61,6 +67,8 @@ public sealed class MigrationPreservationTests
             {
                 await context.GetService<IMigrator>().MigrateAsync(cancellationToken: cancellationToken);
                 Assert.Equal(1, await context.Settings.CountAsync(cancellationToken));
+                Assert.Equal(2, await context.Chairs.CountAsync(cancellationToken));
+                Assert.Equal(["Silla 1", "Silla 2"], await context.Chairs.OrderBy(x => x.Name).Select(x => x.Name).ToArrayAsync(cancellationToken));
                 Assert.True(await context.LocalUsePeople.AnyAsync(cancellationToken));
                 Assert.True(await context.WeeklyRates.AnyAsync(cancellationToken));
                 Assert.True(await context.WeeklyCharges.AnyAsync(cancellationToken));
@@ -77,6 +85,7 @@ public sealed class MigrationPreservationTests
                 Assert.True(await context.MonthlyCloseParticipants.AnyAsync(cancellationToken));
                 Assert.True(await context.DistributionPayments.AnyAsync(cancellationToken));
                 Assert.Equal(0, await context.FormDrafts.CountAsync(cancellationToken));
+                Assert.True(await context.ActivityRecords.AnyAsync(cancellationToken));
             }
         }
         finally

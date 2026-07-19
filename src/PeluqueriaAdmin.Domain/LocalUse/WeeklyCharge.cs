@@ -18,7 +18,8 @@ public sealed class WeeklyCharge : AuditableEntity
     {
         PersonId = personId;
         PeriodStart = periodStart;
-        PeriodEnd = periodStart.AddDays(6);
+        PeriodEnd = periodStart.AddDays(7);
+        DueDate = FirstSaturdayOnOrAfter(PeriodEnd);
         Amount = amount;
     }
 
@@ -28,6 +29,8 @@ public sealed class WeeklyCharge : AuditableEntity
 
     public DateOnly PeriodEnd { get; private set; }
 
+    public DateOnly DueDate { get; private set; }
+
     public Money Amount { get; private set; }
 
     internal static WeeklyCharge Create(
@@ -35,4 +38,10 @@ public sealed class WeeklyCharge : AuditableEntity
         DateOnly periodStart,
         Money amount,
         DateTime utcNow) => new(Guid.NewGuid(), personId, periodStart, amount, utcNow);
+
+    private static DateOnly FirstSaturdayOnOrAfter(DateOnly date)
+    {
+        int days = ((int)DayOfWeek.Saturday - (int)date.DayOfWeek + 7) % 7;
+        return date.AddDays(days);
+    }
 }

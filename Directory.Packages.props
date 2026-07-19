@@ -5,6 +5,7 @@
 
   <ItemGroup>
     <PackageVersion Include="ClosedXML" Version="0.105.0" />
+    <PackageVersion Include="OxyPlot.Wpf" Version="2.2.0" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />

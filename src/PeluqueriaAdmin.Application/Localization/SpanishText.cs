@@ -8,10 +8,12 @@ public static class SpanishText
 {
     public static string For(ProductCategory value) => value switch
     {
-        ProductCategory.ProductForSale => "Producto para venta",
-        ProductCategory.MandatorySupply => "Insumo obligatorio",
-        ProductCategory.OptionalCustomerSupply => "Insumo opcional",
-        ProductCategory.DurableEquipment => "Equipo o bien duradero",
+        ProductCategory.FoodOrDrinkForSale => "Alimento o bebida para venta",
+        ProductCategory.OtherProductForSale => "Otro producto para venta",
+        ProductCategory.CustomerCourtesy => "Cortesía para clientes",
+        ProductCategory.Cleaning => "Aseo",
+        ProductCategory.LocalSupply => "Insumo del local",
+        ProductCategory.OtherLocalProduct => "Otro producto del local",
         _ => throw new ArgumentOutOfRangeException(nameof(value)),
     };
 

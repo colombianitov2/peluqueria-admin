@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:oxy="http://oxyplot.org/wpf"
              xmlns:viewModels="clr-namespace:PeluqueriaAdmin.App.ViewModels"
              d:DataContext="{d:DesignInstance Type=viewModels:AdministrationViewModel, IsDesignTimeCreatable=False}"
              d:DesignHeight="760" d:DesignWidth="990" Language="es-ES" mc:Ignorable="d">
@@ -16,70 +17,215 @@
       <Setter Property="MinHeight" Value="36" />
       <Setter Property="Padding" Value="9,6" />
     </Style>
+    <Style x:Key="ActionButton" TargetType="Button">
+      <Setter Property="Margin" Value="0,0,8,8" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Background" Value="#EEF2FF" />
+      <Setter Property="BorderBrush" Value="#A5B4FC" />
+    </Style>
   </UserControl.Resources>
 
-  <Grid Margin="26">
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="14" />
-      <RowDefinition Height="*" />
-      <RowDefinition Height="14" />
-      <RowDefinition Height="Auto" />
-    </Grid.RowDefinitions>
-
-    <StackPanel Grid.Row="0">
-      <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#172033" Text="{Binding Title}" />
-      <TextBlock Margin="0,5,0,0" Foreground="#5B6575" Text="{Binding Description}" TextWrapping="Wrap" />
-    </StackPanel>
-
-    <Border Grid.Row="2" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
-      <DataGrid AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
-                HeadersVisibility="Column" IsReadOnly="True" BorderThickness="0"
-                ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}">
-        <DataGrid.Columns>
-          <DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" />
-          <DataGridTextColumn Width="2*" Binding="{Binding Principal}" Header="Nombre o concepto" />
-          <DataGridTextColumn Width="2*" Binding="{Binding Detail}" Header="Detalle" />
-          <DataGridTextColumn Width="90" Binding="{Binding Quantity}" Header="Cantidad" />
-          <DataGridTextColumn Width="130" Binding="{Binding Amount}" Header="Valor" />
-          <DataGridTextColumn Width="155" Binding="{Binding Status}" Header="Estado" />
-        </DataGrid.Columns>
-      </DataGrid>
-    </Border>
-
-    <Border Grid.Row="4" MaxHeight="320" Padding="18" Background="White"
-            BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
-      <ScrollViewer VerticalScrollBarVisibility="Auto">
+  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="26">
+      <DockPanel Margin="0,0,0,14" LastChildFill="True">
+        <StackPanel DockPanel.Dock="Right" Margin="18,0,0,0" MinWidth="190">
+          <TextBlock HorizontalAlignment="Right" Style="{StaticResource FieldLabel}" Text="Periodo de actividad" />
+          <ComboBox Style="{StaticResource FieldBox}"
+                    ItemsSource="{Binding PeriodOptions}"
+                    SelectedItem="{Binding SelectedPeriod}" />
+          <WrapPanel Margin="0,6,0,0"
+                     HorizontalAlignment="Right"
+                     Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <DatePicker Width="138" Margin="0,0,6,0" SelectedDate="{Binding CustomPeriodFrom}" />
+            <DatePicker Width="138" SelectedDate="{Binding CustomPeriodThrough}" />
+          </WrapPanel>
+        </StackPanel>
         <StackPanel>
-          <DockPanel Margin="0,0,0,14">
-            <StackPanel DockPanel.Dock="Left" Width="280" Visibility="{Binding ShowActionSelector, Converter={StaticResource BooleanToVisibilityConverter}}">
-              <TextBlock Style="{StaticResource FieldLabel}" Text="Acción" />
-              <ComboBox Style="{StaticResource FieldBox}" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding SelectedAction}" />
-            </StackPanel>
-            <Border Margin="18,0,0,0" Padding="12,8" Background="#FFF7E6" CornerRadius="5"
-                    Visibility="{Binding HasRecoveredDraft, Converter={StaticResource BooleanToVisibilityConverter}}">
-              <StackPanel Orientation="Horizontal">
-                <TextBlock VerticalAlignment="Center" Foreground="#8A5300" Text="Borrador recuperado: todavía no es una operación registrada." />
-                <Button Margin="12,0,0,0" Padding="10,5" Command="{Binding DiscardDraftCommand}" Content="Descartar borrador" />
-              </StackPanel>
-            </Border>
+          <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#172033" Text="{Binding Title}" />
+          <TextBlock Margin="0,5,0,0" Foreground="#5B6575" Text="{Binding Description}" TextWrapping="Wrap" />
+        </StackPanel>
+      </DockPanel>
+
+      <WrapPanel Margin="0,0,0,14"
+                 Visibility="{Binding ShowLocalUseSummary, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <Border Width="190" Margin="0,0,12,0" Padding="16" Background="#EFF6FF" CornerRadius="7">
+          <StackPanel><TextBlock Foreground="#475569" Text="Total de sillas" /><TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding TotalChairs}" /></StackPanel>
+        </Border>
+        <Border Width="190" Margin="0,0,12,0" Padding="16" Background="#F0FDF4" CornerRadius="7">
+          <StackPanel><TextBlock Foreground="#475569" Text="Peluqueros vigentes" /><TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding CurrentHairdressers}" /></StackPanel>
+        </Border>
+        <Border Width="190" Padding="16" Background="#FFF7ED" CornerRadius="7">
+          <StackPanel><TextBlock Foreground="#475569" Text="Sillas disponibles" /><TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding AvailableChairs}" /></StackPanel>
+        </Border>
+      </WrapPanel>
+
+      <Separator Margin="0,0,0,12"
+                 Visibility="{Binding ShowLocalUseSummary, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+      <TextBlock Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Actividad del periodo" />
+      <Border Height="150" Margin="0,0,0,14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
+        <DataGrid AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" BorderThickness="0"
+                  ItemsSource="{Binding ActivityRows}">
+          <DataGrid.Columns>
+            <DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" />
+            <DataGridTextColumn Width="2*" Binding="{Binding Principal}" Header="Operación" />
+            <DataGridTextColumn Width="3*" Binding="{Binding Detail}" Header="Descripción" />
+            <DataGridTextColumn Width="170" Binding="{Binding Status}" Header="Actividad" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </Border>
+
+      <StackPanel Margin="0,0,0,16"
+                  Visibility="{Binding ShowCharts, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <TextBlock Margin="0,0,0,8" FontSize="16" FontWeight="SemiBold" Text="Gráficos del resumen mensual" />
+        <UniformGrid Columns="2" Rows="2">
+          <GroupBox Margin="0,0,8,8" Header="Ingresos frente a meta mensual">
+            <oxy:PlotView Height="260" Model="{Binding IncomeGoalChart}" />
+          </GroupBox>
+          <GroupBox Margin="8,0,0,8" Header="Composición de gastos por categoría">
+            <oxy:PlotView Height="260" Model="{Binding ExpenseCompositionChart}" />
+          </GroupBox>
+          <GroupBox Grid.ColumnSpan="2" Margin="0,8,0,0" Header="Evolución del resultado retenido en los últimos 12 meses">
+            <oxy:PlotView Height="280" Model="{Binding ResultEvolutionChart}" />
+          </GroupBox>
+        </UniformGrid>
+      </StackPanel>
+
+      <TextBlock Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Registros y estado actual" />
+      <Border Height="220" Margin="0,0,0,14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
+        <DataGrid AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column" IsReadOnly="True" BorderThickness="0"
+                  ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}">
+          <DataGrid.RowStyle>
+            <Style TargetType="DataGridRow">
+              <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+              <Setter Property="ContextMenu">
+                <Setter.Value>
+                  <ContextMenu>
+                    <MenuItem Header="Editar"
+                              Visibility="{Binding PlacementTarget.DataContext.CanEdit, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}"
+                              Command="{Binding PlacementTarget.Tag.PrepareEditCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                    <Separator />
+                    <MenuItem Header="Registrar compra"
+                              Visibility="{Binding PlacementTarget.DataContext.IsInventoryProduct, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}"
+                              Command="{Binding PlacementTarget.Tag.PrepareInventoryPurchaseCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                    <MenuItem Header="Actualizar existencia mediante conteo"
+                              Visibility="{Binding PlacementTarget.DataContext.IsInventoryProduct, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}"
+                              Command="{Binding PlacementTarget.Tag.PrepareInventoryCountCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                    <MenuItem Header="Registrar consumo"
+                              Visibility="{Binding PlacementTarget.DataContext.AllowsInternalConsumption, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}"
+                              Command="{Binding PlacementTarget.Tag.PrepareInventoryConsumptionCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                    <MenuItem Header="Registrar pago"
+                              Visibility="{Binding PlacementTarget.DataContext.IsObligation, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}"
+                              Command="{Binding PlacementTarget.Tag.PrepareObligationPaymentCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                    <MenuItem Header="Registrar realización"
+                              Visibility="{Binding PlacementTarget.DataContext.IsPendingMaintenance, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}"
+                              Command="{Binding PlacementTarget.Tag.PrepareMaintenanceCompletionCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                  </ContextMenu>
+                </Setter.Value>
+              </Setter>
+            </Style>
+          </DataGrid.RowStyle>
+          <DataGrid.Columns>
+            <DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" />
+            <DataGridTextColumn Width="2*" Binding="{Binding Principal}" Header="Nombre" />
+            <DataGridTextColumn Width="2*" Binding="{Binding Detail}" Header="Detalle o descripción" />
+            <DataGridTextColumn Width="100" Binding="{Binding Quantity}" Header="Cantidad" />
+            <DataGridTextColumn Width="135" Binding="{Binding Amount}" Header="Valor" />
+            <DataGridTextColumn Width="165" Binding="{Binding Status}" Header="Estado" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </Border>
+
+      <StackPanel Margin="0,0,0,14"
+                  Visibility="{Binding ShowCollaboratorHistory, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <TextBlock Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Historial financiero del colaborador seleccionado" />
+        <Border Height="170" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
+          <DataGrid AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                    ItemsSource="{Binding CollaboratorHistoryRows}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Width="105" Header="Fecha" Binding="{Binding Date}" />
+              <DataGridTextColumn Width="140" Header="Mes u operación" Binding="{Binding Principal}" />
+              <DataGridTextColumn Width="2*" Header="Porcentaje o descripción" Binding="{Binding Detail}" />
+              <DataGridTextColumn Width="135" Header="Participación/pago" Binding="{Binding Amount}" />
+              <DataGridTextColumn Width="220" Header="Pagado y pendiente" Binding="{Binding Status}" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </Border>
+      </StackPanel>
+
+      <Border Padding="18" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7"
+              Visibility="{Binding IsFormVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <StackPanel>
+          <DockPanel Margin="0,0,0,12">
+            <Button DockPanel.Dock="Right" Padding="11,6"
+                    Command="{Binding ClearFormFieldsCommand}"
+                    Content="Limpiar formulario"
+                    Visibility="{Binding HasRecoveredDraft, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            <ItemsControl ItemsSource="{Binding ActionOptions}">
+              <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button Style="{StaticResource ActionButton}"
+                          Command="{Binding DataContext.SelectActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                          CommandParameter="{Binding}"
+                          Content="{Binding}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           </DockPanel>
 
           <WrapPanel>
             <StackPanel Width="235" Margin="0,0,14,12" Visibility="{Binding ShowPrimary, Converter={StaticResource BooleanToVisibilityConverter}}">
               <TextBlock Style="{StaticResource FieldLabel}" Text="{Binding PrimaryLabel}" />
-              <ComboBox Style="{StaticResource FieldBox}" IsEditable="True" IsTextSearchEnabled="False"
-                        ItemsSource="{Binding PrimaryOptions}" Text="{Binding PrimaryText, UpdateSourceTrigger=PropertyChanged}" />
+              <TextBox Text="{Binding PrimaryText, UpdateSourceTrigger=PropertyChanged}">
+                <TextBox.Style>
+                  <Style TargetType="TextBox" BasedOn="{StaticResource FieldBox}">
+                    <Style.Triggers><DataTrigger Binding="{Binding UsePrimarySelector}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
+                  </Style>
+                </TextBox.Style>
+              </TextBox>
+              <ComboBox IsEditable="True" IsTextSearchEnabled="True"
+                        DisplayMemberPath="Display" ItemsSource="{Binding EntityOptions}" SelectedItem="{Binding SelectedEntityOption}">
+                <ComboBox.Style>
+                  <Style TargetType="ComboBox" BasedOn="{StaticResource FieldBox}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers><DataTrigger Binding="{Binding UsePrimarySelector}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                  </Style>
+                </ComboBox.Style>
+              </ComboBox>
+              <TextBlock Margin="0,5,0,0" Foreground="#475569" Text="{Binding SelectedProductAvailability}" TextWrapping="Wrap" />
             </StackPanel>
             <StackPanel Width="220" Margin="0,0,14,12" Visibility="{Binding ShowSecondary, Converter={StaticResource BooleanToVisibilityConverter}}">
               <TextBlock Style="{StaticResource FieldLabel}" Text="{Binding SecondaryLabel}" />
-              <ComboBox Style="{StaticResource FieldBox}" IsEditable="True" ItemsSource="{Binding SecondaryOptions}"
-                        Text="{Binding SecondaryText, UpdateSourceTrigger=PropertyChanged}" />
+              <ComboBox IsEditable="True" ItemsSource="{Binding SecondaryOptions}"
+                        Text="{Binding SecondaryText, UpdateSourceTrigger=PropertyChanged}">
+                <ComboBox.Style>
+                  <Style TargetType="ComboBox" BasedOn="{StaticResource FieldBox}">
+                    <Style.Triggers><DataTrigger Binding="{Binding UseSecondarySelector}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
+                  </Style>
+                </ComboBox.Style>
+              </ComboBox>
+              <ComboBox IsEditable="True" IsTextSearchEnabled="True"
+                        DisplayMemberPath="Display" ItemsSource="{Binding SecondaryEntityOptions}" SelectedItem="{Binding SelectedSecondaryEntityOption}">
+                <ComboBox.Style>
+                  <Style TargetType="ComboBox" BasedOn="{StaticResource FieldBox}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers><DataTrigger Binding="{Binding UseSecondarySelector}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                  </Style>
+                </ComboBox.Style>
+              </ComboBox>
             </StackPanel>
             <StackPanel Width="190" Margin="0,0,14,12" Visibility="{Binding ShowExtra, Converter={StaticResource BooleanToVisibilityConverter}}">
               <TextBlock Style="{StaticResource FieldLabel}" Text="{Binding ExtraLabel}" />
-              <ComboBox Style="{StaticResource FieldBox}" IsEditable="True" ItemsSource="{Binding ExtraOptions}"
-                        Text="{Binding ExtraText, UpdateSourceTrigger=PropertyChanged}" />
+              <ComboBox Style="{StaticResource FieldBox}" IsEditable="True" ItemsSource="{Binding ExtraOptions}" Text="{Binding ExtraText, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>
             <StackPanel Width="175" Margin="0,0,14,12" Visibility="{Binding ShowDate, Converter={StaticResource BooleanToVisibilityConverter}}">
               <TextBlock Style="{StaticResource FieldLabel}" Text="{Binding DateLabel}" />
@@ -89,17 +235,23 @@
               <TextBlock Style="{StaticResource FieldLabel}" Text="{Binding EndDateLabel}" />
               <DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding FormEndDate, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>
-            <StackPanel Width="165" Margin="0,0,14,12" Visibility="{Binding ShowAmount, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel Width="175" Margin="0,0,14,12" Visibility="{Binding ShowAmount, Converter={StaticResource BooleanToVisibilityConverter}}">
               <TextBlock Style="{StaticResource FieldLabel}" Text="{Binding AmountLabel}" />
-              <TextBox Style="{StaticResource FieldBox}" Text="{Binding AmountText, UpdateSourceTrigger=PropertyChanged}" />
+              <TextBox Style="{StaticResource FieldBox}" IsReadOnly="{Binding IsAmountReadOnly}" Text="{Binding AmountText, UpdateSourceTrigger=PropertyChanged}" />
+              <TextBlock Margin="0,5,0,0" Foreground="#475569" Text="{Binding CalculatedTotalText}" />
             </StackPanel>
-            <StackPanel Width="175" Margin="0,0,14,12" Visibility="{Binding ShowSecondaryAmount, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel Width="210" Margin="0,0,14,12" Visibility="{Binding ShowSecondaryAmount, Converter={StaticResource BooleanToVisibilityConverter}}">
               <TextBlock Style="{StaticResource FieldLabel}" Text="{Binding SecondaryAmountLabel}" />
               <TextBox Style="{StaticResource FieldBox}" Text="{Binding SecondaryAmountText, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>
-            <StackPanel Width="155" Margin="0,0,14,12" Visibility="{Binding ShowQuantity, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel Width="170" Margin="0,0,14,12" Visibility="{Binding ShowQuantity, Converter={StaticResource BooleanToVisibilityConverter}}">
               <TextBlock Style="{StaticResource FieldLabel}" Text="{Binding QuantityLabel}" />
               <TextBox Style="{StaticResource FieldBox}" Text="{Binding QuantityText, UpdateSourceTrigger=PropertyChanged}" />
+            </StackPanel>
+            <StackPanel Width="360" Margin="0,0,14,12" Visibility="{Binding ShowOptionalDescription, Converter={StaticResource BooleanToVisibilityConverter}}">
+              <TextBlock Style="{StaticResource FieldLabel}" Text="Descripción opcional" />
+              <TextBox MinHeight="58" Padding="9,6" AcceptsReturn="True" TextWrapping="Wrap"
+                       Text="{Binding OptionalDescriptionText, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>
           </WrapPanel>
 
@@ -123,7 +275,7 @@
             </TextBlock.Style>
           </TextBlock>
         </StackPanel>
-      </ScrollViewer>
-    </Border>
-  </Grid>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
 </UserControl>

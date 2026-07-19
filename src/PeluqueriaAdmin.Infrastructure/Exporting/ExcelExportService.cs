@@ -85,13 +85,18 @@ public sealed class ExcelExportService(
             await db.Collaborators.AsNoTracking().ToListAsync(cancellationToken),
             await db.MonthlyCloses.AsNoTracking().ToListAsync(cancellationToken),
             await db.MonthlyCloseParticipants.AsNoTracking().ToListAsync(cancellationToken),
-            await db.DistributionPayments.AsNoTracking().ToListAsync(cancellationToken));
+            await db.DistributionPayments.AsNoTracking().ToListAsync(cancellationToken),
+            await db.Chairs.AsNoTracking().ToListAsync(cancellationToken),
+            await db.ActivityRecords.AsNoTracking().ToListAsync(cancellationToken),
+            await db.UnofficialExpenses.AsNoTracking().ToListAsync(cancellationToken));
 
         List<DeletedRecord> deleted = [];
         deleted.AddRange((await db.LocalUsePeople.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Persona que usa el local", x.Name, x.DeletedUtc)));
         deleted.AddRange((await db.WeeklyRates.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Tarifa semanal", x.Amount.ToDecimal().ToString("0.00"), x.DeletedUtc)));
         deleted.AddRange((await db.WeeklyCharges.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Cuota semanal", $"{x.PeriodStart:yyyy-MM-dd} · {x.Amount.ToDecimal():0.00}", x.DeletedUtc)));
         deleted.AddRange((await db.LocalUsePayments.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Pago por uso del local", $"{x.PaymentDate:yyyy-MM-dd} · {x.Amount.ToDecimal():0.00}", x.DeletedUtc)));
+        deleted.AddRange((await db.Chairs.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Silla", x.Name, x.DeletedUtc)));
+        deleted.AddRange((await db.UnofficialExpenses.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Gasto extraoficial", x.Name, x.DeletedUtc)));
         deleted.AddRange((await db.Products.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Producto", x.Name, x.DeletedUtc)));
         deleted.AddRange((await db.InventoryMovements.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Movimiento de inventario", $"{MovementName(x.Type)} · {x.QuantityDelta:0.###}", x.DeletedUtc)));
         deleted.AddRange((await db.RestockPlans.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Plan de reposición", x.Month.ToString(), x.DeletedUtc)));
@@ -127,7 +132,6 @@ public sealed class ExcelExportService(
             ["Valor semanal general por uso del local", snapshot.Settings.WeeklyUsageFee.ToDecimal(), currency],
             ["Ganancia de colaboradores", snapshot.Settings.CollaboratorProfit.BasisPoints / 10000m, "Porcentaje"],
             ["Presupuesto mensual de insumos opcionales", snapshot.Settings.OptionalSuppliesMonthlyBudget.ToDecimal(), currency],
-            ["Cantidad total de sillas", snapshot.Settings.TotalChairs, "Sillas"],
             ["Moneda configurada", SafeText(currency), "Código ISO"],
             ["Última actualización", snapshot.Settings.UpdatedUtc.ToLocalTime(), "Fecha y hora local"],
         ]);
@@ -136,76 +140,106 @@ public sealed class ExcelExportService(
         settingsSheet.Cell(3, 2).Style.NumberFormat.Format = "0.00%";
         settingsSheet.Cell(4, 2).Style.NumberFormat.Format = MoneyFormat;
 
-        AddTable(workbook, "Uso del local", ["Nombre", "Fecha de ingreso", "Fecha de retiro", "Estado", "Deuda actual", "Moneda"],
+        SuggestedChairPrice suggested = SuggestedChairPriceCalculator.Calculate(
+            data, snapshot.Settings.OptionalSuppliesMonthlyBudget, snapshot.Settings.WeeklyUsageFee,
+            YearMonth.From(today), today);
+        AddTable(workbook, "Precio sugerido por silla", ["Concepto", "Valor", "Moneda", "Explicación"],
+        [
+            ["Precio semanal actual", Minor(suggested.CurrentWeeklyMinorUnits), currency, "Tarifa configurada"],
+            ["Equivalente mensual actual", Minor(suggested.CurrentMonthlyEquivalentMinorUnits), currency, "Tarifa semanal × 52 / 12"],
+            ["Precio semanal sugerido", Minor(suggested.SuggestedWeeklyPerChairMinorUnits), currency, suggested.Explanation],
+            ["Precio mensual sugerido", Minor(suggested.SuggestedMonthlyPerChairMinorUnits), currency, suggested.Explanation],
+            ["Meta mensual oficial", Minor(suggested.OfficialGoalMinorUnits), currency, "Balance oficial del mes"],
+            ["Gastos extraoficiales vigentes", Minor(suggested.UnofficialExpensesMinorUnits), currency, "Separados del Balance anual oficial"],
+            ["Ventas y otros ingresos no provenientes de sillas", Minor(suggested.ExpectedNonChairIncomeMinorUnits), currency, "Se restan del monto por cubrir"],
+            ["Monto mensual por cubrir", Minor(suggested.AmountToCoverMinorUnits), currency, $"Calculado entre {suggested.OccupiedChairs} sillas ocupadas"],
+        ], moneyColumns: [2]);
+
+        AddTable(workbook, "Uso del local", ["Nombre", "Fecha de ingreso", "Fecha de retiro", "Silla asignada", "Descripción", "Estado", "Deuda actual", "Moneda"],
             data.LocalUsePeople.OrderBy(x => x.Name).Select(person => (object?[])
-            [SafeText(person.Name), Date(person.EntryDate), Date(person.ExitDate), person.IsCurrentOn(today) ? "Activo" : "Retirado",
-             WeeklyChargeCalculator.CalculateDebt(data.WeeklyCharges.Where(x => x.PersonId == person.Id), data.LocalUsePayments.Where(x => x.PersonId == person.Id)).ToDecimal(), currency]), moneyColumns: [5]);
+            [SafeText(person.Name), Date(person.EntryDate), Date(person.ExitDate), SafeText(data.Chairs.SingleOrDefault(x => x.AssignedPersonId == person.Id)?.Name ?? "Sin silla"), SafeText(person.Description ?? ""), person.IsCurrentOn(today) ? "Activo" : "Retirado",
+             WeeklyChargeCalculator.CalculateDebt(data.WeeklyCharges.Where(x => x.PersonId == person.Id), data.LocalUsePayments.Where(x => x.PersonId == person.Id), today).ToDecimal(), currency]), moneyColumns: [7]);
 
-        AddTable(workbook, "Cuotas semanales", ["Persona", "Periodo inicial", "Periodo final", "Valor", "Moneda", "Estado"],
+        AddTable(workbook, "Sillas", ["Nombre", "Fecha de creación", "Peluquero asignado", "Descripción", "Estado"],
+            data.Chairs.OrderBy(x => x.Name).Select(x => (object?[])
+            [SafeText(x.Name), Date(x.CreationDate), SafeText(x.AssignedPersonId.HasValue ? PersonName(data, x.AssignedPersonId.Value) : "Sin asignar"), SafeText(x.Description ?? ""), x.AssignedPersonId.HasValue ? "Ocupada" : "Disponible"]));
+
+        AddTable(workbook, "Asignaciones actuales", ["Silla", "Peluquero", "Fecha de ingreso", "Estado"],
+            data.Chairs.Where(x => x.AssignedPersonId.HasValue).OrderBy(x => x.Name).Select(x =>
+            {
+                LocalUsePerson? person = data.LocalUsePeople.SingleOrDefault(p => p.Id == x.AssignedPersonId);
+                return (object?[])[SafeText(x.Name), SafeText(person?.Name ?? "Persona eliminada"), Date(person?.EntryDate), person?.IsCurrentOn(today) == true ? "Vigente" : "Asignación por revisar"];
+            }));
+
+        AddTable(workbook, "Cuotas semanales", ["Persona", "Periodo inicial", "Periodo final", "Fecha de vencimiento", "Valor", "Moneda", "Estado"],
             data.WeeklyCharges.OrderBy(x => x.PeriodStart).Select(x => (object?[])
-            [SafeText(PersonName(data, x.PersonId)), Date(x.PeriodStart), Date(x.PeriodEnd), x.Amount.ToDecimal(), currency,
-             x.PeriodEnd < today ? "Vencida o causada" : "Programada"]), moneyColumns: [4]);
+            [SafeText(PersonName(data, x.PersonId)), Date(x.PeriodStart), Date(x.PeriodEnd), Date(x.DueDate), x.Amount.ToDecimal(), currency,
+             x.DueDate <= today ? "Causada" : "Futura"]), moneyColumns: [5]);
 
-        AddTable(workbook, "Pagos por uso del local", ["Persona", "Fecha", "Valor", "Moneda", "Estado"],
+        AddTable(workbook, "Pagos por uso del local", ["Persona", "Fecha", "Valor", "Moneda", "Descripción", "Estado"],
             data.LocalUsePayments.OrderBy(x => x.PaymentDate).Select(x => (object?[])
-            [SafeText(PersonName(data, x.PersonId)), Date(x.PaymentDate), x.Amount.ToDecimal(), currency, "Registrado"]), moneyColumns: [3]);
+            [SafeText(PersonName(data, x.PersonId)), Date(x.PaymentDate), x.Amount.ToDecimal(), currency, SafeText(x.Description ?? ""), "Registrado"]), moneyColumns: [3]);
 
-        AddTable(workbook, "Colaboradores", ["Nombre", "Fecha de inicio", "Fecha de retiro", "Estado"],
+        AddTable(workbook, "Colaboradores", ["Nombre", "Fecha de inicio", "Fecha de retiro", "Descripción", "Estado"],
             data.Collaborators.OrderBy(x => x.Name).Select(x => (object?[])
-            [SafeText(x.Name), Date(x.StartDate), Date(x.ExitDate), x.IsCurrentOn(today) ? "Activo" : "Retirado"]));
+            [SafeText(x.Name), Date(x.StartDate), Date(x.ExitDate), SafeText(x.Description ?? ""), x.IsCurrentOn(today) ? "Activo" : "Retirado"]));
 
-        AddTable(workbook, "Ventas", ["Producto", "Fecha", "Cantidad", "Valor de venta", "Costo estimado", "Moneda", "Estado"],
+        AddTable(workbook, "Ventas", ["Producto", "Fecha", "Cantidad", "Valor de venta", "Costo estimado", "Moneda", "Descripción", "Estado"],
             data.InventoryMovements.Where(x => x.Type == InventoryMovementType.Sale).OrderBy(x => x.Date).Select(x => (object?[])
-            [SafeText(ProductName(data, x.ProductId)), Date(x.Date), Math.Abs(x.QuantityDelta), x.CashAmount?.ToDecimal(), x.EstimatedCost?.ToDecimal(), currency, "Registrada"]), moneyColumns: [4, 5], quantityColumns: [3]);
+            [SafeText(ProductName(data, x.ProductId)), Date(x.Date), Math.Abs(x.QuantityDelta), x.CashAmount?.ToDecimal(), x.EstimatedCost?.ToDecimal(), currency, SafeText(x.Description ?? ""), "Registrada"]), moneyColumns: [4, 5], quantityColumns: [3]);
 
-        AddTable(workbook, "Productos", ["Nombre", "Categoría", "Unidad de medida", "Estado"],
+        AddTable(workbook, "Productos", ["Nombre", "Categoría", "Precio predeterminado de venta", "Moneda", "Descripción", "Disponible para venta", "Estado"],
             data.Products.OrderBy(x => x.Name).Select(x => (object?[])
-            [SafeText(x.Name), SpanishText.For(x.Category), SafeText(x.UnitOfMeasure), "Activo"]));
+            [SafeText(x.Name), SpanishText.For(x.Category), x.DefaultSalePrice?.ToDecimal(), currency, SafeText(x.Description ?? ""), x.IsForSale ? "Sí" : "No", "Activo"]), moneyColumns: [3]);
 
-        AddTable(workbook, "Inventario actual", ["Producto", "Categoría", "Unidad", "Cantidad actual", "Costo unitario promedio", "Valor estimado", "Moneda"],
+        AddTable(workbook, "Inventario actual", ["Producto", "Categoría", "Cantidad actual", "Costo unitario promedio", "Valor estimado", "Moneda"],
             data.Products.OrderBy(x => x.Name).Select(product =>
             {
                 InventoryMovement[] movements = data.InventoryMovements.Where(x => x.ProductId == product.Id).ToArray();
                 decimal quantity = InventoryCalculator.CurrentQuantity(movements);
                 decimal unitCost = InventoryCalculator.AverageUnitCost(movements).ToDecimal();
-                return (object?[])[SafeText(product.Name), SpanishText.For(product.Category), SafeText(product.UnitOfMeasure), quantity, unitCost, quantity * unitCost, currency];
-            }), moneyColumns: [5, 6], quantityColumns: [4]);
+                return (object?[])[SafeText(product.Name), SpanishText.For(product.Category), quantity, unitCost, quantity * unitCost, currency];
+            }), moneyColumns: [4, 5], quantityColumns: [3]);
 
-        AddTable(workbook, "Movimientos de inventario", ["Producto", "Fecha", "Tipo", "Variación de cantidad", "Movimiento de caja", "Costo estimado", "Moneda", "Estado"],
+        AddTable(workbook, "Movimientos de inventario", ["Producto", "Fecha", "Tipo", "Variación de cantidad", "Movimiento de caja", "Costo estimado", "Moneda", "Descripción", "Estado"],
             data.InventoryMovements.OrderBy(x => x.Date).Select(x => (object?[])
-            [SafeText(ProductName(data, x.ProductId)), Date(x.Date), MovementName(x.Type), x.QuantityDelta, x.CashAmount?.ToDecimal(), x.EstimatedCost?.ToDecimal(), currency, "Registrado"]), moneyColumns: [5, 6], quantityColumns: [4]);
+            [SafeText(ProductName(data, x.ProductId)), Date(x.Date), MovementName(x.Type), x.QuantityDelta, x.CashAmount?.ToDecimal(), x.EstimatedCost?.ToDecimal(), currency, SafeText(x.Description ?? ""), "Registrado"]), moneyColumns: [5, 6], quantityColumns: [4]);
 
-        AddTable(workbook, "Planes de reposición", ["Producto", "Mes", "Cantidad necesaria", "Cantidad actual al cierre", "Compra sugerida", "Unidad", "Estado"],
+        AddTable(workbook, "Planes de reposición", ["Producto", "Mes", "Cantidad necesaria", "Cantidad actual al cierre", "Compra sugerida", "Estado"],
             data.RestockPlans.OrderBy(x => x.Month.Year).ThenBy(x => x.Month.Month).Select(x =>
             {
                 Product? product = data.Products.SingleOrDefault(p => p.Id == x.ProductId);
                 decimal current = InventoryCalculator.CurrentQuantity(data.InventoryMovements.Where(m => m.ProductId == x.ProductId && m.Date <= x.Month.LastDay));
-                return (object?[])[SafeText(product?.Name ?? "Producto eliminado"), Date(x.Month.FirstDay), x.NeededQuantity.Value, current, x.SuggestedPurchase(current), SafeText(product?.UnitOfMeasure ?? ""), x.Month.LastDay < today ? "Histórico" : "Planificado"];
+                return (object?[])[SafeText(product?.Name ?? "Producto eliminado"), Date(x.Month.FirstDay), x.NeededQuantity.Value, current, x.SuggestedPurchase(current), x.Month.LastDay < today ? "Histórico" : "Planificado"];
             }), quantityColumns: [3, 4, 5]);
 
         AddFinancialSheet(workbook, "Otros ingresos", data, FinancialEntryType.OtherIncome, currency);
         AddFinancialSheet(workbook, "Gastos", data, FinancialEntryType.Expense, currency);
         AddFinancialSheet(workbook, "Imprevistos", data, FinancialEntryType.UnexpectedExpense, currency);
 
-        AddTable(workbook, "Obligaciones", ["Nombre", "Tipo", "Fecha de vencimiento", "Valor esperado", "Valor pagado", "Saldo pendiente", "Moneda", "Recurrencia", "Estado"],
+        AddTable(workbook, "Gastos extraoficiales", ["Nombre", "Valor mensual", "Moneda", "Vigente desde", "Descripción", "Estado"],
+            data.UnofficialExpenses.OrderBy(x => x.EffectiveFrom).Select(x => (object?[])
+            [SafeText(x.Name), x.MonthlyAmount.ToDecimal(), currency, Date(x.EffectiveFrom), SafeText(x.Description ?? ""), x.AppliesOn(today) ? "Vigente" : "Futuro"]), moneyColumns: [2]);
+
+        AddTable(workbook, "Obligaciones", ["Nombre", "Tipo", "Fecha de vencimiento", "Valor esperado", "Valor pagado", "Saldo pendiente", "Moneda", "Recurrencia", "Descripción", "Estado"],
             data.Obligations.OrderBy(x => x.DueDate).Select(x =>
             {
                 decimal paid = data.ObligationPayments.Where(p => p.ObligationId == x.Id).Sum(p => p.Amount.ToDecimal());
-                return (object?[])[SafeText(x.Name), SpanishText.For(x.Type), Date(x.DueDate), x.ExpectedAmount.ToDecimal(), paid, Math.Max(0, x.ExpectedAmount.ToDecimal() - paid), currency, SpanishText.For(x.Recurrence), SpanishText.For(x.Status(data.ObligationPayments, today))];
+                return (object?[])[SafeText(x.Name), SpanishText.For(x.Type), Date(x.DueDate), x.ExpectedAmount.ToDecimal(), paid, Math.Max(0, x.ExpectedAmount.ToDecimal() - paid), currency, SpanishText.For(x.Recurrence), SafeText(x.Description ?? ""), SpanishText.For(x.Status(data.ObligationPayments, today))];
             }), moneyColumns: [4, 5, 6]);
 
-        AddTable(workbook, "Pagos de obligaciones", ["Obligación", "Fecha", "Valor", "Moneda", "Estado"],
+        AddTable(workbook, "Pagos de obligaciones", ["Obligación", "Fecha", "Valor", "Moneda", "Descripción", "Estado"],
             data.ObligationPayments.OrderBy(x => x.Date).Select(x => (object?[])
-            [SafeText(ObligationName(data, x.ObligationId)), Date(x.Date), x.Amount.ToDecimal(), currency, "Registrado"]), moneyColumns: [3]);
+            [SafeText(ObligationName(data, x.ObligationId)), Date(x.Date), x.Amount.ToDecimal(), currency, SafeText(x.Description ?? ""), "Registrado"]), moneyColumns: [3]);
 
-        AddTable(workbook, "Mantenimiento", ["Equipo o bien", "Tipo de mantenimiento", "Fecha programada", "Costo estimado", "Fecha realizada", "Costo real", "Moneda", "Estado"],
+        AddTable(workbook, "Mantenimiento", ["Equipo o bien", "Tipo de mantenimiento", "Fecha programada", "Costo estimado", "Fecha realizada", "Costo real", "Moneda", "Descripción", "Estado"],
             data.MaintenanceRecords.OrderBy(x => x.ScheduledDate).Select(x => (object?[])
-            [SafeText(x.Asset), SafeText(x.MaintenanceType), Date(x.ScheduledDate), x.EstimatedCost?.ToDecimal(), Date(x.CompletedDate), x.ActualCost?.ToDecimal(), currency,
+            [SafeText(x.Asset), SafeText(x.MaintenanceType), Date(x.ScheduledDate), x.EstimatedCost?.ToDecimal(), Date(x.CompletedDate), x.ActualCost?.ToDecimal(), currency, SafeText(x.Description ?? ""),
              x.CompletedDate.HasValue ? "Realizado" : x.ScheduledDate < today ? "Pendiente vencido" : "Programado"]), moneyColumns: [4, 6]);
 
-        AddTable(workbook, "Cierres mensuales", ["Mes", "Porcentaje de colaboradores", "Ingresos", "Meta mensual", "Resultado base", "Fondo de colaboradores", "Resultado retenido", "Moneda", "Fecha de cierre", "Estado"],
+        AddTable(workbook, "Cierres mensuales", ["Mes", "Porcentaje de colaboradores", "Ingresos", "Meta mensual", "Resultado base", "Fondo de colaboradores", "Resultado retenido", "Moneda", "Fecha de cierre", "Descripción", "Estado"],
             data.MonthlyCloses.OrderBy(x => x.Month.Year).ThenBy(x => x.Month.Month).Select(x => (object?[])
-            [Date(x.Month.FirstDay), x.CollaboratorPercentageBasisPoints / 10000m, Minor(x.IncomeMinorUnits), Minor(x.GoalMinorUnits), Minor(x.BaseResultMinorUnits), Minor(x.FundMinorUnits), Minor(x.RetainedResultMinorUnits), currency, x.ClosedUtc.ToLocalTime(), x.IsConfirmed ? "Confirmado" : "Reabierto"]), moneyColumns: [3, 4, 5, 6, 7], percentColumns: [2]);
+            [Date(x.Month.FirstDay), x.CollaboratorPercentageBasisPoints / 10000m, Minor(x.IncomeMinorUnits), Minor(x.GoalMinorUnits), Minor(x.BaseResultMinorUnits), Minor(x.FundMinorUnits), Minor(x.RetainedResultMinorUnits), currency, x.ClosedUtc.ToLocalTime(), SafeText(x.Description ?? ""), x.IsConfirmed ? "Confirmado" : "Reabierto"]), moneyColumns: [3, 4, 5, 6, 7], percentColumns: [2]);
 
         AddTable(workbook, "Distribuciones a colaboradores", ["Mes", "Colaborador", "Valor asignado", "Valor pagado", "Saldo pendiente", "Moneda", "Estado"],
             data.MonthlyCloseParticipants.Select(x =>
@@ -215,17 +249,28 @@ public sealed class ExcelExportService(
                 return (object?[])[Date(close?.Month.FirstDay), SafeText(CollaboratorName(data, x.CollaboratorId)), x.Amount.ToDecimal(), paid, Math.Max(0, x.Amount.ToDecimal() - paid), currency, close?.IsConfirmed == true ? (paid >= x.Amount.ToDecimal() ? "Pagada" : "Pendiente") : "Cierre reabierto"];
             }), moneyColumns: [3, 4, 5]);
 
-        AddTable(workbook, "Pagos a colaboradores", ["Mes", "Colaborador", "Fecha", "Valor", "Moneda", "Estado"],
+        AddTable(workbook, "Pagos a colaboradores", ["Mes", "Colaborador", "Fecha", "Valor", "Moneda", "Descripción", "Estado"],
             data.DistributionPayments.OrderBy(x => x.Date).Select(x =>
             {
                 MonthlyCloseParticipant? participant = data.MonthlyCloseParticipants.SingleOrDefault(p => p.Id == x.ParticipantId);
                 MonthlyClose? close = participant is null ? null : data.MonthlyCloses.SingleOrDefault(c => c.Id == participant.CloseId);
-                return (object?[])[Date(close?.Month.FirstDay), SafeText(participant is null ? "Colaborador eliminado" : CollaboratorName(data, participant.CollaboratorId)), Date(x.Date), x.Amount.ToDecimal(), currency, "Registrado"];
+                return (object?[])[Date(close?.Month.FirstDay), SafeText(participant is null ? "Colaborador eliminado" : CollaboratorName(data, participant.CollaboratorId)), Date(x.Date), x.Amount.ToDecimal(), currency, SafeText(x.Description ?? ""), "Registrado"];
             }), moneyColumns: [4]);
+
+        AddTable(workbook, "Historial fin. colaboradores", ["Mes", "Colaborador", "Participación asignada", "Pagado", "Pendiente", "Moneda", "Estado"],
+            data.MonthlyCloseParticipants.Select(x =>
+            {
+                MonthlyClose? close = data.MonthlyCloses.SingleOrDefault(c => c.Id == x.CloseId);
+                decimal paid = data.DistributionPayments.Where(p => p.ParticipantId == x.Id).Sum(p => p.Amount.ToDecimal());
+                return (object?[])[Date(close?.Month.FirstDay), SafeText(CollaboratorName(data, x.CollaboratorId)), x.Amount.ToDecimal(), paid, Math.Max(0, x.Amount.ToDecimal() - paid), currency, close?.IsConfirmed == true ? "Cierre confirmado" : "Cierre reabierto"];
+            }), moneyColumns: [3, 4, 5]);
 
         AddMonthlySummaries(workbook, data, snapshot.Settings, currency, from, to);
         AddAnnualBalances(workbook, data, snapshot.Settings, currency, from, to);
-        AddCashFlow(workbook, data, currency);
+
+        AddTable(workbook, "Actividad e historial", ["Fecha", "Fecha y hora exacta", "Módulo", "Acción", "Resumen", "Descripción"],
+            data.ActivityRecords.OrderBy(x => x.OccurredUtc).Select(x => (object?[])
+            [Date(x.ActivityDate), x.OccurredUtc.ToLocalTime(), SafeText(x.Module), SafeText(x.Action), SafeText(x.Summary), SafeText(x.Description ?? "")]));
 
         AddTable(workbook, "Historial eliminado", ["Tipo de registro", "Descripción", "Fecha de eliminación", "Estado"],
             snapshot.Deleted.OrderBy(x => x.DeletedUtc).Select(x => (object?[])[x.Type, SafeText(x.Description), x.DeletedUtc?.ToLocalTime(), "Eliminado lógicamente"]));
@@ -256,7 +301,6 @@ public sealed class ExcelExportService(
             InventoryMovement[] movements = data.InventoryMovements.Where(x => x.ProductId == product.Id).ToArray();
             return InventoryCalculator.CurrentQuantity(movements) * InventoryCalculator.AverageUnitCost(movements).ToDecimal();
         });
-        long cash = BuildCashMovements(data).Sum(x => x.SignedMinorUnits);
         object?[][] rows =
         [
             ["Personas con uso del local", data.LocalUsePeople.Count, "registros"],
@@ -264,12 +308,11 @@ public sealed class ExcelExportService(
             ["Productos activos", data.Products.Count, "registros"],
             ["Valor estimado del inventario actual", inventory, currency],
             ["Obligaciones pendientes", data.Obligations.Sum(o => Math.Max(0, o.ExpectedAmount.ToDecimal() - data.ObligationPayments.Where(p => p.ObligationId == o.Id).Sum(p => p.Amount.ToDecimal()))), currency],
-            ["Flujo de caja acumulado", Minor(cash), currency],
             ["Borradores sin finalizar", snapshot.Drafts.Count, "no registrados"],
             ["Registros eliminados lógicamente", snapshot.Deleted.Count, "historial"],
         ];
         WriteTable(sheet, 7, ["Indicador", "Valor", "Unidad o moneda"], rows);
-        foreach (int row in new[] { 9, 11, 12, 13 }) sheet.Cell(row, 2).Style.NumberFormat.Format = MoneyFormat;
+        foreach (int row in new[] { 9, 11, 12 }) sheet.Cell(row, 2).Style.NumberFormat.Format = MoneyFormat;
         sheet.SheetView.FreezeRows(1);
         FinalizeSheet(sheet);
     }
@@ -304,17 +347,6 @@ public sealed class ExcelExportService(
         AddTable(workbook, "Balance anual", ["Año", "Ingresos", "Meta y gastos", "Distribuciones pagadas", "Resultado retenido", "Pendientes", "Faltante", "Servicios", "Impuestos", "Otras obligaciones", "Mercancía", "Insumos obligatorios", "Insumos opcionales", "Mantenimiento", "Imprevistos", "Otros gastos", "Planes de reposición", "Ajuste histórico", "Moneda", "Indicador"], rows, moneyColumns: Enumerable.Range(2, 17).ToArray());
     }
 
-    private static void AddCashFlow(XLWorkbook workbook, AdministrationData data, string currency)
-    {
-        long balance = 0;
-        var rows = BuildCashMovements(data).OrderBy(x => x.Date).ThenBy(x => x.Category).Select(x =>
-        {
-            balance += x.SignedMinorUnits;
-            return (object?[])[Date(x.Date), SafeText(x.Category), SafeText(x.Concept), Minor(x.SignedMinorUnits), Minor(balance), currency, x.SignedMinorUnits >= 0 ? "Entrada" : "Salida"];
-        }).ToArray();
-        AddTable(workbook, "Flujo de caja", ["Fecha", "Categoría", "Concepto", "Movimiento", "Saldo acumulado", "Moneda", "Tipo"], rows, moneyColumns: [4, 5]);
-    }
-
     private static IReadOnlyList<CashMovement> BuildCashMovements(AdministrationData data)
     {
         var result = new List<CashMovement>();
@@ -331,9 +363,9 @@ public sealed class ExcelExportService(
     }
 
     private static void AddFinancialSheet(XLWorkbook workbook, string name, AdministrationData data, FinancialEntryType type, string currency) =>
-        AddTable(workbook, name, ["Fecha", "Concepto", "Categoría", "Valor", "Moneda", "Estado"],
+        AddTable(workbook, name, ["Fecha", "Concepto", "Categoría", "Valor", "Moneda", "Descripción", "Estado"],
             data.FinancialEntries.Where(x => x.Type == type).OrderBy(x => x.Date).Select(x => (object?[])
-            [Date(x.Date), SafeText(x.Concept), x.Category.HasValue ? SpanishText.For(x.Category.Value) : "No aplica", x.Amount.ToDecimal(), currency, "Registrado"]), moneyColumns: [4]);
+            [Date(x.Date), SafeText(x.Concept), x.Category.HasValue ? SpanishText.For(x.Category.Value) : "No aplica", x.Amount.ToDecimal(), currency, SafeText(x.Description ?? ""), "Registrado"]), moneyColumns: [4]);
 
     private static void AddTable(XLWorkbook workbook, string name, string[] headers, IEnumerable<object?[]> rows, int[]? moneyColumns = null, int[]? percentColumns = null, int[]? quantityColumns = null)
     {

@@ -60,8 +60,9 @@ public static class AdministrationReports
         InventoryMovement[] purchases = data.InventoryMovements
             .Where(item => item.Type == InventoryMovementType.Purchase && InMonth(item.Date))
             .ToArray();
-        long PurchaseFor(ProductCategory category) => purchases
-            .Where(item => data.Products.Any(product => product.Id == item.ProductId && product.Category == category))
+        long PurchaseFor(params ProductCategory[] categories) => purchases
+            .Where(item => data.Products.Any(product => product.Id == item.ProductId
+                && categories.Contains(product.Category)))
             .Sum(item => item.CashAmount?.MinorUnits ?? 0);
         long planCost = CalculatePlanCost(data, month);
 
@@ -73,16 +74,15 @@ public static class AdministrationReports
                 .Sum(item => item.Amount.MinorUnits),
             data.Obligations.Where(item => InMonth(item.DueDate))
                 .Sum(item => item.GoalAmount(data.ObligationPayments).MinorUnits),
-            PurchaseFor(ProductCategory.ProductForSale),
+            PurchaseFor(ProductCategory.FoodOrDrinkForSale, ProductCategory.OtherProductForSale),
             data.FinancialEntries.Where(item => item.Type == FinancialEntryType.Expense
                     && item.Category != ExpenseCategory.OptionalSupply && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits)
-                + PurchaseFor(ProductCategory.MandatorySupply)
-                + PurchaseFor(ProductCategory.DurableEquipment),
+                + PurchaseFor(ProductCategory.Cleaning, ProductCategory.LocalSupply, ProductCategory.OtherLocalProduct),
             data.FinancialEntries.Where(item => item.Type == FinancialEntryType.Expense
                     && item.Category == ExpenseCategory.OptionalSupply && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits)
-                + PurchaseFor(ProductCategory.OptionalCustomerSupply),
+                + PurchaseFor(ProductCategory.CustomerCourtesy),
             optionalSuppliesBudget.MinorUnits,
             data.FinancialEntries.Where(item => item.Type == FinancialEntryType.UnexpectedExpense && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits),
@@ -102,7 +102,7 @@ public static class AdministrationReports
         {
             var month = new YearMonth(year, monthNumber);
             MonthlySummaryResult summary = MonthlySummary(data, optionalSuppliesBudget, collaboratorPercentage, month);
-            MonthlyExpenseBreakdown dynamicBreakdown = ExpenseBreakdown(data, optionalSuppliesBudget, month);
+            MonthlyExpenseBreakdown dynamicBreakdown = MonthlyExpenses(data, optionalSuppliesBudget, month);
             long adjustment = summary.GoalMinorUnits - dynamicBreakdown.TotalMinorUnits;
             totalExpenses = Add(totalExpenses, dynamicBreakdown with { HistoricalAdjustmentMinorUnits = adjustment });
             summaries.Add(summary);
@@ -131,7 +131,7 @@ public static class AdministrationReports
             balance.RetainedMinorUnits >= 0 ? "Positivo" : "Negativo");
     }
 
-    private static MonthlyExpenseBreakdown ExpenseBreakdown(
+    public static MonthlyExpenseBreakdown MonthlyExpenses(
         AdministrationData data,
         Money optionalSuppliesBudget,
         YearMonth month)
@@ -140,26 +140,29 @@ public static class AdministrationReports
         long Obligations(ObligationType type) => data.Obligations
             .Where(item => item.Type == type && InMonth(item.DueDate))
             .Sum(item => item.GoalAmount(data.ObligationPayments).MinorUnits);
-        long Purchases(ProductCategory category) => data.InventoryMovements
+        long Purchases(params ProductCategory[] categories) => data.InventoryMovements
             .Where(item => item.Type == InventoryMovementType.Purchase && InMonth(item.Date)
-                && data.Products.Any(product => product.Id == item.ProductId && product.Category == category))
+                && data.Products.Any(product => product.Id == item.ProductId
+                    && categories.Contains(product.Category)))
             .Sum(item => item.CashAmount?.MinorUnits ?? 0);
         long Expenses(ExpenseCategory category) => data.FinancialEntries
             .Where(item => item.Type == FinancialEntryType.Expense && item.Category == category && InMonth(item.Date))
             .Sum(item => item.Amount.MinorUnits);
-        long optionalActual = Purchases(ProductCategory.OptionalCustomerSupply) + Expenses(ExpenseCategory.OptionalSupply);
+        long optionalActual = Purchases(ProductCategory.CustomerCourtesy) + Expenses(ExpenseCategory.OptionalSupply);
 
         return new MonthlyExpenseBreakdown(
             Obligations(ObligationType.Service),
             Obligations(ObligationType.Tax),
             Obligations(ObligationType.OtherRecurring),
-            Purchases(ProductCategory.ProductForSale) + Expenses(ExpenseCategory.MerchandisePurchase),
-            Purchases(ProductCategory.MandatorySupply) + Expenses(ExpenseCategory.MandatorySupply),
+            Purchases(ProductCategory.FoodOrDrinkForSale, ProductCategory.OtherProductForSale)
+                + Expenses(ExpenseCategory.MerchandisePurchase),
+            Purchases(ProductCategory.Cleaning, ProductCategory.LocalSupply)
+                + Expenses(ExpenseCategory.MandatorySupply),
             Math.Max(optionalSuppliesBudget.MinorUnits, optionalActual),
             data.MaintenanceRecords.Sum(item => item.GoalAmountFor(month).MinorUnits),
             data.FinancialEntries.Where(item => item.Type == FinancialEntryType.UnexpectedExpense && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits),
-            Expenses(ExpenseCategory.Other) + Purchases(ProductCategory.DurableEquipment),
+            Expenses(ExpenseCategory.Other) + Purchases(ProductCategory.OtherLocalProduct),
             CalculatePlanCost(data, month),
             0);
     }

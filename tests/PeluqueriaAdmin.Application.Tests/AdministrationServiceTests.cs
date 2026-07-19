@@ -36,7 +36,7 @@ public sealed class AdministrationServiceTests
             new DateOnly(2026, 8, 18), cancellationToken);
 
         Assert.Single(first.WeeklyRates);
-        Assert.Equal(7, first.WeeklyCharges.Count);
+        Assert.Equal(2, first.WeeklyCharges.Count);
         Assert.Equal(2, first.Obligations.Count);
         Assert.Equal(first.WeeklyCharges.Count, second.WeeklyCharges.Count);
         Assert.Equal(first.Obligations.Count, second.Obligations.Count);
@@ -75,9 +75,9 @@ public sealed class AdministrationServiceTests
             person.Id, new DateOnly(2026, 7, 18), Money.FromDecimal(12m), cancellationToken);
 
         AdministrationData data = await service.LoadAsync(cancellationToken);
-        Assert.Equal(3, data.WeeklyCharges.Count);
+        Assert.Equal(2, data.WeeklyCharges.Count);
         Assert.Single(data.LocalUsePayments);
-        Assert.Equal(2_400, WeeklyChargeCalculator.CalculateDebt(
+        Assert.Equal(1_200, WeeklyChargeCalculator.CalculateDebt(
             data.WeeklyCharges, data.LocalUsePayments).MinorUnits);
     }
 
@@ -231,7 +231,7 @@ public sealed class AdministrationServiceTests
         var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
 
         LocalUsePerson person = LocalUsePerson.Create("Ana", new DateOnly(2026, 7, 1), null, UtcNow);
-        await service.AddLocalUsePersonAsync(person, new DateOnly(2026, 7, 1), cancellationToken);
+        await service.AddLocalUsePersonAsync(person, new DateOnly(2026, 7, 8), cancellationToken);
 
         Product product = Product.Create("Agua", ProductCategory.ProductForSale, "unidad", UtcNow);
         await service.AddProductAsync(product, cancellationToken);
@@ -345,6 +345,112 @@ public sealed class AdministrationServiceTests
     }
 
     [Fact]
+    public async Task Chairs_EnforceAvailabilityAndOneToOneAssignment()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        DateOnly today = new(2026, 7, 18);
+        Chair firstChair = Chair.Create("Silla 1", today, null, UtcNow);
+        LocalUsePerson firstPerson = LocalUsePerson.Create("Ana", today, null, UtcNow);
+        LocalUsePerson secondPerson = LocalUsePerson.Create("Luis", today, null, UtcNow);
+        await service.AddChairAsync(firstChair, cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(firstPerson, firstChair.Id, today, cancellationToken);
+
+        InvalidOperationException unavailable = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.AddLocalUsePersonWithChairAsync(secondPerson, firstChair.Id, today, cancellationToken));
+        Assert.Equal("No hay sillas suficientes. Debes crear un espacio para silla adicional.", unavailable.Message);
+
+        Chair secondChair = Chair.Create("Silla 2", today, null, UtcNow);
+        await service.AddChairAsync(secondChair, cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(secondPerson, secondChair.Id, today, cancellationToken);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.AssignChairAsync(firstPerson.Id, secondChair.Id, today, cancellationToken));
+
+        AdministrationData data = await service.LoadAsync(cancellationToken);
+        Assert.Equal(2, data.Chairs.Count);
+        Assert.Equal(2, data.Chairs.Select(x => x.AssignedPersonId).Distinct().Count());
+        Assert.DoesNotContain(data.Collaborators, _ => true);
+    }
+
+    [Fact]
+    public async Task ScheduledRefresh_ReleasesChairAfterHairdresserExit()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        Chair chair = Chair.Create("Silla 1", new DateOnly(2026, 7, 1), null, UtcNow);
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Ana", new DateOnly(2026, 7, 1), new DateOnly(2026, 7, 17), UtcNow);
+        await service.AddChairAsync(chair, cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(person, chair.Id, new DateOnly(2026, 7, 17), cancellationToken);
+
+        AdministrationData data = await service.GenerateScheduledRecordsAsync(
+            new DateOnly(2026, 7, 18), cancellationToken);
+
+        Assert.Null(Assert.Single(data.Chairs).AssignedPersonId);
+        Assert.Equal(1, HomeDashboardCalculator.Capacity(data, new DateOnly(2026, 7, 18)).Available);
+    }
+
+    [Fact]
+    public async Task Sale_UsesProductDefaultPriceUpdatesStockAndRejectsOverselling()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        DateOnly date = new(2026, 7, 18);
+        Product product = Product.Create(
+            "Cera", ProductCategory.OtherProductForSale, "unidad", UtcNow,
+            Money.FromDecimal(3m), "Venta mostrador");
+        await service.AddProductWithInitialStockAsync(
+            product, date, Quantity.Positive(5m), Money.FromDecimal(1m), null, cancellationToken);
+
+        InventoryMovement sale = await service.RegisterSaleAsync(
+            product.Id, date, Quantity.Positive(2m), "Venta confirmada", cancellationToken);
+        AdministrationData afterSale = await service.LoadAsync(cancellationToken);
+
+        Assert.Equal(600, sale.CashAmount?.MinorUnits);
+        Assert.Equal(3m, InventoryCalculator.CurrentQuantity(
+            afterSale.InventoryMovements.Where(x => x.ProductId == product.Id)));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterSaleAsync(
+            product.Id, date, Quantity.Positive(4m), null, cancellationToken));
+
+        InventoryMovement purchase = await service.RegisterPurchaseAsync(
+            product.Id, date, Quantity.Positive(2m), Money.FromDecimal(1.25m), "Reposición", cancellationToken);
+        Assert.Equal(250, purchase.CashAmount?.MinorUnits);
+    }
+
+    [Fact]
+    public async Task SuggestedChairPrice_AddsUnofficialExpensesAndExcludesChairPaymentsFromIncomeOffset()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        DateOnly today = new(2026, 7, 18);
+        Chair chair = Chair.Create("Silla 1", today, null, UtcNow);
+        LocalUsePerson person = LocalUsePerson.Create("Ana", today, null, UtcNow);
+        await service.AddChairAsync(chair, cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(person, chair.Id, today, cancellationToken);
+        await service.AddAsync(Obligation.Create(
+            "Arriendo", ObligationType.Service, today, Money.FromDecimal(500m), RecurrenceFrequency.None, UtcNow), cancellationToken);
+        await service.AddAsync(FinancialEntry.CreateIncome(today, "Otro ingreso", Money.FromDecimal(50m), UtcNow), cancellationToken);
+        await service.AddUnofficialExpenseAsync(UnofficialExpense.Create(
+            "Gasto conocido", Money.FromDecimal(100m), today, null, UtcNow), cancellationToken);
+
+        SuggestedChairPrice result = SuggestedChairPriceCalculator.Calculate(
+            await service.LoadAsync(cancellationToken), Money.FromDecimal(0m), Money.FromDecimal(12m),
+            new YearMonth(2026, 7), today);
+
+        Assert.Equal(1, result.OccupiedChairs);
+        Assert.Equal(50_000, result.OfficialGoalMinorUnits);
+        Assert.Equal(10_000, result.UnofficialExpensesMinorUnits);
+        Assert.Equal(5_000, result.ExpectedNonChairIncomeMinorUnits);
+        Assert.Equal(55_000, result.SuggestedMonthlyPerChairMinorUnits);
+        Assert.Equal(12_692, result.SuggestedWeeklyPerChairMinorUnits);
+        Assert.Contains("No resta los pagos", result.Explanation, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task SaveSettings_RecordsNewRateOnlyWhenFeeChanges()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
@@ -403,7 +509,10 @@ public sealed class AdministrationServiceTests
                 Entities.OfType<Collaborator>().Where(Active).ToArray(),
                 Entities.OfType<MonthlyClose>().Where(Active).ToArray(),
                 Entities.OfType<MonthlyCloseParticipant>().Where(Active).ToArray(),
-                Entities.OfType<DistributionPayment>().Where(Active).ToArray()));
+                Entities.OfType<DistributionPayment>().Where(Active).ToArray(),
+                Entities.OfType<Chair>().Where(Active).ToArray(),
+                Entities.OfType<PeluqueriaAdmin.Domain.Activity.ActivityRecord>().Where(Active).ToArray(),
+                Entities.OfType<UnofficialExpense>().Where(Active).ToArray()));
 
         public Task SaveAsync(
             IReadOnlyCollection<AuditableEntity> additions,

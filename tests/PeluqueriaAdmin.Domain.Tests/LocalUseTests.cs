@@ -8,7 +8,7 @@ public sealed class LocalUseTests
     private static readonly DateTime UtcNow = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public void Generate_CreatesFirstChargeOnEntryAndThenEverySevenDays()
+    public void Generate_CreatesOnlyCompletedSevenDayPeriods()
     {
         DateOnly entry = new(2026, 1, 3);
         LocalUsePerson person = LocalUsePerson.Create("Ana", entry, null, UtcNow);
@@ -21,9 +21,9 @@ public sealed class LocalUseTests
             charges,
             charge => Assert.Equal(entry, charge.PeriodStart),
             charge => Assert.Equal(entry.AddDays(7), charge.PeriodStart),
-            charge => Assert.Equal(entry.AddDays(14), charge.PeriodStart),
-            charge => Assert.Equal(entry.AddDays(21), charge.PeriodStart));
-        Assert.All(charges, charge => Assert.Equal(charge.PeriodStart.AddDays(6), charge.PeriodEnd));
+            charge => Assert.Equal(entry.AddDays(14), charge.PeriodStart));
+        Assert.All(charges, charge => Assert.Equal(charge.PeriodStart.AddDays(7), charge.PeriodEnd));
+        Assert.All(charges, charge => Assert.Equal(charge.PeriodEnd, charge.DueDate));
     }
 
     [Fact]
@@ -40,9 +40,10 @@ public sealed class LocalUseTests
             person, existing, [original, changed], entry.AddDays(21), UtcNow.AddDays(1));
 
         Assert.Equal(2, generated.Count);
-        Assert.Equal(entry.AddDays(14), generated[0].PeriodStart);
-        Assert.Equal(1_500, generated[0].Amount.MinorUnits);
-        Assert.Equal(entry.AddDays(21), generated[1].PeriodStart);
+        Assert.Equal(entry.AddDays(7), generated[0].PeriodStart);
+        Assert.Equal(1_200, generated[0].Amount.MinorUnits);
+        Assert.Equal(entry.AddDays(14), generated[1].PeriodStart);
+        Assert.Equal(1_500, generated[1].Amount.MinorUnits);
         Assert.All(existing, charge => Assert.Equal(1_200, charge.Amount.MinorUnits));
         Assert.Empty(WeeklyChargeCalculator.Generate(
             person, existing.Concat(generated), [original, changed], entry.AddDays(21), UtcNow.AddDays(2)));
@@ -58,9 +59,9 @@ public sealed class LocalUseTests
         IReadOnlyList<WeeklyCharge> charges = WeeklyChargeCalculator.Generate(
             person, [], [rate], entry.AddDays(30), UtcNow);
 
-        Assert.Equal(2, charges.Count);
-        Assert.Equal(entry.AddDays(7), charges[1].PeriodStart);
-        Assert.Equal(entry.AddDays(13), charges[1].PeriodEnd);
+        Assert.Single(charges);
+        Assert.Equal(entry, charges[0].PeriodStart);
+        Assert.Equal(entry.AddDays(7), charges[0].PeriodEnd);
     }
 
     [Fact]
@@ -77,9 +78,31 @@ public sealed class LocalUseTests
             person.Id, entry.AddDays(8), Money.FromDecimal(5m), initialDebt, UtcNow);
         Money remaining = WeeklyChargeCalculator.CalculateDebt(charges, [partial]);
 
-        Assert.Equal(2_400, initialDebt.MinorUnits);
-        Assert.Equal(1_900, remaining.MinorUnits);
+        Assert.Equal(1_200, initialDebt.MinorUnits);
+        Assert.Equal(700, remaining.MinorUnits);
         Assert.Throws<InvalidOperationException>(() => LocalUsePayment.Create(
             person.Id, entry.AddDays(9), Money.FromDecimal(20m), remaining, UtcNow));
+    }
+
+    [Fact]
+    public void EntryOnJuly19_DoesNotChargeUntilJuly26_AndStillOwesOnlyTwelveOnAugust1()
+    {
+        DateOnly entry = new(2026, 7, 19);
+        LocalUsePerson person = LocalUsePerson.Create("Juan", entry, null, UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(entry, Money.FromDecimal(12m), UtcNow);
+
+        Assert.Empty(WeeklyChargeCalculator.Generate(person, [], [rate], entry, UtcNow));
+        Assert.Empty(WeeklyChargeCalculator.Generate(person, [], [rate], new DateOnly(2026, 7, 25), UtcNow));
+
+        IReadOnlyList<WeeklyCharge> onJuly26 = WeeklyChargeCalculator.Generate(
+            person, [], [rate], new DateOnly(2026, 7, 26), UtcNow);
+        Assert.Single(onJuly26);
+        Assert.Equal(new DateOnly(2026, 7, 26), onJuly26[0].PeriodEnd);
+        Assert.Equal(new DateOnly(2026, 8, 1), onJuly26[0].DueDate);
+        Assert.Equal(1_200, WeeklyChargeCalculator.CalculateDebt(onJuly26, [], new DateOnly(2026, 8, 1)).MinorUnits);
+
+        IReadOnlyList<WeeklyCharge> onAugust1 = WeeklyChargeCalculator.Generate(
+            person, onJuly26, [rate], new DateOnly(2026, 8, 1), UtcNow);
+        Assert.Empty(onAugust1);
     }
 }

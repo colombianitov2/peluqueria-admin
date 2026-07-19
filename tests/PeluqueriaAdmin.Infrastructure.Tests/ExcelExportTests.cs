@@ -50,12 +50,13 @@ public sealed class ExcelExportTests
             string[] requiredSheets =
             [
                 "Resumen general", "Ajustes", "Uso del local", "Cuotas semanales",
+                "Precio sugerido por silla", "Sillas", "Asignaciones actuales",
                 "Pagos por uso del local", "Colaboradores", "Ventas", "Productos",
                 "Inventario actual", "Movimientos de inventario", "Planes de reposición",
-                "Otros ingresos", "Gastos", "Imprevistos", "Obligaciones",
+                "Otros ingresos", "Gastos", "Imprevistos", "Gastos extraoficiales", "Obligaciones",
                 "Pagos de obligaciones", "Mantenimiento", "Cierres mensuales",
                 "Distribuciones a colaboradores", "Pagos a colaboradores",
-                "Resúmenes mensuales", "Balance anual", "Flujo de caja", "Historial eliminado",
+                "Resúmenes mensuales", "Balance anual", "Actividad e historial", "Historial fin. colaboradores", "Historial eliminado",
                 "Borradores sin finalizar",
             ];
             Assert.All(requiredSheets, sheet => Assert.True(workbook.TryGetWorksheet(sheet, out _), sheet));
@@ -66,9 +67,10 @@ public sealed class ExcelExportTests
             Assert.Equal(XLDataType.Number, settings.Cell(2, 2).DataType);
             Assert.Equal(XLDataType.Number, settings.Cell(3, 2).DataType);
             Assert.Contains('%', settings.Cell(3, 2).Style.NumberFormat.Format);
-            Assert.Equal(XLDataType.DateTime, settings.Cell(7, 2).DataType);
-            Assert.Contains("yy", settings.Cell(7, 2).Style.NumberFormat.Format, StringComparison.OrdinalIgnoreCase);
-            Assert.Equal(2026, settings.Cell(7, 2).GetDateTime().Year);
+            Assert.Equal(XLDataType.DateTime, settings.Cell(6, 2).DataType);
+            Assert.Contains("yy", settings.Cell(6, 2).Style.NumberFormat.Format, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(2026, settings.Cell(6, 2).GetDateTime().Year);
+            Assert.False(workbook.TryGetWorksheet("Flujo de caja", out _));
 
             IXLWorksheet products = workbook.Worksheet("Productos");
             Assert.Equal("=SUM(1,1)", products.Cell(2, 1).GetString());
@@ -87,12 +89,12 @@ public sealed class ExcelExportTests
                 data.WeeklyCharges.Where(x => x.PersonId == person.Id),
                 data.LocalUsePayments.Where(x => x.PersonId == person.Id)).ToDecimal();
             IXLRow useRow = workbook.Worksheet("Uso del local").RowsUsed().Single(row => row.Cell(1).GetString() == person.Name);
-            Assert.Equal(expectedDebt, useRow.Cell(5).GetValue<decimal>());
+            Assert.Equal(expectedDebt, useRow.Cell(7).GetValue<decimal>());
 
             Product product = data.Products.Single();
             decimal expectedInventory = InventoryCalculator.CurrentQuantity(data.InventoryMovements.Where(x => x.ProductId == product.Id));
             IXLRow inventoryRow = workbook.Worksheet("Inventario actual").RowsUsed().Single(row => row.Cell(1).GetString() == product.Name);
-            Assert.Equal(expectedInventory, inventoryRow.Cell(4).GetValue<decimal>());
+            Assert.Equal(expectedInventory, inventoryRow.Cell(3).GetValue<decimal>());
 
             var july = new YearMonth(2026, 7);
             MonthlySummaryResult expectedMonth = AdministrationReports.MonthlySummary(
@@ -147,9 +149,11 @@ public sealed class ExcelExportTests
         var service = new AdministrationService(repository, new EfSettingsRepository(factory), clock);
         DateTime utc = Now.UtcDateTime;
 
-        var person = LocalUsePerson.Create("Persona histórica", new DateOnly(2026, 6, 1), null, utc);
-        await service.AddLocalUsePersonAsync(person, new DateOnly(2026, 7, 18), cancellationToken);
-        var product = Product.Create("=SUM(1,1)", ProductCategory.ProductForSale, "unidad", utc);
+        var chair = Chair.Create("Silla principal", new DateOnly(2026, 6, 1), "Junto a la ventana", utc);
+        await service.AddChairAsync(chair, cancellationToken);
+        var person = LocalUsePerson.Create("Persona histórica", new DateOnly(2026, 6, 1), null, utc, "Peluquero vigente");
+        await service.AddLocalUsePersonWithChairAsync(person, chair.Id, new DateOnly(2026, 7, 18), cancellationToken);
+        var product = Product.Create("=SUM(1,1)", ProductCategory.ProductForSale, "unidad", utc, Money.FromDecimal(10m), "Producto de prueba");
         await service.AddProductAsync(product, cancellationToken);
         await service.AddInventoryMovementAsync(InventoryMovement.Initial(product.Id, new DateOnly(2026, 6, 1), Quantity.Positive(10), Money.FromDecimal(100), utc), cancellationToken);
         await service.AddInventoryMovementAsync(InventoryMovement.Sale(product.Id, new DateOnly(2026, 7, 1), Quantity.Positive(2), Money.FromDecimal(20), Money.FromDecimal(10), 10, utc), cancellationToken);
@@ -160,8 +164,12 @@ public sealed class ExcelExportTests
         await service.AddObligationAsync(Obligation.Create("Impuesto futuro", ObligationType.Tax, new DateOnly(2027, 1, 15), Money.FromDecimal(250), RecurrenceFrequency.None, utc), new DateOnly(2027, 1, 15), cancellationToken);
         await service.AddAsync(MaintenanceRecord.Create("Silla principal", "Preventivo", new DateOnly(2027, 2, 1), Money.FromDecimal(30), null, null, utc), cancellationToken);
         await service.AddAsync(Collaborator.Create("Colaboradora", new DateOnly(2026, 1, 1), null, utc), cancellationToken);
+        await service.AddUnofficialExpenseAsync(UnlistedExpense(), cancellationToken);
         await new EfFormDraftStore(factory).UpsertAsync(FormDraft.Create("Otros ingresos:nuevo", "Otros ingresos", "Registrar ingreso", "{\"concepto\":\"+borrador\"}", null, false, utc), cancellationToken);
         return factory;
+
+        UnofficialExpense UnlistedExpense() => UnofficialExpense.Create(
+            "Arriendo no registrado", Money.FromDecimal(30m), new DateOnly(2026, 7, 1), "Solo para el precio sugerido", utc);
     }
 
     private static ExcelExportService CreateService(TestDbContextFactory factory, string desktop, IExcelWorkbookWriter writer) =>

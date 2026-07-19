@@ -40,7 +40,7 @@
         <TextBlock FontSize="26" FontWeight="SemiBold" Text="Ajustes" />
         <TextBlock Margin="0,6,0,0"
                    Foreground="#4B5563"
-                   Text="Los cambios válidos se guardan automáticamente. Si un valor está incompleto o no es válido, se conserva como borrador. Cambiar la moneda no convierte valores existentes."
+                   Text="Los cambios válidos se guardan automáticamente. Si un valor está incompleto o no es válido, los campos escritos se conservan para continuar después."
                    TextWrapping="Wrap" />
       </StackPanel>
 
@@ -66,19 +66,77 @@
       </StackPanel>
 
       <StackPanel Grid.Row="4">
-        <TextBlock Style="{StaticResource FieldLabel}" Text="Cantidad total de sillas" />
-        <TextBox MaxLength="9"
-                 Text="{Binding TotalChairs, UpdateSourceTrigger=PropertyChanged}"
-                 ToolTip="Número entero no negativo." />
+        <TextBlock Style="{StaticResource FieldLabel}" Text="Moneda" />
+        <ComboBox Margin="0,6,0,8"
+                  Padding="10,7"
+                  ItemsSource="{Binding CurrencyOptions}"
+                  SelectedItem="{Binding CurrencyCode, UpdateSourceTrigger=PropertyChanged}" />
+        <TextBlock Margin="0,0,0,18"
+                   Foreground="#9A3412"
+                   Text="Cambiar la moneda no convierte los valores registrados anteriormente."
+                   TextWrapping="Wrap" />
       </StackPanel>
 
-      <StackPanel Grid.Row="5">
-        <TextBlock Style="{StaticResource FieldLabel}" Text="Código de moneda" />
-        <TextBox MaxLength="3"
-                 CharacterCasing="Upper"
-                 Text="{Binding CurrencyCode, UpdateSourceTrigger=PropertyChanged}"
-                 ToolTip="Código ISO de exactamente tres letras, por ejemplo USD." />
-      </StackPanel>
+      <Border Grid.Row="5" Margin="0,4,0,24" Padding="18" Background="#FFF7ED" CornerRadius="6">
+        <StackPanel>
+          <DockPanel Margin="0,0,0,12">
+            <TextBlock DockPanel.Dock="Left" FontSize="20" FontWeight="SemiBold" Text="Gastos extraoficiales" />
+            <ComboBox Width="170"
+                      HorizontalAlignment="Right"
+                      ItemsSource="{Binding ActivityPeriodOptions}"
+                      SelectedItem="{Binding SelectedUnofficialPeriod}" />
+          </DockPanel>
+          <WrapPanel Margin="0,0,0,12"
+                     HorizontalAlignment="Right"
+                     Visibility="{Binding ShowUnofficialCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <DatePicker Width="145" Margin="0,0,8,0" SelectedDate="{Binding UnofficialCustomFrom}" />
+            <DatePicker Width="145" SelectedDate="{Binding UnofficialCustomThrough}" />
+          </WrapPanel>
+          <TextBlock Margin="0,0,0,12"
+                     Foreground="#4B5563"
+                     Text="Se usan únicamente para el precio sugerido por silla y no forman parte del Balance anual oficial."
+                     TextWrapping="Wrap" />
+          <TextBlock Style="{StaticResource FieldLabel}" Text="Nombre" />
+          <TextBox Text="{Binding UnofficialExpenseName, UpdateSourceTrigger=PropertyChanged}" />
+          <TextBlock Style="{StaticResource FieldLabel}" Text="Valor mensual" />
+          <TextBox Text="{Binding UnofficialExpenseAmount, UpdateSourceTrigger=PropertyChanged}" />
+          <TextBlock Style="{StaticResource FieldLabel}" Text="Fecha desde la que aplica (AAAA-MM-DD)" />
+          <TextBox Text="{Binding UnofficialExpenseEffectiveFrom, UpdateSourceTrigger=PropertyChanged}" />
+          <TextBlock Style="{StaticResource FieldLabel}" Text="Descripción opcional" />
+          <TextBox MinHeight="58"
+                   AcceptsReturn="True"
+                   Text="{Binding UnofficialExpenseDescription, UpdateSourceTrigger=PropertyChanged}"
+                   TextWrapping="Wrap" />
+          <WrapPanel Margin="0,0,0,12">
+            <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding AddUnofficialExpenseCommand}" Content="Agregar" />
+            <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding UpdateUnofficialExpenseCommand}" Content="Editar seleccionado" />
+            <CheckBox Margin="4,0,8,8" VerticalAlignment="Center" IsChecked="{Binding ConfirmUnofficialExpenseDelete}" Content="Confirmo eliminar" />
+            <Button Padding="12,8" Command="{Binding DeleteUnofficialExpenseCommand}" Content="Eliminar seleccionado" />
+          </WrapPanel>
+          <DataGrid MinHeight="150"
+                    AutoGenerateColumns="False"
+                    IsReadOnly="True"
+                    ItemsSource="{Binding UnofficialExpenses}"
+                    SelectedItem="{Binding SelectedUnofficialExpense}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Width="110" Header="Desde" Binding="{Binding Date}" />
+              <DataGridTextColumn Width="*" Header="Nombre" Binding="{Binding Principal}" />
+              <DataGridTextColumn Width="140" Header="Valor mensual" Binding="{Binding Amount}" />
+              <DataGridTextColumn Width="2*" Header="Descripción" Binding="{Binding Detail}" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <TextBlock Margin="0,14,0,6" FontWeight="SemiBold" Text="Actividad del periodo" />
+          <DataGrid MinHeight="120" AutoGenerateColumns="False" IsReadOnly="True"
+                    ItemsSource="{Binding UnofficialExpenseActivity}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Width="110" Header="Fecha" Binding="{Binding Date}" />
+              <DataGridTextColumn Width="*" Header="Operación" Binding="{Binding Principal}" />
+              <DataGridTextColumn Width="2*" Header="Descripción" Binding="{Binding Detail}" />
+              <DataGridTextColumn Width="120" Header="Actividad" Binding="{Binding Status}" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </StackPanel>
+      </Border>
 
       <Border Grid.Row="6" Margin="0,12,0,24" Padding="18" Background="#F3F4F6" CornerRadius="6">
         <StackPanel>

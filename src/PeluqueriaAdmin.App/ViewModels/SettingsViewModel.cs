@@ -1,15 +1,20 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PeluqueriaAdmin.Application.Activity;
+using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.DataManagement;
 using PeluqueriaAdmin.Application.Drafts;
 using PeluqueriaAdmin.Application.Exporting;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Application.Updates;
 using PeluqueriaAdmin.Domain.Drafts;
+using PeluqueriaAdmin.Domain.Finance;
+using PeluqueriaAdmin.Domain.Settings;
 
 namespace PeluqueriaAdmin.App.ViewModels;
 
@@ -20,7 +25,8 @@ public sealed partial class SettingsViewModel(
     IExcelExportService excelExport,
     IUpdateService updateService,
     IFormDraftStore formDraftStore,
-    TimeProvider timeProvider) : ObservableObject
+    TimeProvider timeProvider,
+    AdministrationService administrationService) : ObservableObject
 {
     private const string SettingsDraftKey = "Ajustes:Edicion:settings";
     private string? lastExcelPath;
@@ -37,10 +43,37 @@ public sealed partial class SettingsViewModel(
     private string optionalSuppliesMonthlyBudget = string.Empty;
 
     [ObservableProperty]
-    private string totalChairs = string.Empty;
+    private string currencyCode = string.Empty;
 
     [ObservableProperty]
-    private string currencyCode = string.Empty;
+    private string unofficialExpenseName = string.Empty;
+
+    [ObservableProperty]
+    private string unofficialExpenseAmount = string.Empty;
+
+    [ObservableProperty]
+    private string unofficialExpenseEffectiveFrom = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    [ObservableProperty]
+    private string unofficialExpenseDescription = string.Empty;
+
+    [ObservableProperty]
+    private OperationRow? selectedUnofficialExpense;
+
+    [ObservableProperty]
+    private string selectedUnofficialPeriod = "Hoy";
+
+    [ObservableProperty]
+    private DateTime? unofficialCustomFrom = DateTime.Today;
+
+    [ObservableProperty]
+    private DateTime? unofficialCustomThrough = DateTime.Today;
+
+    [ObservableProperty]
+    private bool showUnofficialCustomPeriod;
+
+    [ObservableProperty]
+    private bool confirmUnofficialExpenseDelete;
 
     [ObservableProperty]
     private string restorePath = string.Empty;
@@ -60,6 +93,15 @@ public sealed partial class SettingsViewModel(
 
     public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
 
+    public ObservableCollection<string> CurrencyOptions { get; } = ["USD", "COP"];
+
+    public ObservableCollection<string> ActivityPeriodOptions { get; } =
+        ["Hoy", "Esta semana", "Este mes", "Últimos 3 meses", "Últimos 6 meses", "Este año", "Rango personalizado"];
+
+    public ObservableCollection<OperationRow> UnofficialExpenses { get; } = [];
+
+    public ObservableCollection<OperationRow> UnofficialExpenseActivity { get; } = [];
+
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
         IsBusy = true;
@@ -74,10 +116,11 @@ public sealed partial class SettingsViewModel(
                 if (values is not null)
                 {
                     ApplyDraft(values);
-                    StatusMessage = "Se recuperaron cambios de Ajustes que aún no eran válidos para guardar.";
+                    StatusMessage = string.Empty;
                 }
             }
             trackingEnabled = true;
+            await LoadUnofficialExpensesAsync(cancellationToken);
             IsError = false;
         }
         finally
@@ -316,7 +359,7 @@ public sealed partial class SettingsViewModel(
             await Task.Delay(650, cancellationToken);
             if (!TryCreateRequest(out SaveSettingsRequest request, out string validationMessage))
             {
-                StatusMessage = $"Borrador conservado. {validationMessage}";
+                StatusMessage = validationMessage;
                 IsError = true;
                 return;
             }
@@ -335,14 +378,13 @@ public sealed partial class SettingsViewModel(
         }
         catch (Exception exception)
         {
-            SetDataError("No fue posible autoguardar los Ajustes; el borrador se conservó.", exception);
+            SetDataError("No fue posible autoguardar los Ajustes; los campos escritos se conservaron.", exception);
         }
     }
 
     partial void OnWeeklyUsageFeeChanged(string value) => TrackSettingsChange();
     partial void OnCollaboratorProfitPercentChanged(string value) => TrackSettingsChange();
     partial void OnOptionalSuppliesMonthlyBudgetChanged(string value) => TrackSettingsChange();
-    partial void OnTotalChairsChanged(string value) => TrackSettingsChange();
     partial void OnCurrencyCodeChanged(string value) => TrackSettingsChange();
 
     partial void OnIsBusyChanged(bool value)
@@ -366,7 +408,6 @@ public sealed partial class SettingsViewModel(
         WeeklyUsageFee,
         CollaboratorProfitPercent,
         OptionalSuppliesMonthlyBudget,
-        TotalChairs,
         CurrencyCode);
 
     private void ApplyDraft(SettingsDraft draft)
@@ -374,7 +415,6 @@ public sealed partial class SettingsViewModel(
         WeeklyUsageFee = draft.WeeklyUsageFee;
         CollaboratorProfitPercent = draft.CollaboratorProfitPercent;
         OptionalSuppliesMonthlyBudget = draft.OptionalSuppliesMonthlyBudget;
-        TotalChairs = draft.TotalChairs;
         CurrencyCode = draft.CurrencyCode;
     }
 
@@ -382,8 +422,191 @@ public sealed partial class SettingsViewModel(
         string WeeklyUsageFee,
         string CollaboratorProfitPercent,
         string OptionalSuppliesMonthlyBudget,
-        string TotalChairs,
         string CurrencyCode);
+
+    [RelayCommand]
+    private async Task AddUnofficialExpenseAsync()
+    {
+        try
+        {
+            UnofficialExpense expense = UnofficialExpense.Create(
+                UnofficialExpenseName,
+                Money.FromDecimal(ParseUnofficialAmount()),
+                ParseUnofficialDate(),
+                UnofficialExpenseDescription,
+                timeProvider.GetUtcNow().UtcDateTime);
+            await administrationService.AddUnofficialExpenseAsync(expense);
+            ClearUnofficialExpenseForm();
+            await LoadUnofficialExpensesAsync();
+            StatusMessage = "Gasto extraoficial agregado correctamente.";
+            IsError = false;
+        }
+        catch (Exception exception)
+        {
+            SetDataError("No fue posible agregar el gasto extraoficial.", exception);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDeleteUnofficialExpense))]
+    private async Task UpdateUnofficialExpenseAsync()
+    {
+        if (SelectedUnofficialExpense?.Entity is not UnofficialExpense expense) return;
+        try
+        {
+            expense.Update(
+                UnofficialExpenseName,
+                Money.FromDecimal(ParseUnofficialAmount()),
+                ParseUnofficialDate(),
+                UnofficialExpenseDescription,
+                timeProvider.GetUtcNow().UtcDateTime);
+            await administrationService.UpdateAsync(expense);
+            ClearUnofficialExpenseForm();
+            await LoadUnofficialExpensesAsync();
+            StatusMessage = "Gasto extraoficial actualizado correctamente.";
+            IsError = false;
+        }
+        catch (Exception exception)
+        {
+            SetDataError("No fue posible actualizar el gasto extraoficial.", exception);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelectedUnofficialExpense))]
+    private async Task DeleteUnofficialExpenseAsync()
+    {
+        if (SelectedUnofficialExpense?.Entity is not UnofficialExpense expense) return;
+        try
+        {
+            await administrationService.DeleteAsync(expense);
+            ClearUnofficialExpenseForm();
+            await LoadUnofficialExpensesAsync();
+            StatusMessage = "Gasto extraoficial eliminado del estado vigente; su historial se conservó.";
+            IsError = false;
+        }
+        catch (Exception exception)
+        {
+            SetDataError("No fue posible eliminar el gasto extraoficial.", exception);
+        }
+    }
+
+    private bool HasSelectedUnofficialExpense() => SelectedUnofficialExpense?.Entity is UnofficialExpense;
+
+    private bool CanDeleteUnofficialExpense() => HasSelectedUnofficialExpense() && ConfirmUnofficialExpenseDelete;
+
+    partial void OnSelectedUnofficialExpenseChanged(OperationRow? value)
+    {
+        UpdateUnofficialExpenseCommand.NotifyCanExecuteChanged();
+        DeleteUnofficialExpenseCommand.NotifyCanExecuteChanged();
+        if (value?.Entity is not UnofficialExpense expense) return;
+        UnofficialExpenseName = expense.Name;
+        UnofficialExpenseAmount = expense.MonthlyAmount.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture);
+        UnofficialExpenseEffectiveFrom = expense.EffectiveFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        UnofficialExpenseDescription = expense.Description ?? string.Empty;
+    }
+
+    partial void OnSelectedUnofficialPeriodChanged(string value)
+    {
+        ShowUnofficialCustomPeriod = value == "Rango personalizado";
+        _ = LoadUnofficialExpensesAsync();
+    }
+
+    partial void OnUnofficialCustomFromChanged(DateTime? value)
+    {
+        if (ShowUnofficialCustomPeriod) _ = LoadUnofficialExpensesAsync();
+    }
+
+    partial void OnUnofficialCustomThroughChanged(DateTime? value)
+    {
+        if (ShowUnofficialCustomPeriod) _ = LoadUnofficialExpensesAsync();
+    }
+
+    partial void OnConfirmUnofficialExpenseDeleteChanged(bool value) =>
+        DeleteUnofficialExpenseCommand.NotifyCanExecuteChanged();
+
+    private async Task LoadUnofficialExpensesAsync(CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await administrationService.LoadAsync(cancellationToken);
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+        ActivityDateRange range;
+        try
+        {
+            range = ActivityPeriodCalculator.Calculate(
+                ParsePeriod(SelectedUnofficialPeriod),
+                today,
+                UnofficialCustomFrom.HasValue ? DateOnly.FromDateTime(UnofficialCustomFrom.Value) : null,
+                UnofficialCustomThrough.HasValue ? DateOnly.FromDateTime(UnofficialCustomThrough.Value) : null);
+        }
+        catch (ArgumentException exception)
+        {
+            UnofficialExpenses.Clear();
+            UnofficialExpenseActivity.Clear();
+            StatusMessage = exception.Message;
+            IsError = true;
+            return;
+        }
+        UnofficialExpenses.Clear();
+        foreach (UnofficialExpense item in data.UnofficialExpenses.Where(item => range.Contains(item.EffectiveFrom)))
+        {
+            UnofficialExpenses.Add(new OperationRow(
+                item.EffectiveFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                item.Name,
+                item.Description ?? string.Empty,
+                string.Empty,
+                $"{CurrencyCode} {item.MonthlyAmount.ToDecimal():N2}",
+                "Extraoficial",
+                item));
+        }
+
+        UnofficialExpenseActivity.Clear();
+        foreach (var item in data.ActivityRecords
+            .Where(item => item.Module == "Ajustes" && range.Contains(item.ActivityDate))
+            .OrderByDescending(item => item.OccurredUtc))
+        {
+            UnofficialExpenseActivity.Add(new OperationRow(
+                item.ActivityDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                item.Summary,
+                item.Description ?? string.Empty,
+                string.Empty,
+                string.Empty,
+                item.Action,
+                null));
+        }
+    }
+
+    private static ActivityPeriod ParsePeriod(string value) => value switch
+    {
+        "Hoy" => ActivityPeriod.Today,
+        "Esta semana" => ActivityPeriod.ThisWeek,
+        "Este mes" => ActivityPeriod.ThisMonth,
+        "Últimos 3 meses" => ActivityPeriod.LastThreeMonths,
+        "Últimos 6 meses" => ActivityPeriod.LastSixMonths,
+        "Este año" => ActivityPeriod.ThisYear,
+        "Rango personalizado" => ActivityPeriod.Custom,
+        _ => ActivityPeriod.Today,
+    };
+
+    private decimal ParseUnofficialAmount() => TryParseDecimal(UnofficialExpenseAmount, out decimal amount)
+        ? amount
+        : throw new ArgumentException("El valor mensual debe ser un número válido.");
+
+    private DateOnly ParseUnofficialDate() => DateOnly.TryParseExact(
+        UnofficialExpenseEffectiveFrom,
+        "yyyy-MM-dd",
+        CultureInfo.InvariantCulture,
+        DateTimeStyles.None,
+        out DateOnly date)
+        ? date
+        : throw new ArgumentException("La fecha debe usar el formato AAAA-MM-DD.");
+
+    private void ClearUnofficialExpenseForm()
+    {
+        SelectedUnofficialExpense = null;
+        UnofficialExpenseName = string.Empty;
+        UnofficialExpenseAmount = string.Empty;
+        UnofficialExpenseEffectiveFrom = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        UnofficialExpenseDescription = string.Empty;
+        ConfirmUnofficialExpenseDelete = false;
+    }
 
     private async Task RunDataOperationAsync<T>(
         Func<CancellationToken, Task<T>> operation,
@@ -495,19 +718,9 @@ public sealed partial class SettingsViewModel(
             errors.Add("El presupuesto mensual debe ser un número válido.");
         }
 
-        bool chairsAreValid = int.TryParse(
-            TotalChairs,
-            NumberStyles.None,
-            CultureInfo.CurrentCulture,
-            out int chairs);
-        if (!chairsAreValid)
+        if (CurrencyCode is not ("USD" or "COP"))
         {
-            errors.Add("La cantidad total de sillas debe ser un número entero.");
-        }
-
-        if (string.IsNullOrWhiteSpace(CurrencyCode))
-        {
-            errors.Add("El código de moneda es obligatorio.");
+            errors.Add("Selecciona USD o COP como moneda.");
         }
 
         if (errors.Count > 0)
@@ -517,7 +730,7 @@ public sealed partial class SettingsViewModel(
             return false;
         }
 
-        request = new SaveSettingsRequest(weeklyFee, profit, budget, chairs, CurrencyCode);
+        request = new SaveSettingsRequest(weeklyFee, profit, budget, CurrencyCode);
         validationMessage = string.Empty;
         return true;
     }
@@ -538,7 +751,6 @@ public sealed partial class SettingsViewModel(
         WeeklyUsageFee = settings.WeeklyUsageFee.ToString("0.00", CultureInfo.CurrentCulture);
         CollaboratorProfitPercent = settings.CollaboratorProfitPercent.ToString("0.00", CultureInfo.CurrentCulture);
         OptionalSuppliesMonthlyBudget = settings.OptionalSuppliesMonthlyBudget.ToString("0.00", CultureInfo.CurrentCulture);
-        TotalChairs = settings.TotalChairs.ToString(CultureInfo.CurrentCulture);
         CurrencyCode = settings.CurrencyCode;
     }
 }
