@@ -65,16 +65,20 @@ public sealed class AdministrationService(
         return await repository.LoadAsync(cancellationToken);
     }
 
-    public Task AddAsync(AuditableEntity entity, CancellationToken cancellationToken = default)
+    public Task AddAsync(
+        AuditableEntity entity,
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
     {
         ArgumentNullException.ThrowIfNull(entity);
-        return repository.SaveAsync([entity], [], cancellationToken);
+        return SaveAsync([entity], [], completedDraftKey, cancellationToken);
     }
 
     public async Task AddLocalUsePersonAsync(
         LocalUsePerson person,
         DateOnly throughDate,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
     {
         ArgumentNullException.ThrowIfNull(person);
         AdministrationData data = await repository.LoadAsync(cancellationToken);
@@ -83,12 +87,13 @@ public sealed class AdministrationService(
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
         IReadOnlyList<WeeklyCharge> charges = WeeklyChargeCalculator.Generate(
             person, [], rates, throughDate, utcNow);
-        await repository.SaveAsync(
+        await SaveAsync(
             new AuditableEntity[] { person }
                 .Concat(newRate is null ? [] : [newRate])
                 .Concat(charges)
                 .ToArray(),
             [],
+            completedDraftKey,
             cancellationToken);
     }
 
@@ -98,7 +103,8 @@ public sealed class AdministrationService(
         DateOnly entryDate,
         DateOnly? exitDate,
         DateOnly throughDate,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
     {
         AdministrationData data = await repository.LoadAsync(cancellationToken);
         LocalUsePerson person = data.LocalUsePeople.SingleOrDefault(item => item.Id == personId)
@@ -123,31 +129,40 @@ public sealed class AdministrationService(
             await EnsureRatesAsync(data, cancellationToken);
         IReadOnlyList<WeeklyCharge> additions = WeeklyChargeCalculator.Generate(
             person, existing, rates, throughDate, utcNow);
-        await repository.SaveAsync(
+        await SaveAsync(
             (newRate is null ? Array.Empty<AuditableEntity>() : [newRate])
                 .Concat(additions)
                 .ToArray(),
             new AuditableEntity[] { person }.Concat(invalid).ToArray(),
+            completedDraftKey,
             cancellationToken);
     }
 
     public async Task AddObligationAsync(
         Obligation obligation,
         DateOnly throughDate,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
     {
         ArgumentNullException.ThrowIfNull(obligation);
         IReadOnlyList<Obligation> occurrences = ObligationRecurrenceGenerator.Generate(
             obligation, [obligation], throughDate, timeProvider.GetUtcNow().UtcDateTime);
-        await repository.SaveAsync(new AuditableEntity[] { obligation }.Concat(occurrences).ToArray(), [], cancellationToken);
+        await SaveAsync(
+            new AuditableEntity[] { obligation }.Concat(occurrences).ToArray(),
+            [],
+            completedDraftKey,
+            cancellationToken);
     }
 
-    public async Task AddProductAsync(Product product, CancellationToken cancellationToken = default)
+    public async Task AddProductAsync(
+        Product product,
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
     {
         ArgumentNullException.ThrowIfNull(product);
         AdministrationData data = await repository.LoadAsync(cancellationToken);
         EnsureUniqueProductName(data, product.Name, null);
-        await repository.SaveAsync([product], [], cancellationToken);
+        await SaveAsync([product], [], completedDraftKey, cancellationToken);
     }
 
     public async Task UpdateProductAsync(
@@ -155,20 +170,24 @@ public sealed class AdministrationService(
         string name,
         ProductCategory category,
         string unitOfMeasure,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
     {
         AdministrationData data = await repository.LoadAsync(cancellationToken);
         Product product = data.Products.SingleOrDefault(item => item.Id == productId)
             ?? throw new InvalidOperationException("El producto seleccionado ya no está disponible.");
         EnsureUniqueProductName(data, name, productId);
         product.Update(name, category, unitOfMeasure, timeProvider.GetUtcNow().UtcDateTime);
-        await repository.SaveAsync([], [product], cancellationToken);
+        await SaveAsync([], [product], completedDraftKey, cancellationToken);
     }
 
-    public Task UpdateAsync(AuditableEntity entity, CancellationToken cancellationToken = default)
+    public Task UpdateAsync(
+        AuditableEntity entity,
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
     {
         ArgumentNullException.ThrowIfNull(entity);
-        return repository.SaveAsync([], [entity], cancellationToken);
+        return SaveAsync([], [entity], completedDraftKey, cancellationToken);
     }
 
     public async Task DeleteAsync(AuditableEntity entity, CancellationToken cancellationToken = default)
@@ -204,7 +223,8 @@ public sealed class AdministrationService(
         Guid personId,
         DateOnly date,
         Money amount,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
     {
         AdministrationData data = await repository.LoadAsync(cancellationToken);
         Money debt = WeeklyChargeCalculator.CalculateDebt(
@@ -216,13 +236,14 @@ public sealed class AdministrationService(
             amount,
             debt,
             timeProvider.GetUtcNow().UtcDateTime);
-        await repository.SaveAsync([payment], [], cancellationToken);
+        await SaveAsync([payment], [], completedDraftKey, cancellationToken);
         return payment;
     }
 
     public async Task AddInventoryMovementAsync(
         InventoryMovement movement,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
     {
         AdministrationData data = await repository.LoadAsync(cancellationToken);
         InventoryMovement[] productMovements = data.InventoryMovements
@@ -230,12 +251,13 @@ public sealed class AdministrationService(
             .Append(movement)
             .ToArray();
         InventoryCalculator.EnsureNonNegative(productMovements);
-        await repository.SaveAsync([movement], [], cancellationToken);
+        await SaveAsync([movement], [], completedDraftKey, cancellationToken);
     }
 
     public async Task UpdateInventoryMovementAsync(
         InventoryMovement movement,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
     {
         AdministrationData data = await repository.LoadAsync(cancellationToken);
         InventoryMovement[] productMovements = data.InventoryMovements
@@ -243,7 +265,7 @@ public sealed class AdministrationService(
             .Append(movement)
             .ToArray();
         InventoryCalculator.EnsureNonNegative(productMovements);
-        await repository.SaveAsync([], [movement], cancellationToken);
+        await SaveAsync([], [movement], completedDraftKey, cancellationToken);
     }
 
     public async Task DeleteInventoryMovementAsync(
@@ -262,7 +284,8 @@ public sealed class AdministrationService(
         MonthlySummaryInput input,
         Percentage percentage,
         IReadOnlyCollection<Guid> participantIds,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
     {
         AdministrationData data = await repository.LoadAsync(cancellationToken);
         if (data.MonthlyCloses.Any(close => close.Month == month && close.IsConfirmed))
@@ -275,9 +298,10 @@ public sealed class AdministrationService(
         MonthlyClose close = MonthlyClose.Create(month, percentage, summary, utcNow);
         IReadOnlyList<MonthlyCloseParticipant> participants =
             CollaboratorDistributionCalculator.Distribute(close, participantIds, utcNow);
-        await repository.SaveAsync(
+        await SaveAsync(
             new AuditableEntity[] { close }.Concat(participants).ToArray(),
             [],
+            completedDraftKey,
             cancellationToken);
         return (close, participants);
     }
@@ -311,7 +335,8 @@ public sealed class AdministrationService(
         Guid participantId,
         DateOnly date,
         Money amount,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
     {
         AdministrationData data = await repository.LoadAsync(cancellationToken);
         MonthlyCloseParticipant participant = data.MonthlyCloseParticipants
@@ -330,9 +355,17 @@ public sealed class AdministrationService(
         Money pending = Money.FromMinorUnits(participant.Amount.MinorUnits - paid);
         DistributionPayment payment = DistributionPayment.Create(
             participant.Id, date, amount, pending, timeProvider.GetUtcNow().UtcDateTime);
-        await repository.SaveAsync([payment], [], cancellationToken);
+        await SaveAsync([payment], [], completedDraftKey, cancellationToken);
         return payment;
     }
+
+    private Task SaveAsync(
+        IReadOnlyCollection<AuditableEntity> additions,
+        IReadOnlyCollection<AuditableEntity> updates,
+        string? completedDraftKey,
+        CancellationToken cancellationToken) => string.IsNullOrWhiteSpace(completedDraftKey)
+        ? repository.SaveAsync(additions, updates, cancellationToken)
+        : repository.SaveCompletingDraftAsync(additions, updates, completedDraftKey, cancellationToken);
 
     private async Task<(IReadOnlyCollection<WeeklyRate> Rates, WeeklyRate? NewRate)> EnsureRatesAsync(
         AdministrationData data,

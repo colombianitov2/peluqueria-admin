@@ -13,8 +13,20 @@ public interface IAdministrationRepository
         IReadOnlyCollection<AuditableEntity> updates,
         CancellationToken cancellationToken = default);
 
+    Task SaveCompletingDraftAsync(
+        IReadOnlyCollection<AuditableEntity> additions,
+        IReadOnlyCollection<AuditableEntity> updates,
+        string completedDraftKey,
+        CancellationToken cancellationToken = default);
+
     Task SaveSettingsAndRateAsync(
         GeneralSettings settings,
         WeeklyRate? newRate,
+        CancellationToken cancellationToken = default);
+
+    Task SaveSettingsAndRateCompletingDraftAsync(
+        GeneralSettings settings,
+        WeeklyRate? newRate,
+        string completedDraftKey,
         CancellationToken cancellationToken = default);
 }

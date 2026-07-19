@@ -4,9 +4,13 @@ using PeluqueriaAdmin.App.Updates;
 using PeluqueriaAdmin.App.ViewModels;
 using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.DataManagement;
+using PeluqueriaAdmin.Application.Drafts;
+using PeluqueriaAdmin.Application.Exporting;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Application.Updates;
 using PeluqueriaAdmin.Infrastructure.Administration;
+using PeluqueriaAdmin.Infrastructure.Drafts;
+using PeluqueriaAdmin.Infrastructure.Exporting;
 using PeluqueriaAdmin.Infrastructure.Persistence;
 using PeluqueriaAdmin.Infrastructure.Settings;
 using PeluqueriaAdmin.Infrastructure.Storage;
@@ -82,9 +86,13 @@ public partial class App : System.Windows.Application
         services.AddSingleton(paths);
         services.AddSingleton(TimeProvider.System);
         services.AddDbContextFactory<PeluqueriaDbContext>(options =>
-            options.UseSqlite(DatabaseConfiguration.CreateConnectionString(paths.DatabaseFilePath)));
+            DatabaseConfiguration.Configure(options, paths.DatabaseFilePath));
         services.AddSingleton<ISettingsRepository, EfSettingsRepository>();
         services.AddSingleton<IAdministrationRepository, EfAdministrationRepository>();
+        services.AddSingleton<IFormDraftStore, EfFormDraftStore>();
+        services.AddSingleton<IUserDesktopPath, CurrentUserDesktopPath>();
+        services.AddSingleton<IExcelWorkbookWriter, ClosedXmlWorkbookWriter>();
+        services.AddSingleton<IExcelExportService, ExcelExportService>();
         services.AddSingleton<DatabaseBackupService>();
         services.AddSingleton<IDataManagementService, CsvDataManagementService>();
         services.AddSingleton<IUpdateService, VelopackUpdateService>();

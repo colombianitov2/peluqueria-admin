@@ -415,6 +415,12 @@ public sealed class AdministrationServiceTests
             return Task.CompletedTask;
         }
 
+        public Task SaveCompletingDraftAsync(
+            IReadOnlyCollection<AuditableEntity> additions,
+            IReadOnlyCollection<AuditableEntity> updates,
+            string completedDraftKey,
+            CancellationToken cancellationToken = default) => SaveAsync(additions, updates, cancellationToken);
+
         public Task SaveSettingsAndRateAsync(
             GeneralSettings settings,
             WeeklyRate? newRate,
@@ -428,6 +434,13 @@ public sealed class AdministrationServiceTests
             LastSaveWasSingleTransaction = true;
             return Task.CompletedTask;
         }
+
+        public Task SaveSettingsAndRateCompletingDraftAsync(
+            GeneralSettings settings,
+            WeeklyRate? newRate,
+            string completedDraftKey,
+            CancellationToken cancellationToken = default) =>
+            SaveSettingsAndRateAsync(settings, newRate, cancellationToken);
 
         private static bool Active(AuditableEntity entity) => !entity.IsDeleted;
     }

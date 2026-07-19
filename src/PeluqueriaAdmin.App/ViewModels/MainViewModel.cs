@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -13,6 +14,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly AdministrationService administrationService;
     private readonly GetSettingsUseCase getSettings;
     private readonly TimeProvider timeProvider;
+    private bool navigationInitialized;
 
     public MainViewModel(
         SettingsViewModel settings,
@@ -26,11 +28,43 @@ public sealed partial class MainViewModel : ObservableObject
         this.administrationService = administrationService;
         this.getSettings = getSettings;
         this.timeProvider = timeProvider;
+        NavigationItems =
+        [
+            new("Inicio", false),
+            new(AdministrationViewModel.LocalUseModule, true),
+            new(AdministrationViewModel.CollaboratorsModule, true),
+            new(AdministrationViewModel.SalesModule, true),
+            new(AdministrationViewModel.InventoryModule, true),
+            new(AdministrationViewModel.OtherIncomeModule, true),
+            new(AdministrationViewModel.ExpensesModule, true),
+            new(AdministrationViewModel.UnexpectedModule, true),
+            new(AdministrationViewModel.ObligationsModule, true),
+            new(AdministrationViewModel.MaintenanceModule, true),
+            new(AdministrationViewModel.PayrollModule, true),
+            new(AdministrationViewModel.MonthlySummaryModule, true),
+            new(AdministrationViewModel.AnnualBalanceModule, true),
+            new(AdministrationViewModel.CashFlowModule, true),
+            new("Ajustes", false),
+        ];
+        currentPage = this;
+        selectedNavigationItem = NavigationItems[0];
+        navigationInitialized = true;
     }
 
     public SettingsViewModel Settings { get; }
 
     public AdministrationViewModel Administration { get; }
+
+    public ObservableCollection<NavigationItem> NavigationItems { get; }
+
+    [ObservableProperty]
+    private object? currentPage;
+
+    [ObservableProperty]
+    private NavigationItem? selectedNavigationItem;
+
+    [ObservableProperty]
+    private Task currentNavigationTask = Task.CompletedTask;
 
     [ObservableProperty]
     private string fechaActual = DateTime.Today.ToString("D", CultureInfo.GetCultureInfo("es-ES"));
@@ -44,39 +78,55 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string estadoPuntoDeEquilibrio = "Sin faltante calculado";
 
-    [ObservableProperty]
-    private bool isHomeVisible = true;
-
-    [ObservableProperty]
-    private bool isSettingsVisible;
-
-    [ObservableProperty]
-    private bool isAdministrationVisible;
+    [RelayCommand]
+    private Task ShowHomeAsync() => NavigateToAsync("Inicio");
 
     [RelayCommand]
-    private async Task ShowHomeAsync()
+    private Task ShowSettingsAsync() => NavigateToAsync("Ajustes");
+
+    [RelayCommand]
+    private Task ShowModuleAsync(string module) => NavigateToAsync(module);
+
+    public async Task NavigateToAsync(string name)
     {
-        IsHomeVisible = true;
-        IsSettingsVisible = false;
-        IsAdministrationVisible = false;
-        await RefreshHomeAsync();
+        NavigationItem item = NavigationItems.SingleOrDefault(candidate => candidate.Name == name)
+            ?? throw new ArgumentException("El módulo solicitado no existe.", nameof(name));
+        if (!ReferenceEquals(SelectedNavigationItem, item))
+        {
+            SelectedNavigationItem = item;
+            await CurrentNavigationTask;
+            return;
+        }
+
+        CurrentNavigationTask = NavigateCoreAsync(item);
+        await CurrentNavigationTask;
     }
 
-    [RelayCommand]
-    private void ShowSettings()
+    partial void OnSelectedNavigationItemChanged(NavigationItem? value)
     {
-        IsHomeVisible = false;
-        IsSettingsVisible = true;
-        IsAdministrationVisible = false;
+        if (navigationInitialized && value is not null)
+        {
+            CurrentNavigationTask = NavigateCoreAsync(value);
+        }
     }
 
-    [RelayCommand]
-    private async Task ShowModuleAsync(string module)
+    private async Task NavigateCoreAsync(NavigationItem item)
     {
-        IsHomeVisible = false;
-        IsSettingsVisible = false;
-        IsAdministrationVisible = true;
-        await Administration.SelectModuleAsync(module);
+        if (item.Name == "Inicio")
+        {
+            CurrentPage = this;
+            await RefreshHomeAsync();
+            return;
+        }
+
+        if (item.Name == "Ajustes")
+        {
+            CurrentPage = Settings;
+            return;
+        }
+
+        await Administration.SelectModuleAsync(item.Name);
+        CurrentPage = Administration;
     }
 
     public async Task RefreshHomeAsync()
@@ -108,5 +158,11 @@ public sealed partial class MainViewModel : ObservableObject
             : string.Join(Environment.NewLine, debts);
 
         EstadoPuntoDeEquilibrio = $"{settings.CurrencyCode} {dashboard.MissingMinorUnits / 100m:N2}";
+    }
+
+    public async Task FlushPendingAsync()
+    {
+        await Settings.FlushPendingAsync();
+        await Administration.FlushPendingAsync();
     }
 }

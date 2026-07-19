@@ -1,11 +1,15 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PeluqueriaAdmin.Application.DataManagement;
+using PeluqueriaAdmin.Application.Drafts;
+using PeluqueriaAdmin.Application.Exporting;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Application.Updates;
+using PeluqueriaAdmin.Domain.Drafts;
 
 namespace PeluqueriaAdmin.App.ViewModels;
 
@@ -13,8 +17,16 @@ public sealed partial class SettingsViewModel(
     GetSettingsUseCase getSettings,
     SaveSettingsUseCase saveSettings,
     IDataManagementService dataManagement,
-    IUpdateService updateService) : ObservableObject
+    IExcelExportService excelExport,
+    IUpdateService updateService,
+    IFormDraftStore formDraftStore,
+    TimeProvider timeProvider) : ObservableObject
 {
+    private const string SettingsDraftKey = "Ajustes:Edicion:settings";
+    private string? lastExcelPath;
+    private readonly SemaphoreSlim autosaveLock = new(1, 1);
+    private CancellationTokenSource? autosaveCancellation;
+    private bool trackingEnabled;
     [ObservableProperty]
     private string weeklyUsageFee = string.Empty;
 
@@ -55,7 +67,17 @@ public sealed partial class SettingsViewModel(
         {
             SettingsDto settings = await getSettings.ExecuteAsync(cancellationToken);
             Apply(settings);
-            StatusMessage = string.Empty;
+            FormDraft? draft = await formDraftStore.FindAsync(SettingsDraftKey, cancellationToken);
+            if (draft is not null)
+            {
+                SettingsDraft? values = JsonSerializer.Deserialize<SettingsDraft>(draft.PayloadJson);
+                if (values is not null)
+                {
+                    ApplyDraft(values);
+                    StatusMessage = "Se recuperaron cambios de Ajustes que aún no eran válidos para guardar.";
+                }
+            }
+            trackingEnabled = true;
             IsError = false;
         }
         finally
@@ -98,8 +120,10 @@ public sealed partial class SettingsViewModel(
         IsBusy = true;
         try
         {
-            SettingsDto settings = await saveSettings.ExecuteAsync(request);
+            SettingsDto settings = await saveSettings.ExecuteAsync(request, completedDraftKey: SettingsDraftKey);
+            trackingEnabled = false;
             Apply(settings);
+            trackingEnabled = true;
             StatusMessage = "Los ajustes se guardaron correctamente.";
         }
         catch (ArgumentException exception)
@@ -156,6 +180,36 @@ public sealed partial class SettingsViewModel(
             "No fue posible exportar los datos.");
     }
 
+    [RelayCommand(CanExecute = nameof(CanSave))]
+    private async Task ExportAllToExcelAsync()
+    {
+        IsBusy = true;
+        StatusMessage = "Preparando la fotografía completa de los datos…";
+        IsError = false;
+        try
+        {
+            ExcelExportResult result = await excelExport.ExportAsync();
+            lastExcelPath = result.FilePath;
+            StatusMessage = $"Excel exportado correctamente:{Environment.NewLine}{result.FilePath}";
+            OpenExcelFileCommand.NotifyCanExecuteChanged();
+            OpenExcelFolderCommand.NotifyCanExecuteChanged();
+        }
+        catch (Exception exception)
+        {
+            SetDataError("No fue posible exportar la información a Excel. No se dejó un archivo parcial.", exception);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenExcel))]
+    private void OpenExcelFile() => OpenPath(lastExcelPath!, "No fue posible abrir el archivo Excel.");
+
+    [RelayCommand(CanExecute = nameof(CanOpenExcel))]
+    private void OpenExcelFolder() => OpenDirectory(Path.GetDirectoryName(lastExcelPath!)!);
+
     [RelayCommand]
     private void OpenBackups() => OpenDirectory(dataManagement.BackupsDirectory);
 
@@ -209,9 +263,87 @@ public sealed partial class SettingsViewModel(
 
     private bool CanSave() => !IsBusy;
 
+    private bool CanOpenExcel() => !IsBusy && !string.IsNullOrWhiteSpace(lastExcelPath) && File.Exists(lastExcelPath);
+
     private bool CanRestore() => !IsBusy && !string.IsNullOrWhiteSpace(RestorePath);
 
     private bool CanApplyUpdate() => !IsBusy && UpdateReady;
+
+    public async Task FlushPendingAsync()
+    {
+        autosaveCancellation?.Cancel();
+        await autosaveLock.WaitAsync();
+        autosaveLock.Release();
+    }
+
+    private void TrackSettingsChange()
+    {
+        if (!trackingEnabled) return;
+        _ = PersistSettingsDraftAsync();
+        autosaveCancellation?.Cancel();
+        autosaveCancellation = new CancellationTokenSource();
+        _ = AutosaveSettingsAsync(autosaveCancellation.Token);
+    }
+
+    private async Task PersistSettingsDraftAsync()
+    {
+        await autosaveLock.WaitAsync();
+        try
+        {
+            await formDraftStore.UpsertAsync(FormDraft.Create(
+                SettingsDraftKey,
+                "Ajustes",
+                "Edición automática",
+                JsonSerializer.Serialize(CurrentDraft()),
+                null,
+                true,
+                timeProvider.GetUtcNow().UtcDateTime));
+        }
+        catch (Exception exception)
+        {
+            SetDataError("No fue posible conservar temporalmente los cambios de Ajustes.", exception);
+        }
+        finally
+        {
+            autosaveLock.Release();
+        }
+    }
+
+    private async Task AutosaveSettingsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(650, cancellationToken);
+            if (!TryCreateRequest(out SaveSettingsRequest request, out string validationMessage))
+            {
+                StatusMessage = $"Borrador conservado. {validationMessage}";
+                IsError = true;
+                return;
+            }
+
+            await autosaveLock.WaitAsync(cancellationToken);
+            autosaveLock.Release();
+            SettingsDto settings = await saveSettings.ExecuteAsync(request, cancellationToken, SettingsDraftKey);
+            trackingEnabled = false;
+            Apply(settings);
+            trackingEnabled = true;
+            StatusMessage = "Ajustes guardados automáticamente.";
+            IsError = false;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            SetDataError("No fue posible autoguardar los Ajustes; el borrador se conservó.", exception);
+        }
+    }
+
+    partial void OnWeeklyUsageFeeChanged(string value) => TrackSettingsChange();
+    partial void OnCollaboratorProfitPercentChanged(string value) => TrackSettingsChange();
+    partial void OnOptionalSuppliesMonthlyBudgetChanged(string value) => TrackSettingsChange();
+    partial void OnTotalChairsChanged(string value) => TrackSettingsChange();
+    partial void OnCurrencyCodeChanged(string value) => TrackSettingsChange();
 
     partial void OnIsBusyChanged(bool value)
     {
@@ -219,6 +351,9 @@ public sealed partial class SettingsViewModel(
         CreateBackupCommand.NotifyCanExecuteChanged();
         RestoreBackupCommand.NotifyCanExecuteChanged();
         ExportDataCommand.NotifyCanExecuteChanged();
+        ExportAllToExcelCommand.NotifyCanExecuteChanged();
+        OpenExcelFileCommand.NotifyCanExecuteChanged();
+        OpenExcelFolderCommand.NotifyCanExecuteChanged();
         CheckForUpdatesCommand.NotifyCanExecuteChanged();
         ApplyUpdateCommand.NotifyCanExecuteChanged();
     }
@@ -226,6 +361,29 @@ public sealed partial class SettingsViewModel(
     partial void OnRestorePathChanged(string value) => RestoreBackupCommand.NotifyCanExecuteChanged();
 
     partial void OnUpdateReadyChanged(bool value) => ApplyUpdateCommand.NotifyCanExecuteChanged();
+
+    private SettingsDraft CurrentDraft() => new(
+        WeeklyUsageFee,
+        CollaboratorProfitPercent,
+        OptionalSuppliesMonthlyBudget,
+        TotalChairs,
+        CurrencyCode);
+
+    private void ApplyDraft(SettingsDraft draft)
+    {
+        WeeklyUsageFee = draft.WeeklyUsageFee;
+        CollaboratorProfitPercent = draft.CollaboratorProfitPercent;
+        OptionalSuppliesMonthlyBudget = draft.OptionalSuppliesMonthlyBudget;
+        TotalChairs = draft.TotalChairs;
+        CurrencyCode = draft.CurrencyCode;
+    }
+
+    private sealed record SettingsDraft(
+        string WeeklyUsageFee,
+        string CollaboratorProfitPercent,
+        string OptionalSuppliesMonthlyBudget,
+        string TotalChairs,
+        string CurrencyCode);
 
     private async Task RunDataOperationAsync<T>(
         Func<CancellationToken, Task<T>> operation,
@@ -298,6 +456,18 @@ public sealed partial class SettingsViewModel(
         catch (Exception exception)
         {
             SetDataError("No fue posible abrir la carpeta.", exception);
+        }
+    }
+
+    private void OpenPath(string path, string errorMessage)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
+        }
+        catch (Exception exception)
+        {
+            SetDataError(errorMessage, exception);
         }
     }
 

@@ -168,10 +168,14 @@ public sealed class DataManagementTests
     private sealed class TestDbContextFactory(string databaseFilePath)
         : IDbContextFactory<PeluqueriaDbContext>
     {
-        private readonly DbContextOptions<PeluqueriaDbContext> options =
-            new DbContextOptionsBuilder<PeluqueriaDbContext>()
-                .UseSqlite(DatabaseConfiguration.CreateConnectionString(databaseFilePath))
-                .Options;
+        private readonly DbContextOptions<PeluqueriaDbContext> options = CreateOptions(databaseFilePath);
+
+        private static DbContextOptions<PeluqueriaDbContext> CreateOptions(string databaseFilePath)
+        {
+            var builder = new DbContextOptionsBuilder<PeluqueriaDbContext>();
+            DatabaseConfiguration.Configure(builder, databaseFilePath);
+            return builder.Options;
+        }
 
         public PeluqueriaDbContext CreateDbContext() => new(options);
 

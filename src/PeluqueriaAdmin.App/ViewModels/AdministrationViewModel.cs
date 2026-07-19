@@ -1,12 +1,15 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PeluqueriaAdmin.Application.Administration;
+using PeluqueriaAdmin.Application.Drafts;
 using PeluqueriaAdmin.Application.Localization;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Domain.Collaborators;
 using PeluqueriaAdmin.Domain.Common;
+using PeluqueriaAdmin.Domain.Drafts;
 using PeluqueriaAdmin.Domain.Finance;
 using PeluqueriaAdmin.Domain.Inventory;
 using PeluqueriaAdmin.Domain.LocalUse;
@@ -20,8 +23,13 @@ namespace PeluqueriaAdmin.App.ViewModels;
 public sealed partial class AdministrationViewModel(
     AdministrationService service,
     GetSettingsUseCase getSettings,
+    IFormDraftStore formDraftStore,
     TimeProvider timeProvider) : ObservableObject
 {
+    private readonly SemaphoreSlim draftWriteLock = new(1, 1);
+    private CancellationTokenSource? editAutosaveCancellation;
+    private bool suppressFormTracking;
+    private bool isEditing;
     public const string LocalUseModule = "Uso del local";
     public const string CollaboratorsModule = "Colaboradores";
     public const string SalesModule = "Ventas";
@@ -87,16 +95,98 @@ public sealed partial class AdministrationViewModel(
     [ObservableProperty]
     private bool confirmDelete;
 
+    [ObservableProperty]
+    private DateTime? formDate = DateTime.Today;
+
+    [ObservableProperty]
+    private DateTime? formEndDate;
+
+    [ObservableProperty]
+    private string primaryLabel = "Nombre o concepto";
+
+    [ObservableProperty]
+    private string secondaryLabel = "Tipo o categoría";
+
+    [ObservableProperty]
+    private string extraLabel = "Unidad o repetición";
+
+    [ObservableProperty]
+    private string dateLabel = "Fecha";
+
+    [ObservableProperty]
+    private string endDateLabel = "Fecha opcional";
+
+    [ObservableProperty]
+    private string amountLabel = "Valor";
+
+    [ObservableProperty]
+    private string secondaryAmountLabel = "Costo real";
+
+    [ObservableProperty]
+    private string quantityLabel = "Cantidad";
+
+    [ObservableProperty]
+    private bool showPrimary = true;
+
+    [ObservableProperty]
+    private bool showSecondary;
+
+    [ObservableProperty]
+    private bool showExtra;
+
+    [ObservableProperty]
+    private bool showDate = true;
+
+    [ObservableProperty]
+    private bool showEndDate;
+
+    [ObservableProperty]
+    private bool showAmount;
+
+    [ObservableProperty]
+    private bool showSecondaryAmount;
+
+    [ObservableProperty]
+    private bool showQuantity;
+
+    [ObservableProperty]
+    private bool usePrimarySelector;
+
+    [ObservableProperty]
+    private bool useSecondarySelector;
+
+    [ObservableProperty]
+    private bool hasRecoveredDraft;
+
+    [ObservableProperty]
+    private bool showCommitAction = true;
+
+    [ObservableProperty]
+    private bool showActionSelector = true;
+
+    [ObservableProperty]
+    private bool showRecordActions = true;
+
+    public ObservableCollection<string> PrimaryOptions { get; } = [];
+
+    public ObservableCollection<string> SecondaryOptions { get; } = [];
+
+    public ObservableCollection<string> ExtraOptions { get; } = [];
+
     public ObservableCollection<string> ActionOptions { get; } = [];
 
     public ObservableCollection<OperationRow> Rows { get; } = [];
 
     public async Task SelectModuleAsync(string module)
     {
+        suppressFormTracking = true;
+        HasRecoveredDraft = false;
         Title = module;
         ConfigureModule();
         ClearForm();
+        suppressFormTracking = false;
         await RefreshAsync();
+        await RestoreDraftAsync();
     }
 
     [RelayCommand]
@@ -124,6 +214,8 @@ public sealed partial class AdministrationViewModel(
                 Rows.Add(row);
             }
 
+            PopulateSelectors(data);
+
             StatusMessage = Rows.Count == 0 ? "No hay registros para mostrar." : string.Empty;
             IsError = false;
         }
@@ -150,9 +242,11 @@ public sealed partial class AdministrationViewModel(
         IsBusy = true;
         try
         {
-            await ExecuteSelectedActionAsync();
+            string draftKey = CurrentDraftKey();
+            await ExecuteSelectedActionAsync(draftKey);
             StatusMessage = "La operación se guardó correctamente.";
             IsError = false;
+            HasRecoveredDraft = false;
             ClearForm(keepMessage: true);
             await RefreshAsync();
         }
@@ -181,9 +275,13 @@ public sealed partial class AdministrationViewModel(
             return;
         }
 
+        suppressFormTracking = true;
         LoadEntity(SelectedRow.Entity);
-        StatusMessage = "Modifica los campos y usa “Guardar edición”.";
+        suppressFormTracking = false;
+        isEditing = true;
+        StatusMessage = "Edición activa: los cambios válidos se guardan automáticamente.";
         IsError = false;
+        _ = RestoreDraftAsync();
     }
 
     [RelayCommand]
@@ -199,9 +297,11 @@ public sealed partial class AdministrationViewModel(
         IsBusy = true;
         try
         {
-            await UpdateEntityAsync(entity);
+            await UpdateEntityAsync(entity, CurrentDraftKey());
             StatusMessage = "El registro se editó correctamente.";
             IsError = false;
+            isEditing = false;
+            HasRecoveredDraft = false;
             await RefreshAsync();
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
@@ -268,7 +368,7 @@ public sealed partial class AdministrationViewModel(
         }
     }
 
-    private async Task ExecuteSelectedActionAsync()
+    private async Task ExecuteSelectedActionAsync(string completedDraftKey)
     {
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
         DateOnly date = ParseDate(DateText, "fecha");
@@ -278,48 +378,49 @@ public sealed partial class AdministrationViewModel(
             case (LocalUseModule, "Agregar persona"):
                 await service.AddLocalUsePersonAsync(
                     LocalUsePerson.Create(PrimaryText, date, ParseOptionalDate(EndDateText), utcNow),
-                    DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime));
+                    DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+                    completedDraftKey: completedDraftKey);
                 break;
             case (LocalUseModule, "Registrar pago"):
                 await service.RegisterLocalUsePaymentAsync(
-                    RequireSelected<LocalUsePerson>().Id, date, ParseMoney(AmountText), default);
+                    RequireSelected<LocalUsePerson>().Id, date, ParseMoney(AmountText), completedDraftKey: completedDraftKey);
                 break;
             case (CollaboratorsModule, "Agregar colaborador"):
                 await service.AddAsync(Collaborator.Create(
-                    PrimaryText, date, ParseOptionalDate(EndDateText), utcNow));
+                    PrimaryText, date, ParseOptionalDate(EndDateText), utcNow), completedDraftKey: completedDraftKey);
                 break;
             case (SalesModule, "Registrar venta"):
-                await AddSaleAsync(date, utcNow);
+                await AddSaleAsync(date, utcNow, completedDraftKey);
                 break;
             case (InventoryModule, "Agregar producto"):
                 await service.AddProductAsync(Product.Create(
-                    PrimaryText, ParseProductCategory(SecondaryText), ExtraText, utcNow));
+                    PrimaryText, ParseProductCategory(SecondaryText), ExtraText, utcNow), completedDraftKey: completedDraftKey);
                 break;
             case (InventoryModule, "Existencia inicial"):
-                await AddInventoryEntryAsync(date, utcNow, InventoryMovementType.InitialStock);
+                await AddInventoryEntryAsync(date, utcNow, InventoryMovementType.InitialStock, completedDraftKey);
                 break;
             case (InventoryModule, "Registrar compra"):
-                await AddInventoryEntryAsync(date, utcNow, InventoryMovementType.Purchase);
+                await AddInventoryEntryAsync(date, utcNow, InventoryMovementType.Purchase, completedDraftKey);
                 break;
             case (InventoryModule, "Registrar consumo"):
-                await AddConsumptionAsync(date, utcNow);
+                await AddConsumptionAsync(date, utcNow, completedDraftKey);
                 break;
             case (InventoryModule, "Conteo físico"):
-                await AddPhysicalCountAsync(date, utcNow);
+                await AddPhysicalCountAsync(date, utcNow, completedDraftKey);
                 break;
             case (InventoryModule, "Plan mensual"):
-                await AddRestockPlanAsync(date, utcNow);
+                await AddRestockPlanAsync(date, utcNow, completedDraftKey);
                 break;
             case (OtherIncomeModule, "Registrar ingreso"):
-                await service.AddAsync(FinancialEntry.CreateIncome(date, PrimaryText, ParseMoney(AmountText), utcNow));
+                await service.AddAsync(FinancialEntry.CreateIncome(date, PrimaryText, ParseMoney(AmountText), utcNow), completedDraftKey: completedDraftKey);
                 break;
             case (ExpensesModule, "Registrar gasto"):
                 await service.AddAsync(FinancialEntry.CreateExpense(
-                    date, PrimaryText, ParseExpenseCategory(SecondaryText), ParseMoney(AmountText), utcNow));
+                    date, PrimaryText, ParseExpenseCategory(SecondaryText), ParseMoney(AmountText), utcNow), completedDraftKey: completedDraftKey);
                 break;
             case (UnexpectedModule, "Registrar imprevisto"):
                 await service.AddAsync(FinancialEntry.CreateUnexpectedExpense(
-                    date, PrimaryText, ParseMoney(AmountText), utcNow));
+                    date, PrimaryText, ParseMoney(AmountText), utcNow), completedDraftKey: completedDraftKey);
                 break;
             case (ObligationsModule, "Agregar obligación"):
                 await service.AddObligationAsync(
@@ -332,11 +433,12 @@ public sealed partial class AdministrationViewModel(
                         utcNow),
                     new YearMonth(
                         timeProvider.GetLocalNow().Year,
-                        timeProvider.GetLocalNow().Month).LastDay);
+                        timeProvider.GetLocalNow().Month).LastDay,
+                    completedDraftKey: completedDraftKey);
                 break;
             case (ObligationsModule, "Registrar pago"):
                 await service.AddAsync(ObligationPayment.Create(
-                    RequireSelected<Obligation>().Id, date, ParseMoney(AmountText), utcNow));
+                    RequireSelected<Obligation>().Id, date, ParseMoney(AmountText), utcNow), completedDraftKey: completedDraftKey);
                 break;
             case (MaintenanceModule, "Agregar mantenimiento"):
                 await service.AddAsync(MaintenanceRecord.Create(
@@ -346,13 +448,13 @@ public sealed partial class AdministrationViewModel(
                     ParseOptionalMoney(AmountText),
                     ParseOptionalDate(EndDateText),
                     ParseOptionalMoney(SecondaryAmountText),
-                    utcNow));
+                    utcNow), completedDraftKey: completedDraftKey);
                 break;
             case (PayrollModule, "Cerrar mes"):
-                await CloseMonthAsync(date);
+                await CloseMonthAsync(date, completedDraftKey);
                 break;
             case (PayrollModule, "Pagar distribución"):
-                await PayDistributionAsync(date);
+                await PayDistributionAsync(date, completedDraftKey);
                 break;
             case (PayrollModule, "Reabrir cierre"):
                 await service.ReopenMonthAsync(RequireSelected<MonthlyClose>().Id);
@@ -364,7 +466,7 @@ public sealed partial class AdministrationViewModel(
         }
     }
 
-    private async Task AddSaleAsync(DateOnly date, DateTime utcNow)
+    private async Task AddSaleAsync(DateOnly date, DateTime utcNow, string completedDraftKey)
     {
         AdministrationData data = await service.LoadAsync();
         Product product = FindProduct(data, PrimaryText);
@@ -377,13 +479,14 @@ public sealed partial class AdministrationViewModel(
             InventoryCalculator.AverageUnitCost(movements),
             InventoryCalculator.CurrentQuantity(movements),
             utcNow);
-        await service.AddInventoryMovementAsync(sale);
+        await service.AddInventoryMovementAsync(sale, completedDraftKey: completedDraftKey);
     }
 
     private async Task AddInventoryEntryAsync(
         DateOnly date,
         DateTime utcNow,
-        InventoryMovementType type)
+        InventoryMovementType type,
+        string completedDraftKey)
     {
         AdministrationData data = await service.LoadAsync();
         Product product = FindProduct(data, PrimaryText);
@@ -392,10 +495,10 @@ public sealed partial class AdministrationViewModel(
         InventoryMovement movement = type == InventoryMovementType.InitialStock
             ? InventoryMovement.Initial(product.Id, date, quantity, cost, utcNow)
             : InventoryMovement.Purchase(product.Id, date, quantity, cost, utcNow);
-        await service.AddInventoryMovementAsync(movement);
+        await service.AddInventoryMovementAsync(movement, completedDraftKey: completedDraftKey);
     }
 
-    private async Task AddConsumptionAsync(DateOnly date, DateTime utcNow)
+    private async Task AddConsumptionAsync(DateOnly date, DateTime utcNow, string completedDraftKey)
     {
         AdministrationData data = await service.LoadAsync();
         Product product = FindProduct(data, PrimaryText);
@@ -403,10 +506,10 @@ public sealed partial class AdministrationViewModel(
             data.InventoryMovements.Where(item => item.ProductId == product.Id));
         InventoryMovement movement = InventoryMovement.Consumption(
             product.Id, date, Quantity.Positive(ParseDecimal(QuantityText, "cantidad")), current, utcNow);
-        await service.AddInventoryMovementAsync(movement);
+        await service.AddInventoryMovementAsync(movement, completedDraftKey: completedDraftKey);
     }
 
-    private async Task AddPhysicalCountAsync(DateOnly date, DateTime utcNow)
+    private async Task AddPhysicalCountAsync(DateOnly date, DateTime utcNow, string completedDraftKey)
     {
         AdministrationData data = await service.LoadAsync();
         Product product = FindProduct(data, PrimaryText);
@@ -414,10 +517,10 @@ public sealed partial class AdministrationViewModel(
             data.InventoryMovements.Where(item => item.ProductId == product.Id));
         InventoryMovement movement = InventoryMovement.PhysicalCount(
             product.Id, date, Quantity.NonNegative(ParseDecimal(QuantityText, "cantidad física")), current, utcNow);
-        await service.AddInventoryMovementAsync(movement);
+        await service.AddInventoryMovementAsync(movement, completedDraftKey: completedDraftKey);
     }
 
-    private async Task AddRestockPlanAsync(DateOnly date, DateTime utcNow)
+    private async Task AddRestockPlanAsync(DateOnly date, DateTime utcNow, string completedDraftKey)
     {
         AdministrationData data = await service.LoadAsync();
         Product product = FindProduct(data, PrimaryText);
@@ -425,10 +528,10 @@ public sealed partial class AdministrationViewModel(
             product.Id,
             YearMonth.From(date),
             Quantity.NonNegative(ParseDecimal(QuantityText, "necesidad mensual")),
-            utcNow));
+            utcNow), completedDraftKey: completedDraftKey);
     }
 
-    private async Task CloseMonthAsync(DateOnly date)
+    private async Task CloseMonthAsync(DateOnly date, string completedDraftKey)
     {
         AdministrationData data = await service.LoadAsync();
         SettingsDto settings = await getSettings.ExecuteAsync();
@@ -441,16 +544,17 @@ public sealed partial class AdministrationViewModel(
             month,
             BuildMonthlyInput(data, settings, month),
             Percentage.FromPercent(settings.CollaboratorProfitPercent),
-            participantIds);
+            participantIds,
+            completedDraftKey: completedDraftKey);
     }
 
-    private async Task PayDistributionAsync(DateOnly date)
+    private async Task PayDistributionAsync(DateOnly date, string completedDraftKey)
     {
         MonthlyCloseParticipant participant = RequireSelected<MonthlyCloseParticipant>();
-        await service.RegisterDistributionPaymentAsync(participant.Id, date, ParseMoney(AmountText));
+        await service.RegisterDistributionPaymentAsync(participant.Id, date, ParseMoney(AmountText), completedDraftKey: completedDraftKey);
     }
 
-    private async Task UpdateEntityAsync(AuditableEntity entity)
+    private async Task UpdateEntityAsync(AuditableEntity entity, string completedDraftKey)
     {
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
         DateOnly date = ParseDate(DateText, "fecha");
@@ -462,7 +566,8 @@ public sealed partial class AdministrationViewModel(
                     PrimaryText,
                     date,
                     ParseOptionalDate(EndDateText),
-                    DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime));
+                    DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+                    completedDraftKey: completedDraftKey);
                 break;
             case LocalUsePayment payment:
                 AdministrationData localData = await service.LoadAsync();
@@ -470,15 +575,15 @@ public sealed partial class AdministrationViewModel(
                     localData.WeeklyCharges.Where(item => item.PersonId == payment.PersonId),
                     localData.LocalUsePayments.Where(item => item.PersonId == payment.PersonId && item.Id != payment.Id));
                 payment.Update(date, ParseMoney(AmountText), available, utcNow);
-                await service.UpdateAsync(payment);
+                await service.UpdateAsync(payment, completedDraftKey: completedDraftKey);
                 break;
             case Collaborator collaborator:
                 collaborator.Update(PrimaryText, date, ParseOptionalDate(EndDateText), utcNow);
-                await service.UpdateAsync(collaborator);
+                await service.UpdateAsync(collaborator, completedDraftKey: completedDraftKey);
                 break;
             case Product product:
                 await service.UpdateProductAsync(
-                    product.Id, PrimaryText, ParseProductCategory(SecondaryText), ExtraText);
+                    product.Id, PrimaryText, ParseProductCategory(SecondaryText), ExtraText, completedDraftKey: completedDraftKey);
                 break;
             case InventoryMovement movement:
                 movement.Correct(
@@ -487,14 +592,14 @@ public sealed partial class AdministrationViewModel(
                     ParseOptionalMoney(AmountText),
                     ParseOptionalMoney(SecondaryAmountText),
                     utcNow);
-                await service.UpdateInventoryMovementAsync(movement);
+                await service.UpdateInventoryMovementAsync(movement, completedDraftKey: completedDraftKey);
                 break;
             case MonthlyRestockPlan plan:
                 plan.Update(
                     YearMonth.From(date),
                     Quantity.NonNegative(ParseDecimal(QuantityText, "necesidad mensual")),
                     utcNow);
-                await service.UpdateAsync(plan);
+                await service.UpdateAsync(plan, completedDraftKey: completedDraftKey);
                 break;
             case FinancialEntry financial:
                 financial.Update(
@@ -503,7 +608,7 @@ public sealed partial class AdministrationViewModel(
                     financial.Type == FinancialEntryType.Expense ? ParseExpenseCategory(SecondaryText) : null,
                     ParseMoney(AmountText),
                     utcNow);
-                await service.UpdateAsync(financial);
+                await service.UpdateAsync(financial, completedDraftKey: completedDraftKey);
                 break;
             case Obligation obligation:
                 obligation.Update(
@@ -513,14 +618,14 @@ public sealed partial class AdministrationViewModel(
                     ParseMoney(AmountText),
                     ParseRecurrence(ExtraText),
                     utcNow);
-                await service.UpdateAsync(obligation);
+                await service.UpdateAsync(obligation, completedDraftKey: completedDraftKey);
                 await service.GenerateScheduledRecordsAsync(new YearMonth(
                     timeProvider.GetLocalNow().Year,
                     timeProvider.GetLocalNow().Month).LastDay);
                 break;
             case ObligationPayment obligationPayment:
                 obligationPayment.Update(date, ParseMoney(AmountText), utcNow);
-                await service.UpdateAsync(obligationPayment);
+                await service.UpdateAsync(obligationPayment, completedDraftKey: completedDraftKey);
                 break;
             case MaintenanceRecord maintenance:
                 maintenance.Update(
@@ -531,7 +636,7 @@ public sealed partial class AdministrationViewModel(
                     ParseOptionalDate(EndDateText),
                     ParseOptionalMoney(SecondaryAmountText),
                     utcNow);
-                await service.UpdateAsync(maintenance);
+                await service.UpdateAsync(maintenance, completedDraftKey: completedDraftKey);
                 break;
             case DistributionPayment distribution:
                 AdministrationData payrollData = await service.LoadAsync();
@@ -545,7 +650,7 @@ public sealed partial class AdministrationViewModel(
                     ParseMoney(AmountText),
                     Money.FromMinorUnits(participant.Amount.MinorUnits - otherPaid),
                     utcNow);
-                await service.UpdateAsync(distribution);
+                await service.UpdateAsync(distribution, completedDraftKey: completedDraftKey);
                 break;
             default:
                 throw new InvalidOperationException("Este registro es histórico o calculado y no admite edición directa.");
@@ -826,6 +931,257 @@ public sealed partial class AdministrationViewModel(
         return result;
     }
 
+    [RelayCommand]
+    private async Task DiscardDraftAsync()
+    {
+        string key = CurrentDraftKey();
+        editAutosaveCancellation?.Cancel();
+        await formDraftStore.DeleteAsync(key);
+        suppressFormTracking = true;
+        isEditing = false;
+        ClearForm();
+        suppressFormTracking = false;
+        HasRecoveredDraft = false;
+        StatusMessage = "El borrador se descartó. No se modificó ninguna operación registrada.";
+        IsError = false;
+    }
+
+    public async Task FlushPendingAsync()
+    {
+        editAutosaveCancellation?.Cancel();
+        await draftWriteLock.WaitAsync();
+        draftWriteLock.Release();
+    }
+
+    private void TrackFormChange()
+    {
+        if (suppressFormTracking || string.IsNullOrWhiteSpace(SelectedAction)
+            || Title is MonthlySummaryModule or AnnualBalanceModule or CashFlowModule)
+        {
+            return;
+        }
+
+        if (!isEditing && string.IsNullOrWhiteSpace(PrimaryText) && string.IsNullOrWhiteSpace(SecondaryText)
+            && string.IsNullOrWhiteSpace(ExtraText) && string.IsNullOrWhiteSpace(EndDateText)
+            && string.IsNullOrWhiteSpace(AmountText) && string.IsNullOrWhiteSpace(SecondaryAmountText)
+            && string.IsNullOrWhiteSpace(QuantityText))
+        {
+            return;
+        }
+
+        _ = PersistDraftSafelyAsync();
+        if (isEditing)
+        {
+            ScheduleEditAutosave();
+        }
+    }
+
+    private async Task PersistDraftSafelyAsync()
+    {
+        await draftWriteLock.WaitAsync();
+        try
+        {
+            string payload = JsonSerializer.Serialize(new FormPayload(
+                PrimaryText, SecondaryText, ExtraText, DateText, EndDateText,
+                AmountText, SecondaryAmountText, QuantityText));
+            Guid? entityId = isEditing ? SelectedRow?.Entity?.Id : null;
+            await formDraftStore.UpsertAsync(FormDraft.Create(
+                CurrentDraftKey(), Title, SelectedAction, payload, entityId, isEditing,
+                timeProvider.GetUtcNow().UtcDateTime));
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = $"No fue posible conservar el borrador: {exception.Message}";
+            IsError = true;
+        }
+        finally
+        {
+            draftWriteLock.Release();
+        }
+    }
+
+    private async Task RestoreDraftAsync()
+    {
+        HasRecoveredDraft = false;
+        if (string.IsNullOrWhiteSpace(SelectedAction)) return;
+        FormDraft? draft = await formDraftStore.FindAsync(CurrentDraftKey());
+        if (draft is null) return;
+        FormPayload? payload = JsonSerializer.Deserialize<FormPayload>(draft.PayloadJson);
+        if (payload is null) return;
+
+        suppressFormTracking = true;
+        PrimaryText = payload.PrimaryText;
+        SecondaryText = payload.SecondaryText;
+        ExtraText = payload.ExtraText;
+        DateText = payload.DateText;
+        EndDateText = payload.EndDateText;
+        AmountText = payload.AmountText;
+        SecondaryAmountText = payload.SecondaryAmountText;
+        QuantityText = payload.QuantityText;
+        suppressFormTracking = false;
+        HasRecoveredDraft = true;
+        StatusMessage = "Se recuperó un borrador sin finalizar. Puedes continuarlo o descartarlo.";
+        IsError = false;
+    }
+
+    private void ScheduleEditAutosave()
+    {
+        editAutosaveCancellation?.Cancel();
+        editAutosaveCancellation = new CancellationTokenSource();
+        CancellationToken token = editAutosaveCancellation.Token;
+        _ = AutosaveEditAsync(token);
+    }
+
+    private async Task AutosaveEditAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(650, cancellationToken);
+            if (SelectedRow?.Entity is not { } entity || !isEditing) return;
+            await draftWriteLock.WaitAsync(cancellationToken);
+            draftWriteLock.Release();
+            await UpdateEntityAsync(entity, CurrentDraftKey());
+            HasRecoveredDraft = false;
+            StatusMessage = "Cambios guardados automáticamente.";
+            IsError = false;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            StatusMessage = $"Borrador conservado. {exception.Message}";
+            IsError = true;
+        }
+        catch (Exception exception)
+        {
+            SetError("No fue posible autoguardar la edición; el borrador se conservó.", exception);
+        }
+    }
+
+    partial void OnPrimaryTextChanged(string value) => TrackFormChange();
+    partial void OnSecondaryTextChanged(string value) => TrackFormChange();
+    partial void OnExtraTextChanged(string value) => TrackFormChange();
+    partial void OnAmountTextChanged(string value) => TrackFormChange();
+    partial void OnSecondaryAmountTextChanged(string value) => TrackFormChange();
+    partial void OnQuantityTextChanged(string value) => TrackFormChange();
+
+    partial void OnDateTextChanged(string value)
+    {
+        if (TryParseDate(value, out DateOnly date)) FormDate = date.ToDateTime(TimeOnly.MinValue);
+        TrackFormChange();
+        if (Title is MonthlySummaryModule or AnnualBalanceModule or CashFlowModule) _ = RefreshAsync();
+    }
+
+    partial void OnEndDateTextChanged(string value)
+    {
+        FormEndDate = TryParseDate(value, out DateOnly date) ? date.ToDateTime(TimeOnly.MinValue) : null;
+        TrackFormChange();
+        if (Title == CashFlowModule) _ = RefreshAsync();
+    }
+
+    partial void OnFormDateChanged(DateTime? value)
+    {
+        if (value.HasValue) DateText = DateOnly.FromDateTime(value.Value).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    }
+
+    partial void OnFormEndDateChanged(DateTime? value) => EndDateText = value.HasValue
+        ? DateOnly.FromDateTime(value.Value).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+        : string.Empty;
+
+    partial void OnSelectedActionChanged(string value)
+    {
+        if (suppressFormTracking) return;
+        editAutosaveCancellation?.Cancel();
+        isEditing = false;
+        suppressFormTracking = true;
+        ClearForm();
+        ConfigureFieldPresentation();
+        suppressFormTracking = false;
+        _ = RestoreDraftAsync();
+    }
+
+    private string CurrentDraftKey()
+    {
+        string suffix = isEditing && SelectedRow?.Entity is { } entity ? entity.Id.ToString("N") : "new";
+        return $"{Title}:{SelectedAction}:{suffix}";
+    }
+
+    private void PopulateSelectors(AdministrationData data)
+    {
+        PrimaryOptions.Clear();
+        IEnumerable<string> values = (Title, SelectedAction) switch
+        {
+            (SalesModule, _) or (InventoryModule, not "Agregar producto") => data.Products.Select(x => x.Name),
+            (LocalUseModule, "Registrar pago") => data.LocalUsePeople.Select(x => x.Name),
+            (ObligationsModule, "Registrar pago") => data.Obligations.Select(x => x.Name),
+            _ => [],
+        };
+        foreach (string value in values.OrderBy(x => x)) PrimaryOptions.Add(value);
+    }
+
+    private void ConfigureFieldPresentation()
+    {
+        ShowPrimary = ShowDate = true;
+        ShowCommitAction = true;
+        ShowActionSelector = true;
+        ShowRecordActions = true;
+        ShowSecondary = ShowExtra = ShowEndDate = ShowAmount = ShowSecondaryAmount = ShowQuantity = false;
+        UsePrimarySelector = UseSecondarySelector = false;
+        PrimaryLabel = "Nombre o concepto"; SecondaryLabel = "Tipo o categoría"; ExtraLabel = "Unidad o repetición";
+        DateLabel = "Fecha"; EndDateLabel = "Fecha opcional"; AmountLabel = "Valor"; SecondaryAmountLabel = "Costo real"; QuantityLabel = "Cantidad";
+        SecondaryOptions.Clear();
+        ExtraOptions.Clear();
+
+        switch (Title, SelectedAction)
+        {
+            case (LocalUseModule, "Agregar persona"):
+            case (CollaboratorsModule, "Agregar colaborador"):
+                PrimaryLabel = "Nombre completo"; DateLabel = "Fecha de ingreso"; ShowEndDate = true; EndDateLabel = "Fecha de retiro (opcional)"; break;
+            case (LocalUseModule, "Registrar pago"):
+                PrimaryLabel = "Persona"; UsePrimarySelector = true; ShowAmount = true; AmountLabel = "Valor pagado"; break;
+            case (SalesModule, _):
+                PrimaryLabel = "Producto"; UsePrimarySelector = true; ShowQuantity = ShowAmount = true; QuantityLabel = "Cantidad vendida"; AmountLabel = "Precio unitario"; break;
+            case (InventoryModule, "Agregar producto"):
+                PrimaryLabel = "Nombre del producto"; ShowSecondary = ShowExtra = true; UseSecondarySelector = true; SecondaryLabel = "Categoría"; ExtraLabel = "Unidad de medida";
+                foreach (string x in new[] { "Producto para venta", "Insumo obligatorio", "Insumo opcional", "Equipo o bien duradero" }) SecondaryOptions.Add(x); break;
+            case (InventoryModule, "Existencia inicial" or "Registrar compra"):
+                PrimaryLabel = "Producto"; UsePrimarySelector = true; ShowQuantity = ShowAmount = true; QuantityLabel = "Cantidad"; AmountLabel = "Costo total"; break;
+            case (InventoryModule, "Registrar consumo" or "Conteo físico" or "Plan mensual"):
+                PrimaryLabel = "Producto"; UsePrimarySelector = true; ShowQuantity = true; QuantityLabel = SelectedAction == "Conteo físico" ? "Cantidad física encontrada" : SelectedAction == "Plan mensual" ? "Cantidad necesaria del mes" : "Cantidad consumida"; DateLabel = SelectedAction == "Plan mensual" ? "Mes del plan" : "Fecha"; break;
+            case (OtherIncomeModule or UnexpectedModule, _):
+                PrimaryLabel = "Concepto"; ShowAmount = true; AmountLabel = "Valor"; break;
+            case (ExpensesModule, _):
+                PrimaryLabel = "Concepto"; ShowSecondary = ShowAmount = true; UseSecondarySelector = true; SecondaryLabel = "Categoría";
+                foreach (string x in new[] { "Insumo obligatorio", "Insumo opcional", "Compra de mercancía", "Otro gasto" }) SecondaryOptions.Add(x); break;
+            case (ObligationsModule, "Agregar obligación"):
+                PrimaryLabel = "Nombre de la obligación"; ShowSecondary = ShowExtra = ShowAmount = true; UseSecondarySelector = true; SecondaryLabel = "Tipo"; ExtraLabel = "Recurrencia"; DateLabel = "Fecha de vencimiento"; AmountLabel = "Valor esperado";
+                foreach (string x in new[] { "Servicio", "Impuesto", "Otra obligación" }) SecondaryOptions.Add(x);
+                foreach (string x in new[] { "Ninguna", "Mensual", "Anual" }) ExtraOptions.Add(x); break;
+            case (ObligationsModule, "Registrar pago"):
+                PrimaryLabel = "Obligación"; UsePrimarySelector = true; ShowAmount = true; AmountLabel = "Valor pagado"; break;
+            case (MaintenanceModule, _):
+                PrimaryLabel = "Equipo o bien"; ShowSecondary = ShowAmount = ShowEndDate = ShowSecondaryAmount = true; SecondaryLabel = "Tipo de mantenimiento"; DateLabel = "Fecha programada"; AmountLabel = "Costo estimado (opcional)"; EndDateLabel = "Fecha realizada (opcional)"; SecondaryAmountLabel = "Costo real (opcional)"; break;
+            case (PayrollModule, "Cerrar mes"):
+                ShowPrimary = false; DateLabel = "Mes a cerrar"; break;
+            case (PayrollModule, "Pagar distribución"):
+                ShowPrimary = false; ShowAmount = true; AmountLabel = "Valor pagado"; break;
+            case (PayrollModule, "Reabrir cierre"):
+                ShowPrimary = ShowDate = false; break;
+            case (MonthlySummaryModule or AnnualBalanceModule, _):
+                ShowPrimary = false; ShowCommitAction = ShowActionSelector = ShowRecordActions = false; DateLabel = Title == AnnualBalanceModule ? "Año a consultar" : "Mes a consultar"; break;
+            case (CashFlowModule, _):
+                ShowPrimary = false; ShowCommitAction = ShowActionSelector = ShowRecordActions = false; DateLabel = "Fecha inicial"; ShowEndDate = true; EndDateLabel = "Fecha final"; break;
+        }
+
+        if (Title == InventoryModule && SelectedAction == "Agregar producto")
+        {
+            foreach (string x in new[] { "unidad", "mililitro", "litro", "gramo", "kilogramo" }) ExtraOptions.Add(x);
+        }
+    }
+
+    private sealed record FormPayload(string PrimaryText, string SecondaryText, string ExtraText, string DateText, string EndDateText, string AmountText, string SecondaryAmountText, string QuantityText);
+
     private void ConfigureModule()
     {
         ActionOptions.Clear();
@@ -855,6 +1211,7 @@ public sealed partial class AdministrationViewModel(
 
         SelectedAction = ActionOptions.FirstOrDefault() ?? string.Empty;
         IsFormVisible = ActionOptions.Count > 0;
+        ConfigureFieldPresentation();
     }
 
     private void LoadEntity(AuditableEntity entity)

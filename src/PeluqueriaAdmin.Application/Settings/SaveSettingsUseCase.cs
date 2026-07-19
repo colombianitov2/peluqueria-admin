@@ -11,7 +11,8 @@ public sealed class SaveSettingsUseCase(
 {
     public async Task<SettingsDto> ExecuteAsync(
         SaveSettingsRequest request,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -29,7 +30,15 @@ public sealed class SaveSettingsUseCase(
             CurrencyCode.From(request.CurrencyCode),
             utcNow);
 
-        await administrationRepository.SaveSettingsAndRateAsync(settings, newRate, cancellationToken);
+        if (string.IsNullOrWhiteSpace(completedDraftKey))
+        {
+            await administrationRepository.SaveSettingsAndRateAsync(settings, newRate, cancellationToken);
+        }
+        else
+        {
+            await administrationRepository.SaveSettingsAndRateCompletingDraftAsync(
+                settings, newRate, completedDraftKey, cancellationToken);
+        }
         return SettingsMapper.ToDto(settings);
     }
 }

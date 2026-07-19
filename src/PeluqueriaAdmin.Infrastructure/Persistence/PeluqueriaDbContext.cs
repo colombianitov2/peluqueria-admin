@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PeluqueriaAdmin.Domain.Collaborators;
+using PeluqueriaAdmin.Domain.Drafts;
 using PeluqueriaAdmin.Domain.Finance;
 using PeluqueriaAdmin.Domain.Inventory;
 using PeluqueriaAdmin.Domain.LocalUse;
@@ -43,6 +44,8 @@ public sealed class PeluqueriaDbContext(DbContextOptions<PeluqueriaDbContext> op
     public DbSet<MonthlyCloseParticipant> MonthlyCloseParticipants => Set<MonthlyCloseParticipant>();
 
     public DbSet<DistributionPayment> DistributionPayments => Set<DistributionPayment>();
+
+    public DbSet<FormDraft> FormDrafts => Set<FormDraft>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

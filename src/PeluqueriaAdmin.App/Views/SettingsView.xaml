@@ -40,7 +40,7 @@
         <TextBlock FontSize="26" FontWeight="SemiBold" Text="Ajustes" />
         <TextBlock Margin="0,6,0,0"
                    Foreground="#4B5563"
-                   Text="Configuración general para todo el local. Cambiar la moneda no convierte los valores existentes."
+                   Text="Los cambios válidos se guardan automáticamente. Si un valor está incompleto o no es válido, se conserva como borrador. Cambiar la moneda no convierte valores existentes."
                    TextWrapping="Wrap" />
       </StackPanel>
 
@@ -85,7 +85,7 @@
           <TextBlock FontSize="20" FontWeight="SemiBold" Text="Datos" />
           <TextBlock Margin="0,5,0,14"
                      Foreground="#4B5563"
-                     Text="Crea copias locales, restaura una copia compatible o exporta reportes CSV. Antes de restaurar se guarda automáticamente el estado actual."
+                     Text="Crea copias locales, restaura una copia compatible o exporta toda la información. Antes de restaurar se guarda automáticamente el estado actual."
                      TextWrapping="Wrap" />
 
           <WrapPanel Margin="0,0,0,14">
@@ -94,6 +94,21 @@
             <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding ExportDataCommand}" Content="Exportar CSV" />
             <Button Margin="0,0,0,8" Padding="12,8" Command="{Binding OpenExportsCommand}" Content="Abrir exportaciones" />
           </WrapPanel>
+
+          <Border Margin="0,2,0,16" Padding="14" Background="White" BorderBrush="#D8DEE9" BorderThickness="1" CornerRadius="5">
+            <StackPanel>
+              <TextBlock FontWeight="SemiBold" Text="Exportación completa a Excel" />
+              <TextBlock Margin="0,4,0,10"
+                         Foreground="#4B5563"
+                         Text="Crea un único libro .xlsx en el Escritorio con datos actuales, históricos, futuros, eliminados y borradores separados."
+                         TextWrapping="Wrap" />
+              <WrapPanel>
+                <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding ExportAllToExcelCommand}" Content="Exportar toda la información a Excel" />
+                <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding OpenExcelFileCommand}" Content="Abrir archivo" />
+                <Button Margin="0,0,0,8" Padding="12,8" Command="{Binding OpenExcelFolderCommand}" Content="Abrir carpeta" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
 
           <TextBlock Style="{StaticResource FieldLabel}" Text="Archivo de copia para restaurar" />
           <DockPanel LastChildFill="True">
@@ -150,12 +165,6 @@
         </TextBlock>
       </Border>
 
-      <Button Grid.Row="9"
-              Width="132"
-              Padding="14,9"
-              HorizontalAlignment="Left"
-              Command="{Binding SaveCommand}"
-              Content="Guardar ajustes" />
     </Grid>
   </ScrollViewer>
 </UserControl>

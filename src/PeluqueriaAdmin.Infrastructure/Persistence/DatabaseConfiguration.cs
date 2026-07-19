@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 
 namespace PeluqueriaAdmin.Infrastructure.Persistence;
 
@@ -14,6 +15,13 @@ public static class DatabaseConfiguration
             Mode = SqliteOpenMode.ReadWriteCreate,
             Cache = SqliteCacheMode.Shared,
             ForeignKeys = true,
+            DefaultTimeout = 5,
         }.ToString();
     }
+
+    public static void Configure(
+        DbContextOptionsBuilder options,
+        string databaseFilePath) => options
+        .UseSqlite(CreateConnectionString(databaseFilePath))
+        .AddInterceptors(SqliteDurabilityInterceptor.Instance);
 }

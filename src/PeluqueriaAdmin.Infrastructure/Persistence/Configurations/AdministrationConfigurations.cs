@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using PeluqueriaAdmin.Domain.Collaborators;
 using PeluqueriaAdmin.Domain.Common;
+using PeluqueriaAdmin.Domain.Drafts;
 using PeluqueriaAdmin.Domain.Finance;
 using PeluqueriaAdmin.Domain.Inventory;
 using PeluqueriaAdmin.Domain.LocalUse;
@@ -240,5 +241,23 @@ internal sealed class DistributionPaymentConfiguration : IEntityTypeConfiguratio
             .HasColumnName("AmountMinorUnits");
         builder.HasIndex(item => item.Date);
         builder.HasOne<MonthlyCloseParticipant>().WithMany().HasForeignKey(item => item.ParticipantId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class FormDraftConfiguration : IEntityTypeConfiguration<FormDraft>
+{
+    public void Configure(EntityTypeBuilder<FormDraft> builder)
+    {
+        builder.ToTable("FormDrafts");
+        builder.HasKey(item => item.Key);
+        builder.Property(item => item.Key).HasMaxLength(300).ValueGeneratedNever();
+        builder.Property(item => item.Module).HasMaxLength(100).IsRequired();
+        builder.Property(item => item.FormType).HasMaxLength(100).IsRequired();
+        builder.Property(item => item.PayloadJson).HasMaxLength(20_000).IsRequired();
+        builder.Property(item => item.CreatedUtc)
+            .HasConversion(value => value.Ticks, value => new DateTime(value, DateTimeKind.Utc));
+        builder.Property(item => item.UpdatedUtc)
+            .HasConversion(value => value.Ticks, value => new DateTime(value, DateTimeKind.Utc));
+        builder.HasIndex(item => new { item.Module, item.FormType, item.EntityId });
     }
 }

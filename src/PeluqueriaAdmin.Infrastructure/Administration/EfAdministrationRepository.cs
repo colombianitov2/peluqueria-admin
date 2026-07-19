@@ -44,6 +44,23 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task SaveCompletingDraftAsync(
+        IReadOnlyCollection<AuditableEntity> additions,
+        IReadOnlyCollection<AuditableEntity> updates,
+        string completedDraftKey,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(completedDraftKey);
+        await using PeluqueriaDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        context.AddRange(additions);
+        context.UpdateRange(updates);
+        await context.FormDrafts.Where(item => item.Key == completedDraftKey)
+            .ExecuteDeleteAsync(cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     public async Task SaveSettingsAndRateAsync(
         GeneralSettings settings,
         WeeklyRate? newRate,
@@ -57,6 +74,22 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
             context.WeeklyRates.Add(newRate);
         }
 
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task SaveSettingsAndRateCompletingDraftAsync(
+        GeneralSettings settings,
+        WeeklyRate? newRate,
+        string completedDraftKey,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(completedDraftKey);
+        await using PeluqueriaDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        context.Settings.Update(settings);
+        if (newRate is not null) context.WeeklyRates.Add(newRate);
+        await context.FormDrafts.Where(item => item.Key == completedDraftKey).ExecuteDeleteAsync(cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }

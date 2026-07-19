@@ -1,8 +1,10 @@
 using PeluqueriaAdmin.App.ViewModels;
 using PeluqueriaAdmin.Application.Administration;
+using PeluqueriaAdmin.Application.Drafts;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Domain.Collaborators;
 using PeluqueriaAdmin.Domain.Common;
+using PeluqueriaAdmin.Domain.Drafts;
 using PeluqueriaAdmin.Domain.Finance;
 using PeluqueriaAdmin.Domain.Inventory;
 using PeluqueriaAdmin.Domain.LocalUse;
@@ -17,6 +19,51 @@ public sealed class AdministrationViewModelTests
     private static readonly DateTime UtcNow = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
+    public async Task NewRecordDraft_IsPersistedAndRecoveredByANewViewModel()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
+        var drafts = new FakeFormDraftStore();
+        var service = new AdministrationService(repository, settingsRepository, timeProvider);
+        var first = new AdministrationViewModel(service, new GetSettingsUseCase(settingsRepository), drafts, timeProvider);
+        await first.SelectModuleAsync(AdministrationViewModel.OtherIncomeModule);
+
+        first.PrimaryText = "+Concepto aún incompleto";
+        await first.FlushPendingAsync();
+
+        var second = new AdministrationViewModel(service, new GetSettingsUseCase(settingsRepository), drafts, timeProvider);
+        await second.SelectModuleAsync(AdministrationViewModel.OtherIncomeModule);
+        Assert.Equal("+Concepto aún incompleto", second.PrimaryText);
+        Assert.True(second.HasRecoveredDraft);
+        Assert.Empty((await service.LoadAsync(cancellationToken)).FinancialEntries);
+    }
+
+    [Fact]
+    public async Task LoadedEdit_IsAutosavedAfterDebounceWithoutDeleteConfirmation()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
+        var service = new AdministrationService(repository, settingsRepository, timeProvider);
+        var viewModel = new AdministrationViewModel(service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
+        Collaborator collaborator = Collaborator.Create("Original", new DateOnly(2026, 7, 1), null, UtcNow);
+        await service.AddAsync(collaborator, cancellationToken);
+        await viewModel.SelectModuleAsync(AdministrationViewModel.CollaboratorsModule);
+        viewModel.SelectedRow = viewModel.Rows.Single(x => x.Entity?.Id == collaborator.Id);
+        viewModel.LoadSelectedCommand.Execute(null);
+
+        viewModel.PrimaryText = "Guardado automático";
+        await Task.Delay(900, TestContext.Current.CancellationToken);
+
+        Assert.Equal("Guardado automático", collaborator.Name);
+        Assert.Contains("automáticamente", viewModel.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.False(viewModel.ConfirmDelete);
+    }
+
+    [Fact]
     public async Task EditDoesNotRequireDeleteConfirmationAndDeleteDoes()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
@@ -27,6 +74,7 @@ public sealed class AdministrationViewModelTests
         var viewModel = new AdministrationViewModel(
             service,
             new GetSettingsUseCase(settingsRepository),
+            new FakeFormDraftStore(),
             timeProvider);
         Collaborator collaborator = Collaborator.Create(
             "Ana", new DateOnly(2026, 7, 1), null, UtcNow);
@@ -65,6 +113,7 @@ public sealed class AdministrationViewModelTests
         var viewModel = new AdministrationViewModel(
             service,
             new GetSettingsUseCase(settingsRepository),
+            new FakeFormDraftStore(),
             timeProvider);
         Obligation obligation = Obligation.Create(
             "Impuesto histórico",
@@ -99,6 +148,7 @@ public sealed class AdministrationViewModelTests
         var viewModel = new AdministrationViewModel(
             service,
             new GetSettingsUseCase(settingsRepository),
+            new FakeFormDraftStore(),
             timeProvider);
         Product product = Product.Create(
             "Secador", ProductCategory.DurableEquipment, "unidad", UtcNow);
@@ -144,6 +194,15 @@ public sealed class AdministrationViewModelTests
             Task.CompletedTask;
     }
 
+    private sealed class FakeFormDraftStore : IFormDraftStore
+    {
+        private readonly Dictionary<string, FormDraft> drafts = [];
+        public Task<IReadOnlyList<FormDraft>> LoadAllAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<FormDraft>>(drafts.Values.ToArray());
+        public Task<FormDraft?> FindAsync(string key, CancellationToken cancellationToken = default) => Task.FromResult(drafts.GetValueOrDefault(key));
+        public Task UpsertAsync(FormDraft draft, CancellationToken cancellationToken = default) { drafts[draft.Key] = draft; return Task.CompletedTask; }
+        public Task DeleteAsync(string key, CancellationToken cancellationToken = default) { drafts.Remove(key); return Task.CompletedTask; }
+    }
+
     private sealed class FakeAdministrationRepository : IAdministrationRepository
     {
         private readonly List<AuditableEntity> entities = [];
@@ -164,6 +223,12 @@ public sealed class AdministrationViewModelTests
             return Task.CompletedTask;
         }
 
+        public Task SaveCompletingDraftAsync(
+            IReadOnlyCollection<AuditableEntity> additions,
+            IReadOnlyCollection<AuditableEntity> updates,
+            string completedDraftKey,
+            CancellationToken cancellationToken = default) => SaveAsync(additions, updates, cancellationToken);
+
         public Task SaveSettingsAndRateAsync(
             GeneralSettings settings,
             WeeklyRate? newRate,
@@ -176,6 +241,13 @@ public sealed class AdministrationViewModelTests
 
             return Task.CompletedTask;
         }
+
+        public Task SaveSettingsAndRateCompletingDraftAsync(
+            GeneralSettings settings,
+            WeeklyRate? newRate,
+            string completedDraftKey,
+            CancellationToken cancellationToken = default) =>
+            SaveSettingsAndRateAsync(settings, newRate, cancellationToken);
 
         private T[] Active<T>() where T : AuditableEntity => entities.OfType<T>()
             .Where(item => !item.IsDeleted)
