@@ -1,8 +1,8 @@
 # Auditoría verificable de requisitos — Fase 4.2
 
-Fecha de corte inicial: 2026-07-19 (America/Bogota)  
-Rama: `feat/professional-ui-autosave`  
-HEAD auditado: `18a92b2d0c3f29384abf4264f2e61ed8eb115581`  
+Fecha de corte inicial: 2026-07-19 (America/Bogota)
+Rama: `feat/professional-ui-autosave`
+HEAD auditado: `18a92b2d0c3f29384abf4264f2e61ed8eb115581`
 PR: `#4` (draft)
 
 ## Aislamiento y evidencia de datos
