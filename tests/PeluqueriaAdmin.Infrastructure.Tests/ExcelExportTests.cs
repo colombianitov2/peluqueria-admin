@@ -51,7 +51,7 @@ public sealed class ExcelExportTests
             [
                 "Resumen general", "Ajustes", "Uso del local", "Cuotas semanales",
                 "Precio sugerido por silla", "Sillas", "Asignaciones actuales",
-                "Pagos por uso del local", "Colaboradores", "Ventas", "Productos",
+                "Pagos por uso del local", "Historial trabajadores", "Colaboradores", "Aportes colaboradores", "Historial colaboradores", "Ventas", "Productos",
                 "Inventario actual", "Movimientos de inventario", "Planes de reposición",
                 "Otros ingresos", "Gastos", "Imprevistos", "Gastos extraoficiales", "Obligaciones",
                 "Pagos de obligaciones", "Mantenimiento", "Cierres mensuales",
@@ -77,8 +77,14 @@ public sealed class ExcelExportTests
             Assert.Equal(XLDataType.Text, products.Cell(2, 1).DataType);
             Assert.True(products.Cell(2, 1).Style.IncludeQuotePrefix);
             Assert.False(products.Cell(2, 1).HasFormula);
+            Assert.DoesNotContain("Unidad", products.Row(1).CellsUsed().Select(cell => cell.GetString()));
+            IXLWorksheet contributions = workbook.Worksheet("Aportes colaboradores");
+            Assert.Equal(XLDataType.DateTime, contributions.Cell(2, 1).DataType);
+            Assert.Equal(XLDataType.Number, contributions.Cell(2, 3).DataType);
+            Assert.Contains("no operativa", contributions.Cell(2, 6).GetString(), StringComparison.OrdinalIgnoreCase);
             Assert.Contains("2027", workbook.Worksheet("Obligaciones").Cell(2, 3).GetFormattedString());
             Assert.Contains("Eliminado lógicamente", workbook.Worksheet("Historial eliminado").Column(4).CellsUsed().Select(x => x.GetString()));
+            Assert.Contains("Aporte de colaborador", workbook.Worksheet("Historial eliminado").Column(1).CellsUsed().Select(x => x.GetString()));
             Assert.Contains("no finalizado", workbook.Worksheet("Borradores sin finalizar").Cell(2, 3).GetString(), StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("+borrador", workbook.Worksheet("Otros ingresos").Column(2).CellsUsed().Select(x => x.GetString()));
 
@@ -151,7 +157,7 @@ public sealed class ExcelExportTests
 
         var chair = Chair.Create("Silla principal", new DateOnly(2026, 6, 1), "Junto a la ventana", utc);
         await service.AddChairAsync(chair, cancellationToken);
-        var person = LocalUsePerson.Create("Persona histórica", new DateOnly(2026, 6, 1), null, utc, "Peluquero vigente");
+        var person = LocalUsePerson.Create("Persona histórica", new DateOnly(2026, 6, 1), null, utc, "Trabajador vigente");
         await service.AddLocalUsePersonWithChairAsync(person, chair.Id, new DateOnly(2026, 7, 18), cancellationToken);
         var product = Product.Create("=SUM(1,1)", ProductCategory.ProductForSale, "unidad", utc, Money.FromDecimal(10m), "Producto de prueba");
         await service.AddProductAsync(product, cancellationToken);
@@ -163,7 +169,14 @@ public sealed class ExcelExportTests
         await service.DeleteAsync(deleted, cancellationToken);
         await service.AddObligationAsync(Obligation.Create("Impuesto futuro", ObligationType.Tax, new DateOnly(2027, 1, 15), Money.FromDecimal(250), RecurrenceFrequency.None, utc), new DateOnly(2027, 1, 15), cancellationToken);
         await service.AddAsync(MaintenanceRecord.Create("Silla principal", "Preventivo", new DateOnly(2027, 2, 1), Money.FromDecimal(30), null, null, utc), cancellationToken);
-        await service.AddAsync(Collaborator.Create("Colaboradora", new DateOnly(2026, 1, 1), null, utc), cancellationToken);
+        Collaborator collaborator = Collaborator.Create("Colaboradora", new DateOnly(2026, 1, 1), null, utc);
+        await service.AddAsync(collaborator, cancellationToken);
+        await service.AddCollaboratorContributionAsync(CollaboratorContribution.Create(
+            collaborator.Id, new DateOnly(2026, 7, 2), Money.FromDecimal(500m), "Capital activo", utc), cancellationToken);
+        CollaboratorContribution deletedContribution = CollaboratorContribution.Create(
+            collaborator.Id, new DateOnly(2026, 7, 3), Money.FromDecimal(25m), "Capital eliminado", utc);
+        await service.AddCollaboratorContributionAsync(deletedContribution, cancellationToken);
+        await service.DeleteAsync(deletedContribution, cancellationToken);
         await service.AddUnofficialExpenseAsync(UnlistedExpense(), cancellationToken);
         await new EfFormDraftStore(factory).UpsertAsync(FormDraft.Create("Otros ingresos:nuevo", "Otros ingresos", "Registrar ingreso", "{\"concepto\":\"+borrador\"}", null, false, utc), cancellationToken);
         return factory;

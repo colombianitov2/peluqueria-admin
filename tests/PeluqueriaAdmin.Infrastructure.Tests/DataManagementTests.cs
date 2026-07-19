@@ -62,7 +62,7 @@ public sealed class DataManagementTests
     }
 
     [Fact]
-    public async Task Export_CreatesFiveUtf8CsvFilesWithHeaders()
+    public async Task Export_CreatesSixUtf8CsvFilesWithoutLegacyUnitColumn()
     {
         string temporaryRoot = CreateTemporaryRoot();
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
@@ -88,6 +88,14 @@ public sealed class DataManagementTests
             Collaborator collaborator = Collaborator.Create(
                 "Ana", new DateOnly(2026, 7, 1), null, timeProvider.GetUtcNow().UtcDateTime);
             await administrationService.AddAsync(collaborator, cancellationToken);
+            await administrationService.AddCollaboratorContributionAsync(
+                CollaboratorContribution.Create(
+                    collaborator.Id,
+                    new DateOnly(2026, 7, 2),
+                    Money.FromDecimal(250m),
+                    "Capital de prueba",
+                    timeProvider.GetUtcNow().UtcDateTime),
+                cancellationToken);
             await administrationService.CloseMonthAsync(
                 new YearMonth(2026, 7),
                 new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0, 0, 0, 0),
@@ -104,13 +112,14 @@ public sealed class DataManagementTests
 
             IReadOnlyList<string> files = await service.ExportAsync(cancellationToken);
 
-            Assert.Equal(5, files.Count);
+            Assert.Equal(6, files.Count);
             Assert.All(files, file => Assert.True(File.Exists(file)));
             Assert.Contains(files, file => Path.GetFileName(file).StartsWith("resumen-mensual-", StringComparison.Ordinal));
             Assert.Contains(files, file => Path.GetFileName(file).StartsWith("balance-anual-", StringComparison.Ordinal));
             Assert.Contains(files, file => Path.GetFileName(file).StartsWith("flujo-caja-", StringComparison.Ordinal));
             Assert.Contains(files, file => Path.GetFileName(file).StartsWith("inventario-actual-", StringComparison.Ordinal));
             Assert.Contains(files, file => Path.GetFileName(file).StartsWith("deudas-uso-local-", StringComparison.Ordinal));
+            Assert.Contains(files, file => Path.GetFileName(file).StartsWith("aportes-colaboradores-", StringComparison.Ordinal));
 
             foreach (string file in files)
             {
@@ -128,11 +137,16 @@ public sealed class DataManagementTests
             string inventory = await File.ReadAllTextAsync(
                 Assert.Single(files, file => Path.GetFileName(file).StartsWith("inventario-actual-", StringComparison.Ordinal)),
                 cancellationToken);
+            string contributions = await File.ReadAllTextAsync(
+                Assert.Single(files, file => Path.GetFileName(file).StartsWith("aportes-colaboradores-", StringComparison.Ordinal)),
+                cancellationToken);
             Assert.Contains("\"2026-07\",\"USD\",\"100.00\",\"50.00\"", monthly, StringComparison.Ordinal);
             Assert.Contains("\"Servicios\"", annual, StringComparison.Ordinal);
             Assert.Contains("\"Indicador\"", annual, StringComparison.Ordinal);
             Assert.Contains("\"Positivo\"", annual, StringComparison.Ordinal);
             Assert.Contains("\"Otro producto para venta\"", inventory, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"Unidad\"", inventory, StringComparison.Ordinal);
+            Assert.Contains("\"Ana\",\"USD\",\"250.00\",\"Capital de prueba\"", contributions, StringComparison.Ordinal);
         }
         finally
         {

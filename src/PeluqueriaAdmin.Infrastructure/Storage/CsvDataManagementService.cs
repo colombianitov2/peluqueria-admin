@@ -60,6 +60,10 @@ public sealed class CsvDataManagementService(
             $"deudas-uso-local-{stamp}.csv",
             BuildDebts(data, settings.CurrencyCode.Value),
             cancellationToken));
+        files.Add(await WriteAsync(
+            $"aportes-colaboradores-{stamp}.csv",
+            BuildContributions(data, settings.CurrencyCode.Value),
+            cancellationToken));
         return files;
     }
 
@@ -168,7 +172,7 @@ public sealed class CsvDataManagementService(
 
     private static string BuildInventory(AdministrationData data)
     {
-        var csv = new CsvBuilder("Producto", "Categoría", "Unidad", "Existencia", "Costo unitario promedio");
+        var csv = new CsvBuilder("Producto", "Categoría", "Existencia", "Costo unitario promedio");
         foreach (Product product in data.Products)
         {
             InventoryMovement[] movements = data.InventoryMovements
@@ -177,9 +181,27 @@ public sealed class CsvDataManagementService(
             csv.Add(
                 product.Name,
                 SpanishText.For(product.Category),
-                product.UnitOfMeasure,
                 InventoryCalculator.CurrentQuantity(movements).ToString("0.###", CultureInfo.InvariantCulture),
                 InventoryCalculator.AverageUnitCost(movements).ToDecimal().ToString("0.00", CultureInfo.InvariantCulture));
+        }
+
+        return csv.ToString();
+    }
+
+    private static string BuildContributions(AdministrationData data, string currency)
+    {
+        var csv = new CsvBuilder("Fecha", "Colaborador", "Moneda", "Valor", "Descripción", "Clasificación");
+        foreach (var contribution in data.CollaboratorContributions.OrderBy(item => item.Date).ThenBy(item => item.CreatedUtc))
+        {
+            string collaborator = data.Collaborators
+                .SingleOrDefault(item => item.Id == contribution.CollaboratorId)?.Name ?? "Colaborador no disponible";
+            csv.Add(
+                contribution.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                collaborator,
+                currency,
+                Decimal(contribution.Amount.MinorUnits),
+                contribution.Description ?? string.Empty,
+                "Capital / inversión no operativa");
         }
 
         return csv.ToString();
