@@ -24,7 +24,7 @@ Este documento registra el avance verificable para completar la primera versión
 | 6 | Interfaz de los 15 módulos | Compilación WPF, navegación y prueba controlada | Completada |
 | 7 | Copias, restauración y CSV | Pruebas con bases y carpetas temporales | Completada |
 | 8 | Velopack y actualización | Empaquetado alfa x64 local; workflow sin publicar Release | Completada; actualización entre Releases no verificable aún |
-| 9 | Documentación y validación final | Formato, builds, pruebas, auditoría, CI y revisión Git | En curso |
+| 9 | Documentación y validación final | Formato, builds, pruebas, auditoría, CI y revisión Git | Completada |
 
 ## Estrategia de commits y publicación
 
@@ -34,4 +34,4 @@ Este documento registra el avance verificable para completar la primera versión
 4. Copias, exportación, interfaz y actualizaciones.
 5. Validación integral y documentación final.
 
-Después del primer bloque sustancial se publicará la rama y se abrirá un PR en borrador. El PR solo se marcará listo cuando todas las verificaciones obligatorias hayan terminado correctamente.
+La rama se publicó después de cada bloque, el PR se abrió como borrador tras el primer commit sustancial y se marcó listo únicamente después de completar las verificaciones locales. El PR permanece sin fusionar y no se creó ninguna etiqueta ni Release.
