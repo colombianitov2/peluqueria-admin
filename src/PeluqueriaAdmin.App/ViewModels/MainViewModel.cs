@@ -19,12 +19,16 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(
         SettingsViewModel settings,
         AdministrationViewModel administration,
+        LocalUseViewModel localUse,
+        CollaboratorsViewModel collaborators,
         AdministrationService administrationService,
         GetSettingsUseCase getSettings,
         TimeProvider timeProvider)
     {
         Settings = settings;
         Administration = administration;
+        LocalUse = localUse;
+        Collaborators = collaborators;
         this.administrationService = administrationService;
         this.getSettings = getSettings;
         this.timeProvider = timeProvider;
@@ -53,6 +57,10 @@ public sealed partial class MainViewModel : ObservableObject
     public SettingsViewModel Settings { get; }
 
     public AdministrationViewModel Administration { get; }
+
+    public LocalUseViewModel LocalUse { get; }
+
+    public CollaboratorsViewModel Collaborators { get; }
 
     public ObservableCollection<NavigationItem> NavigationItems { get; }
 
@@ -127,6 +135,20 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        if (item.Name == AdministrationViewModel.LocalUseModule)
+        {
+            await LocalUse.LoadAsync();
+            CurrentPage = LocalUse;
+            return;
+        }
+
+        if (item.Name == AdministrationViewModel.CollaboratorsModule)
+        {
+            await Collaborators.LoadAsync();
+            CurrentPage = Collaborators;
+            return;
+        }
+
         await Administration.SelectModuleAsync(item.Name);
         CurrentPage = Administration;
     }
@@ -179,5 +201,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         await Settings.FlushPendingAsync();
         await Administration.FlushPendingAsync();
+        await LocalUse.FlushPendingAsync();
+        await Collaborators.FlushPendingAsync();
     }
 }

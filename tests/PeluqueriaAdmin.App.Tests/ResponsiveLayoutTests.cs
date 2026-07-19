@@ -36,6 +36,22 @@ public sealed class ResponsiveLayoutTests
                         DataContext = new LayoutContext(),
                     };
                     AssertFits(settings, width, height, scale);
+
+                    var localUse = new LocalUseView { DataContext = new LayoutContext() };
+                    AssertFits(localUse, width, height, scale);
+                    var localUseProfile = new LocalUseView
+                    {
+                        DataContext = new LayoutContext { IsWorkerProfileOpen = true },
+                    };
+                    AssertFits(localUseProfile, width, height, scale);
+
+                    var collaborators = new CollaboratorsView { DataContext = new LayoutContext() };
+                    AssertFits(collaborators, width, height, scale);
+                    var collaboratorProfile = new CollaboratorsView
+                    {
+                        DataContext = new LayoutContext { IsProfileOpen = true },
+                    };
+                    AssertFits(collaboratorProfile, width, height, scale);
                 }
             }
             catch (Exception exception)
@@ -126,5 +142,7 @@ public sealed class ResponsiveLayoutTests
         public string TotalChairs { get; set; } = "10";
         public string CurrencyCode { get; set; } = "COP";
         public string RestorePath { get; set; } = string.Empty;
+        public bool IsWorkerProfileOpen { get; set; }
+        public bool IsProfileOpen { get; set; }
     }
 }

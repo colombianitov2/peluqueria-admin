@@ -20,6 +20,12 @@
     <DataTemplate DataType="{x:Type viewModels:AdministrationViewModel}">
       <views:AdministrationView />
     </DataTemplate>
+    <DataTemplate DataType="{x:Type viewModels:LocalUseViewModel}">
+      <views:LocalUseView />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type viewModels:CollaboratorsViewModel}">
+      <views:CollaboratorsView />
+    </DataTemplate>
   </Window.Resources>
   <DockPanel>
     <Border DockPanel.Dock="Left"

@@ -52,7 +52,7 @@
           <StackPanel><TextBlock Foreground="#475569" Text="Total de sillas" /><TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding TotalChairs}" /></StackPanel>
         </Border>
         <Border Width="190" Margin="0,0,12,0" Padding="16" Background="#F0FDF4" CornerRadius="7">
-          <StackPanel><TextBlock Foreground="#475569" Text="Peluqueros vigentes" /><TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding CurrentHairdressers}" /></StackPanel>
+          <StackPanel><TextBlock Foreground="#475569" Text="Trabajadores vigentes" /><TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding CurrentHairdressers}" /></StackPanel>
         </Border>
         <Border Width="190" Padding="16" Background="#FFF7ED" CornerRadius="7">
           <StackPanel><TextBlock Foreground="#475569" Text="Sillas disponibles" /><TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding AvailableChairs}" /></StackPanel>
@@ -202,6 +202,11 @@
                 </ComboBox.Style>
               </ComboBox>
               <TextBlock Margin="0,5,0,0" Foreground="#475569" Text="{Binding SelectedProductAvailability}" TextWrapping="Wrap" />
+              <StackPanel Visibility="{Binding ShowProductSearch, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock Margin="0,8,0,5" Style="{StaticResource FieldLabel}" Text="Buscar por nombre" />
+                <TextBox Text="{Binding ProductSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Margin="0,5,0,0" Foreground="#475569" Text="{Binding ProductSelectionExplanation}" TextWrapping="Wrap" />
+              </StackPanel>
             </StackPanel>
             <StackPanel Width="220" Margin="0,0,14,12" Visibility="{Binding ShowSecondary, Converter={StaticResource BooleanToVisibilityConverter}}">
               <TextBlock Style="{StaticResource FieldLabel}" Text="{Binding SecondaryLabel}" />

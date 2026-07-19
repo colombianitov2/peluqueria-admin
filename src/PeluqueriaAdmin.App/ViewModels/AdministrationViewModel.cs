@@ -121,6 +121,15 @@ public sealed partial class AdministrationViewModel(
     private string selectedProductAvailability = string.Empty;
 
     [ObservableProperty]
+    private string productSearchText = string.Empty;
+
+    [ObservableProperty]
+    private bool showProductSearch;
+
+    [ObservableProperty]
+    private string productSelectionExplanation = string.Empty;
+
+    [ObservableProperty]
     private bool showCharts;
 
     [ObservableProperty]
@@ -436,8 +445,8 @@ public sealed partial class AdministrationViewModel(
 
     private static string ActionForEntity(AuditableEntity entity) => entity switch
     {
-        Chair => "Agregar silla",
-        LocalUsePerson => "Agregar peluquero",
+        Chair => "Añadir silla",
+        LocalUsePerson => "Añadir trabajador",
         LocalUsePayment => "Registrar pago",
         Collaborator => "Agregar colaborador",
         Product => "Agregar producto",
@@ -554,12 +563,12 @@ public sealed partial class AdministrationViewModel(
 
         switch (Title, SelectedAction)
         {
-            case (LocalUseModule, "Agregar silla"):
+            case (LocalUseModule, "Añadir silla"):
                 await service.AddChairAsync(
                     Chair.Create(PrimaryText, date, OptionalDescriptionText, utcNow),
                     completedDraftKey: completedDraftKey);
                 break;
-            case (LocalUseModule, "Agregar peluquero"):
+            case (LocalUseModule, "Añadir trabajador"):
                 await service.AddLocalUsePersonWithChairAsync(
                     LocalUsePerson.Create(PrimaryText, date, ParseOptionalDate(EndDateText), utcNow, OptionalDescriptionText),
                     RequireSecondaryOption().Id,
@@ -978,7 +987,7 @@ public sealed partial class AdministrationViewModel(
         foreach (Chair chair in data.Chairs)
         {
             string assigned = chair.AssignedPersonId.HasValue
-                ? data.LocalUsePeople.SingleOrDefault(item => item.Id == chair.AssignedPersonId)?.Name ?? "Peluquero no disponible"
+                ? data.LocalUsePeople.SingleOrDefault(item => item.Id == chair.AssignedPersonId)?.Name ?? "Trabajador no disponible"
                 : "Disponible";
             yield return Row(chair.CreationDate, chair.Name, chair.Description ?? string.Empty,
                 string.Empty, string.Empty, assigned, chair);
@@ -992,7 +1001,7 @@ public sealed partial class AdministrationViewModel(
                 today);
             string chair = data.Chairs.SingleOrDefault(item => item.AssignedPersonId == person.Id)?.Name ?? "Sin silla";
             yield return Row(
-                person.EntryDate, person.Name, $"Peluquero · {chair}", string.Empty,
+                person.EntryDate, person.Name, $"Trabajador · {chair}", string.Empty,
                 FormatMoney(debt, settings.CurrencyCode), debt.MinorUnits > 0 ? "Con deuda" : "Al día", person);
         }
 
@@ -1334,7 +1343,10 @@ public sealed partial class AdministrationViewModel(
         if (product is null) return;
         decimal available = InventoryCalculator.CurrentQuantity(
             data.InventoryMovements.Where(item => item.ProductId == product.Id));
-        SelectedProductAvailability = $"Existencia disponible: {available:0.###}";
+        SelectedProductAvailability = Title == SalesModule
+            ? $"Existencia disponible: {available:0.###} · Precio predeterminado: "
+                + (product.DefaultSalePrice?.ToDecimal().ToString("N2", CultureInfo.CurrentCulture) ?? "Sin precio configurado")
+            : $"Existencia disponible: {available:0.###}";
         if (Title == SalesModule)
         {
             AmountText = product.DefaultSalePrice?.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture) ?? string.Empty;
@@ -1463,6 +1475,33 @@ public sealed partial class AdministrationViewModel(
         TrackFormChange();
         _ = UpdateSelectedProductDetailsAsync(value);
         _ = UpdateChairOptionsAsync(value);
+    }
+
+    partial void OnProductSearchTextChanged(string value)
+    {
+        if (Title == SalesModule)
+        {
+            _ = RefreshProductOptionsAsync();
+        }
+    }
+
+    private async Task RefreshProductOptionsAsync()
+    {
+        AdministrationData data = await service.LoadAsync();
+        Guid? selectedId = SelectedEntityOption?.Id;
+        EntityOptions.Clear();
+        foreach (Product product in data.Products
+            .Where(item => item.IsForSale)
+            .Where(item => string.IsNullOrWhiteSpace(ProductSearchText)
+                || item.Name.Contains(ProductSearchText.Trim(), StringComparison.OrdinalIgnoreCase))
+            .OrderBy(item => item.Name))
+        {
+            EntityOptions.Add(new EntityOption(product.Id, product.Name));
+        }
+
+        SelectedEntityOption = selectedId.HasValue
+            ? EntityOptions.SingleOrDefault(item => item.Id == selectedId.Value)
+            : null;
     }
 
     private async Task UpdateChairOptionsAsync(EntityOption? person)
@@ -1607,6 +1646,8 @@ public sealed partial class AdministrationViewModel(
         IEnumerable<EntityOption> values = (Title, SelectedAction) switch
         {
             (SalesModule, _) => data.Products.Where(x => x.IsForSale)
+                .Where(x => string.IsNullOrWhiteSpace(ProductSearchText)
+                    || x.Name.Contains(ProductSearchText.Trim(), StringComparison.OrdinalIgnoreCase))
                 .Select(x => new EntityOption(x.Id, x.Name)),
             (InventoryModule, not "Agregar producto") => data.Products
                 .Select(x => new EntityOption(x.Id, x.Name)),
@@ -1622,7 +1663,7 @@ public sealed partial class AdministrationViewModel(
         Guid? selectedPersonId = SelectedEntityOption?.Id;
         IEnumerable<EntityOption> secondary = (Title, SelectedAction) switch
         {
-            (LocalUseModule, "Agregar peluquero" or "Asignar o cambiar silla") => data.Chairs
+            (LocalUseModule, "Añadir trabajador" or "Asignar o cambiar silla") => data.Chairs
                 .Where(x => !x.AssignedPersonId.HasValue || x.AssignedPersonId == selectedPersonId)
                 .Select(x => new EntityOption(x.Id, x.Name)),
             _ => [],
@@ -1637,6 +1678,8 @@ public sealed partial class AdministrationViewModel(
         ShowActionSelector = true;
         ShowRecordActions = true;
         ShowOptionalDescription = true;
+        ShowProductSearch = false;
+        ProductSelectionExplanation = string.Empty;
         IsAmountReadOnly = false;
         ShowSecondary = ShowExtra = ShowEndDate = ShowAmount = ShowSecondaryAmount = ShowQuantity = false;
         UsePrimarySelector = UseSecondarySelector = false;
@@ -1647,25 +1690,27 @@ public sealed partial class AdministrationViewModel(
 
         switch (Title, SelectedAction)
         {
-            case (LocalUseModule, "Agregar silla"):
+            case (LocalUseModule, "Añadir silla"):
                 PrimaryLabel = "Nombre o número de la silla"; DateLabel = "Fecha de creación"; break;
-            case (LocalUseModule, "Agregar peluquero"):
+            case (LocalUseModule, "Añadir trabajador"):
                 PrimaryLabel = "Nombre completo"; DateLabel = "Fecha de ingreso"; ShowEndDate = true; EndDateLabel = "Fecha de retiro (opcional)";
                 ShowSecondary = true; UseSecondarySelector = true; SecondaryLabel = "Silla disponible"; break;
             case (LocalUseModule, "Registrar pago"):
-                PrimaryLabel = "Peluquero"; UsePrimarySelector = true; ShowAmount = true; AmountLabel = "Valor pagado"; break;
+                PrimaryLabel = "Trabajador"; UsePrimarySelector = true; ShowAmount = true; AmountLabel = "Valor pagado"; break;
             case (LocalUseModule, "Asignar o cambiar silla"):
-                PrimaryLabel = "Peluquero"; UsePrimarySelector = true; ShowSecondary = true; UseSecondarySelector = true; SecondaryLabel = "Silla disponible"; break;
+                PrimaryLabel = "Trabajador"; UsePrimarySelector = true; ShowSecondary = true; UseSecondarySelector = true; SecondaryLabel = "Silla disponible"; break;
             case (LocalUseModule, "Retirar silla"):
-                PrimaryLabel = "Peluquero"; UsePrimarySelector = true; break;
+                PrimaryLabel = "Trabajador"; UsePrimarySelector = true; break;
             case (CollaboratorsModule, "Agregar colaborador"):
                 PrimaryLabel = "Nombre completo"; DateLabel = "Fecha de ingreso"; ShowEndDate = true; EndDateLabel = "Fecha de retiro (opcional)"; break;
             case (SalesModule, _):
                 PrimaryLabel = "Producto destinado a venta"; UsePrimarySelector = true; ShowQuantity = ShowAmount = true;
+                ShowProductSearch = true;
+                ProductSelectionExplanation = "Solo aparecen productos clasificados como Alimento o bebida para venta u Otro producto para venta. Revisa la categoría en Inventario si un producto no aparece.";
                 QuantityLabel = "Cantidad a vender"; AmountLabel = "Precio de venta por unidad o paquete"; IsAmountReadOnly = true; break;
             case (InventoryModule, "Agregar producto"):
                 PrimaryLabel = "Nombre del producto"; ShowSecondary = ShowQuantity = ShowAmount = ShowSecondaryAmount = true;
-                UseSecondarySelector = true; SecondaryLabel = "Categoría"; QuantityLabel = "Cantidad inicial";
+                UseSecondarySelector = false; SecondaryLabel = "Categoría"; QuantityLabel = "Cantidad inicial";
                 AmountLabel = "Costo por unidad o paquete"; SecondaryAmountLabel = "Precio de venta predeterminado (solo productos para venta)";
                 DateLabel = "Fecha de ingreso";
                 foreach (string x in new[] { "Alimento o bebida para venta", "Otro producto para venta", "Cortesía para clientes", "Aseo", "Insumo del local", "Otro producto del local" }) SecondaryOptions.Add(x); break;
@@ -1680,7 +1725,7 @@ public sealed partial class AdministrationViewModel(
             case (ExpensesModule, _):
                 PrimaryLabel = "Nombre del gasto"; ShowAmount = true; AmountLabel = "Valor"; break;
             case (ObligationsModule, "Agregar obligación"):
-                PrimaryLabel = "Nombre de la obligación"; ShowSecondary = ShowExtra = ShowAmount = true; UseSecondarySelector = true; SecondaryLabel = "Tipo"; ExtraLabel = "Recurrencia"; DateLabel = "Fecha de vencimiento"; AmountLabel = "Valor esperado";
+                PrimaryLabel = "Nombre de la obligación"; ShowSecondary = ShowExtra = ShowAmount = true; UseSecondarySelector = false; SecondaryLabel = "Tipo"; ExtraLabel = "Recurrencia"; DateLabel = "Fecha de vencimiento"; AmountLabel = "Valor esperado";
                 foreach (string x in new[] { "Servicio", "Impuesto", "Otra obligación" }) SecondaryOptions.Add(x);
                 foreach (string x in new[] { "Ninguna", "Mensual", "Anual" }) ExtraOptions.Add(x); break;
             case (ObligationsModule, "Registrar pago"):
@@ -1719,7 +1764,7 @@ public sealed partial class AdministrationViewModel(
         IsFormVisible = true;
         (string description, string[] actions) configuration = Title switch
         {
-            LocalUseModule => ("Sillas, peluqueros, asignaciones, cuotas semanales y pagos.", ["Agregar silla", "Agregar peluquero", "Registrar pago", "Asignar o cambiar silla", "Retirar silla"]),
+            LocalUseModule => ("Sillas, trabajadores, asignaciones, cuotas semanales y pagos.", ["Añadir silla", "Añadir trabajador", "Registrar pago", "Asignar o cambiar silla", "Retirar silla"]),
             CollaboratorsModule => ("Participantes de los cierres mensuales; no constituye nómina laboral.", ["Agregar colaborador"]),
             SalesModule => ("Ventas de productos del local. Selecciona el producto por nombre.", ["Registrar venta"]),
             InventoryModule => ("Productos, compras, consumos, conteos y necesidades mensuales.", ["Agregar producto", "Registrar compra", "Registrar consumo", "Conteo físico", "Plan mensual"]),

@@ -102,6 +102,8 @@ public partial class App : System.Windows.Application
         services.AddSingleton<SaveSettingsUseCase>();
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<AdministrationViewModel>();
+        services.AddSingleton<LocalUseViewModel>();
+        services.AddSingleton<CollaboratorsViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 
