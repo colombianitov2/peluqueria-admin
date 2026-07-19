@@ -1,9 +1,12 @@
+using PeluqueriaAdmin.Application.Administration;
+using PeluqueriaAdmin.Domain.LocalUse;
 using PeluqueriaAdmin.Domain.Settings;
 
 namespace PeluqueriaAdmin.Application.Settings;
 
 public sealed class SaveSettingsUseCase(
     ISettingsRepository repository,
+    IAdministrationRepository administrationRepository,
     TimeProvider timeProvider)
 {
     public async Task<SettingsDto> ExecuteAsync(
@@ -13,15 +16,20 @@ public sealed class SaveSettingsUseCase(
         ArgumentNullException.ThrowIfNull(request);
 
         GeneralSettings settings = await repository.GetAsync(cancellationToken);
+        Money weeklyUsageFee = Money.FromDecimal(request.WeeklyUsageFee);
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        WeeklyRate? newRate = settings.WeeklyUsageFee == weeklyUsageFee
+            ? null
+            : WeeklyRate.Create(DateOnly.FromDateTime(utcNow), weeklyUsageFee, utcNow);
         settings.Update(
-            Money.FromDecimal(request.WeeklyUsageFee),
+            weeklyUsageFee,
             Percentage.FromPercent(request.CollaboratorProfitPercent),
             Money.FromDecimal(request.OptionalSuppliesMonthlyBudget),
             request.TotalChairs,
             CurrencyCode.From(request.CurrencyCode),
-            timeProvider.GetUtcNow().UtcDateTime);
+            utcNow);
 
-        await repository.SaveAsync(settings, cancellationToken);
+        await administrationRepository.SaveSettingsAndRateAsync(settings, newRate, cancellationToken);
         return SettingsMapper.ToDto(settings);
     }
 }

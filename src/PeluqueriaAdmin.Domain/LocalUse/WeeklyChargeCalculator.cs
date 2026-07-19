@@ -27,7 +27,13 @@ public static class WeeklyChargeCalculator
         WeeklyRate[] orderedRates = rates
             .Where(rate => !rate.IsDeleted)
             .OrderBy(rate => rate.EffectiveFrom)
+            .ThenBy(rate => rate.CreatedUtc)
             .ToArray();
+
+        if (orderedRates.Length == 0)
+        {
+            throw new InvalidOperationException("Debe existir al menos una tarifa semanal vigente.");
+        }
 
         DateOnly lastPermittedStart = person.ExitDate.HasValue && person.ExitDate.Value < throughDate
             ? person.ExitDate.Value

@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PeluqueriaAdmin.App.ViewModels;
+using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.Settings;
+using PeluqueriaAdmin.Infrastructure.Administration;
 using PeluqueriaAdmin.Infrastructure.Persistence;
 using PeluqueriaAdmin.Infrastructure.Settings;
 using PeluqueriaAdmin.Infrastructure.Storage;
@@ -20,6 +22,8 @@ public partial class App : System.Windows.Application
         {
             serviceProvider = ConfigureServices();
             await serviceProvider.GetRequiredService<DatabaseInitializer>().InitializeAsync();
+            await serviceProvider.GetRequiredService<AdministrationService>()
+                .GenerateScheduledRecordsAsync(DateOnly.FromDateTime(DateTime.Today));
 
             SettingsViewModel settingsViewModel = serviceProvider.GetRequiredService<SettingsViewModel>();
             await settingsViewModel.LoadAsync();
@@ -61,7 +65,9 @@ public partial class App : System.Windows.Application
         services.AddDbContextFactory<PeluqueriaDbContext>(options =>
             options.UseSqlite(DatabaseConfiguration.CreateConnectionString(paths.DatabaseFilePath)));
         services.AddSingleton<ISettingsRepository, EfSettingsRepository>();
+        services.AddSingleton<IAdministrationRepository, EfAdministrationRepository>();
         services.AddSingleton<DatabaseInitializer>();
+        services.AddSingleton<AdministrationService>();
         services.AddSingleton<GetSettingsUseCase>();
         services.AddSingleton<SaveSettingsUseCase>();
         services.AddSingleton<SettingsViewModel>();
