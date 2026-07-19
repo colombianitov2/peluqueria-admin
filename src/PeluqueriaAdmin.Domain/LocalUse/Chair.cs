@@ -39,7 +39,7 @@ public sealed class Chair : AuditableEntity
     {
         if (personId == Guid.Empty)
         {
-            throw new ArgumentException("El peluquero es obligatorio.", nameof(personId));
+            throw new ArgumentException("El trabajador es obligatorio.", nameof(personId));
         }
 
         AssignedPersonId = personId;

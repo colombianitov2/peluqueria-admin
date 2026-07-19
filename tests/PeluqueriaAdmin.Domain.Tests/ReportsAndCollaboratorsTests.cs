@@ -131,4 +131,30 @@ public sealed class ReportsAndCollaboratorsTests
         Assert.True(expense.IsDeleted);
         Assert.Equal(UtcNow.AddMinutes(2), expense.DeletedUtc);
     }
+
+    [Fact]
+    public void CollaboratorContribution_IsPositiveEditableAndLogicallyDeletableCapital()
+    {
+        Guid collaboratorId = Guid.NewGuid();
+        CollaboratorContribution contribution = CollaboratorContribution.Create(
+            collaboratorId,
+            new DateOnly(2026, 7, 1),
+            Money.FromDecimal(100m),
+            "Capital inicial",
+            UtcNow);
+
+        contribution.Update(
+            new DateOnly(2026, 7, 2),
+            Money.FromDecimal(125m),
+            "Capital corregido",
+            UtcNow.AddMinutes(1));
+        contribution.MarkDeleted(UtcNow.AddMinutes(2));
+
+        Assert.Equal(collaboratorId, contribution.CollaboratorId);
+        Assert.Equal(12_500, contribution.Amount.MinorUnits);
+        Assert.Equal("Capital corregido", contribution.Description);
+        Assert.True(contribution.IsDeleted);
+        Assert.Throws<ArgumentOutOfRangeException>(() => CollaboratorContribution.Create(
+            collaboratorId, new DateOnly(2026, 7, 1), Money.FromDecimal(0m), null, UtcNow));
+    }
 }

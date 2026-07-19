@@ -37,7 +37,8 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
             await context.DistributionPayments.AsNoTracking().OrderBy(item => item.Date).ToListAsync(cancellationToken),
             await context.Chairs.AsNoTracking().OrderBy(item => item.Name).ToListAsync(cancellationToken),
             await context.ActivityRecords.AsNoTracking().OrderByDescending(item => item.OccurredUtc).ToListAsync(cancellationToken),
-            await context.UnofficialExpenses.AsNoTracking().OrderBy(item => item.Name).ToListAsync(cancellationToken));
+            await context.UnofficialExpenses.AsNoTracking().OrderBy(item => item.Name).ToListAsync(cancellationToken),
+            await context.CollaboratorContributions.AsNoTracking().OrderBy(item => item.Date).ThenBy(item => item.CreatedUtc).ToListAsync(cancellationToken));
     }
 
     public async Task SaveAsync(
@@ -152,6 +153,8 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
             MaintenanceRecord item => ("Mantenimiento", $"{item.Asset}: {item.MaintenanceType}",
                 item.CompletedDate ?? item.ScheduledDate, item.Description),
             Collaborator item => ("Colaboradores", item.Name, item.StartDate, item.Description),
+            CollaboratorContribution item => ("Colaboradores", "Aporte de capital",
+                item.Date, item.Description),
             MonthlyClose item => ("Resumen mensual", $"Cierre {item.Month}",
                 item.Month.LastDay, item.Description),
             DistributionPayment item => ("Colaboradores", "Pago a colaborador", item.Date, item.Description),
@@ -189,6 +192,9 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
         DateTime utcNow = entity.UpdatedUtc.Kind == DateTimeKind.Utc
             ? entity.UpdatedUtc
             : DateTime.SpecifyKind(entity.UpdatedUtc, DateTimeKind.Utc);
-        return ActivityRecord.Create(date, module, action, summary, entity.Id, description, utcNow);
+        Guid entityId = entity is CollaboratorContribution contribution
+            ? contribution.CollaboratorId
+            : entity.Id;
+        return ActivityRecord.Create(date, module, action, summary, entityId, description, utcNow);
     }
 }

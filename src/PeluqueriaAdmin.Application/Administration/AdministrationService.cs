@@ -1,4 +1,5 @@
 using PeluqueriaAdmin.Application.Settings;
+using PeluqueriaAdmin.Domain.Activity;
 using PeluqueriaAdmin.Domain.Collaborators;
 using PeluqueriaAdmin.Domain.Common;
 using PeluqueriaAdmin.Domain.Finance;
@@ -125,7 +126,7 @@ public sealed class AdministrationService(
         if (data.Chairs.All(item => item.AssignedPersonId.HasValue))
         {
             throw new InvalidOperationException(
-                "No hay sillas suficientes. Debes crear un espacio para silla adicional.");
+                "No hay sillas disponibles. Debes crear un espacio para una silla adicional.");
         }
 
         Chair chair = data.Chairs.SingleOrDefault(item => item.Id == chairId)
@@ -141,8 +142,16 @@ public sealed class AdministrationService(
             await EnsureRatesAsync(data, cancellationToken);
         IReadOnlyList<WeeklyCharge> charges = WeeklyChargeCalculator.Generate(
             person, [], rates, throughDate, utcNow);
+        ActivityRecord assignment = ActivityRecord.Create(
+            person.EntryDate,
+            "Uso del local",
+            "Asignación de silla",
+            $"{person.Name} → {chair.Name}",
+            person.Id,
+            chair.Description,
+            utcNow);
         await SaveAsync(
-            new AuditableEntity[] { person }
+            new AuditableEntity[] { person, assignment }
                 .Concat(newRate is null ? [] : [newRate])
                 .Concat(charges)
                 .ToArray(),
@@ -186,10 +195,10 @@ public sealed class AdministrationService(
     {
         AdministrationData data = await repository.LoadAsync(cancellationToken);
         LocalUsePerson person = data.LocalUsePeople.SingleOrDefault(item => item.Id == personId)
-            ?? throw new InvalidOperationException("El peluquero seleccionado ya no está disponible.");
+            ?? throw new InvalidOperationException("El trabajador seleccionado ya no está disponible.");
         if (!person.IsCurrentOn(today))
         {
-            throw new InvalidOperationException("Solo un peluquero vigente puede ocupar una silla.");
+            throw new InvalidOperationException("Solo un trabajador vigente puede ocupar una silla.");
         }
 
         Chair? target = chairId.HasValue
@@ -221,7 +230,15 @@ public sealed class AdministrationService(
             updates.Add(target);
         }
 
-        await repository.SaveAsync([], updates, cancellationToken);
+        string action = target is null ? "Retiro de silla" : current is null
+            ? "Asignación de silla"
+            : "Cambio de silla";
+        string summary = target is null
+            ? $"{person.Name} dejó {current!.Name}"
+            : $"{person.Name} → {target.Name}";
+        ActivityRecord activity = ActivityRecord.Create(
+            today, "Uso del local", action, summary, person.Id, null, utcNow);
+        await repository.SaveAsync([activity], updates, cancellationToken);
     }
 
     public async Task UpdateLocalUsePersonAsync(
@@ -264,6 +281,97 @@ public sealed class AdministrationService(
             new AuditableEntity[] { person }.Concat(invalid).ToArray(),
             completedDraftKey,
             cancellationToken);
+    }
+
+    public async Task RetireLocalUsePersonAsync(
+        Guid personId,
+        DateOnly exitDate,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        LocalUsePerson person = data.LocalUsePeople.SingleOrDefault(item => item.Id == personId)
+            ?? throw new InvalidOperationException("El trabajador seleccionado ya no está disponible.");
+        if (exitDate < person.EntryDate)
+        {
+            throw new ArgumentException("La fecha de retiro no puede ser anterior a la fecha de ingreso.", nameof(exitDate));
+        }
+
+        HashSet<DateOnly> expected = WeeklyChargeCalculator
+            .ExpectedPeriodStarts(person.EntryDate, exitDate, exitDate)
+            .ToHashSet();
+        WeeklyCharge[] existing = data.WeeklyCharges.Where(item => item.PersonId == personId).ToArray();
+        WeeklyCharge[] invalid = existing.Where(item => !expected.Contains(item.PeriodStart)).ToArray();
+        if (invalid.Length > 0 && data.LocalUsePayments.Any(item => item.PersonId == personId))
+        {
+            throw new InvalidOperationException(
+                "No se puede retirar al trabajador en esa fecha porque invalidaría cuotas que ya tienen pagos.");
+        }
+
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        person.Update(person.Name, person.EntryDate, exitDate, utcNow, person.Description);
+        foreach (WeeklyCharge charge in invalid)
+        {
+            charge.MarkDeleted(utcNow);
+        }
+
+        Chair? chair = data.Chairs.SingleOrDefault(item => item.AssignedPersonId == personId);
+        if (chair is not null)
+        {
+            chair.Unassign(utcNow);
+        }
+
+        (IReadOnlyCollection<WeeklyRate> rates, WeeklyRate? newRate) =
+            await EnsureRatesAsync(data, cancellationToken);
+        IReadOnlyList<WeeklyCharge> additions = WeeklyChargeCalculator.Generate(
+            person, existing, rates, exitDate, utcNow);
+        ActivityRecord activity = ActivityRecord.Create(
+            exitDate,
+            "Uso del local",
+            "Retiro del local",
+            person.Name,
+            person.Id,
+            person.Description,
+            utcNow);
+        AuditableEntity[] added = (newRate is null ? Array.Empty<AuditableEntity>() : [newRate])
+            .Concat(additions)
+            .Append(activity)
+            .ToArray();
+        AuditableEntity[] updated = new AuditableEntity[] { person }
+            .Concat(invalid)
+            .Concat(chair is null ? [] : [chair])
+            .ToArray();
+        await repository.SaveAsync(added, updated, cancellationToken);
+    }
+
+    public async Task AddCollaboratorContributionAsync(
+        CollaboratorContribution contribution,
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
+    {
+        ArgumentNullException.ThrowIfNull(contribution);
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        if (data.Collaborators.All(item => item.Id != contribution.CollaboratorId))
+        {
+            throw new InvalidOperationException("El colaborador seleccionado ya no está disponible.");
+        }
+
+        await SaveAsync([contribution], [], completedDraftKey, cancellationToken);
+    }
+
+    public async Task UpdateCollaboratorContributionAsync(
+        Guid contributionId,
+        DateOnly date,
+        Money amount,
+        string? description,
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        CollaboratorContribution contribution = data.CollaboratorContributions
+            .SingleOrDefault(item => item.Id == contributionId)
+            ?? throw new InvalidOperationException("El aporte seleccionado ya no está disponible.");
+        contribution.Update(date, amount, description, timeProvider.GetUtcNow().UtcDateTime);
+        await SaveAsync([], [contribution], completedDraftKey, cancellationToken);
     }
 
     public async Task AddObligationAsync(
@@ -330,14 +438,15 @@ public sealed class AdministrationService(
                 || data.LocalUsePayments.Any(item => item.PersonId == person.Id) =>
                 "No se puede eliminar la persona porque tiene cuotas o pagos históricos.",
             Chair chair when chair.AssignedPersonId.HasValue =>
-                "No se puede eliminar una silla que está asignada a un peluquero.",
+                "No se puede eliminar una silla que está asignada a un trabajador.",
             Product product when data.InventoryMovements.Any(item => item.ProductId == product.Id)
                 || data.RestockPlans.Any(item => item.ProductId == product.Id) =>
                 "No se puede eliminar el producto porque tiene movimientos o planes mensuales.",
             Obligation obligation when data.ObligationPayments.Any(item => item.ObligationId == obligation.Id) =>
                 "No se puede eliminar la obligación porque tiene pagos registrados.",
-            Collaborator collaborator when data.MonthlyCloseParticipants.Any(item => item.CollaboratorId == collaborator.Id) =>
-                "No se puede eliminar el colaborador porque participa en cierres históricos.",
+            Collaborator collaborator when data.MonthlyCloseParticipants.Any(item => item.CollaboratorId == collaborator.Id)
+                || data.CollaboratorContributions.Any(item => item.CollaboratorId == collaborator.Id) =>
+                "No se puede eliminar el colaborador porque tiene cierres o aportes históricos.",
             MonthlyClose => "Los cierres mensuales no se eliminan; usa la reapertura segura.",
             MonthlyCloseParticipant => "Las asignaciones calculadas no se eliminan manualmente.",
             _ => null,

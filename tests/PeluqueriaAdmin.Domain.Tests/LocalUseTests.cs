@@ -105,4 +105,33 @@ public sealed class LocalUseTests
             person, onJuly26, [rate], new DateOnly(2026, 8, 1), UtcNow);
         Assert.Empty(onAugust1);
     }
+
+    [Fact]
+    public void SevenDayBoundaries_AreExactAndRemainIdempotentAfterReopen()
+    {
+        DateOnly entry = new(2026, 7, 19);
+        WeeklyRate rate = WeeklyRate.Create(entry, Money.FromDecimal(12m), UtcNow);
+        LocalUsePerson active = LocalUsePerson.Create("Lina", entry, null, UtcNow);
+
+        Assert.Empty(WeeklyChargeCalculator.Generate(active, [], [rate], entry, UtcNow));
+        Assert.Empty(WeeklyChargeCalculator.Generate(active, [], [rate], entry.AddDays(6), UtcNow));
+
+        IReadOnlyList<WeeklyCharge> day7 = WeeklyChargeCalculator.Generate(
+            active, [], [rate], entry.AddDays(7), UtcNow);
+        Assert.Single(day7);
+        Assert.Equal(entry, day7[0].PeriodStart);
+
+        IReadOnlyList<WeeklyCharge> day14 = WeeklyChargeCalculator.Generate(
+            active, day7, [rate], entry.AddDays(14), UtcNow.AddMinutes(1));
+        Assert.Single(day14);
+        Assert.Equal(entry.AddDays(7), day14[0].PeriodStart);
+
+        Assert.Empty(WeeklyChargeCalculator.Generate(
+            active, day7.Concat(day14), [rate], entry.AddDays(14), UtcNow.AddMinutes(2)));
+
+        LocalUsePerson retiredEarly = LocalUsePerson.Create(
+            "Nora", entry, entry.AddDays(6), UtcNow);
+        Assert.Empty(WeeklyChargeCalculator.Generate(
+            retiredEarly, [], [rate], entry.AddDays(30), UtcNow));
+    }
 }

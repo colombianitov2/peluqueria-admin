@@ -21,7 +21,7 @@ namespace PeluqueriaAdmin.Infrastructure.Tests;
 public sealed class MigrationPreservationTests
 {
     [Fact]
-    public async Task Alpha1SchemaToPhase41_PreservesDataAndConvertsLegacyChairCount()
+    public async Task Alpha1SchemaToPhase42_PreservesDataAndConvertsLegacyChairCount()
     {
         string root = Path.Combine(AppContext.BaseDirectory, "TestData", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -86,7 +86,59 @@ public sealed class MigrationPreservationTests
                 Assert.True(await context.DistributionPayments.AnyAsync(cancellationToken));
                 Assert.Equal(0, await context.FormDrafts.CountAsync(cancellationToken));
                 Assert.True(await context.ActivityRecords.AnyAsync(cancellationToken));
+                Assert.Equal(0, await context.CollaboratorContributions.CountAsync(cancellationToken));
             }
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task Phase41SchemaToPhase42_PreservesCurrentPrDataAndAddsContributions()
+    {
+        string root = Path.Combine(AppContext.BaseDirectory, "TestData", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        try
+        {
+            var factory = new TestFactory(Path.Combine(root, "phase41.db"));
+            DateTime utc = new(2026, 7, 19, 12, 0, 0, DateTimeKind.Utc);
+            Guid collaboratorId;
+            await using (PeluqueriaDbContext context = factory.CreateDbContext())
+            {
+                string phase41 = context.Database.GetMigrations()
+                    .Single(item => item.EndsWith("_Phase41BusinessModel", StringComparison.Ordinal));
+                await context.GetService<IMigrator>().MigrateAsync(phase41, cancellationToken);
+                if (!await context.Settings.AnyAsync(cancellationToken))
+                {
+                    context.Settings.Add(GeneralSettings.CreateDefault(utc));
+                }
+
+                Collaborator collaborator = Collaborator.Create(
+                    "Inversionista conservado", new DateOnly(2026, 1, 1), null, utc);
+                collaboratorId = collaborator.Id;
+                context.Collaborators.Add(collaborator);
+                context.Products.Add(Product.Create(
+                    "Producto conservado", ProductCategory.FoodOrDrinkForSale, "unidad", utc,
+                    Money.FromDecimal(4.50m)));
+                await context.SaveChangesAsync(cancellationToken);
+                await context.GetService<IMigrator>().MigrateAsync(cancellationToken: cancellationToken);
+            }
+
+            var service = new AdministrationService(
+                new EfAdministrationRepository(factory), new EfSettingsRepository(factory), new FixedClock(utc));
+            await service.AddCollaboratorContributionAsync(
+                CollaboratorContribution.Create(
+                    collaboratorId, new DateOnly(2026, 7, 19), Money.FromDecimal(500m), null, utc),
+                cancellationToken);
+
+            await using PeluqueriaDbContext verified = factory.CreateDbContext();
+            Assert.True(await verified.Products.AnyAsync(item => item.Name == "Producto conservado", cancellationToken));
+            Assert.True(await verified.Collaborators.AnyAsync(item => item.Name == "Inversionista conservado", cancellationToken));
+            Assert.Equal(50_000, (await verified.CollaboratorContributions.SingleAsync(cancellationToken)).Amount.MinorUnits);
         }
         finally
         {

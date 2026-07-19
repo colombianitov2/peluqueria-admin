@@ -211,6 +211,23 @@ internal sealed class CollaboratorConfiguration : IEntityTypeConfiguration<Colla
     }
 }
 
+internal sealed class CollaboratorContributionConfiguration : IEntityTypeConfiguration<CollaboratorContribution>
+{
+    public void Configure(EntityTypeBuilder<CollaboratorContribution> builder)
+    {
+        builder.ToTable("CollaboratorContributions");
+        AdministrationConfiguration.ConfigureAudit(builder);
+        AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.Amount))
+            .HasColumnName("AmountMinorUnits");
+        builder.Property(item => item.Description).HasMaxLength(1000);
+        builder.HasIndex(item => new { item.CollaboratorId, item.Date });
+        builder.HasOne<Collaborator>()
+            .WithMany()
+            .HasForeignKey(item => item.CollaboratorId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
 internal sealed class MonthlyCloseConfiguration : IEntityTypeConfiguration<MonthlyClose>
 {
     public void Configure(EntityTypeBuilder<MonthlyClose> builder)

@@ -54,6 +54,8 @@ public sealed class PeluqueriaDbContext(DbContextOptions<PeluqueriaDbContext> op
 
     public DbSet<UnofficialExpense> UnofficialExpenses => Set<UnofficialExpense>();
 
+    public DbSet<CollaboratorContribution> CollaboratorContributions => Set<CollaboratorContribution>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(PeluqueriaDbContext).Assembly);

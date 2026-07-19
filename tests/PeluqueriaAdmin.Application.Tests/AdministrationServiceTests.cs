@@ -359,7 +359,7 @@ public sealed class AdministrationServiceTests
 
         InvalidOperationException unavailable = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.AddLocalUsePersonWithChairAsync(secondPerson, firstChair.Id, today, cancellationToken));
-        Assert.Equal("No hay sillas suficientes. Debes crear un espacio para silla adicional.", unavailable.Message);
+        Assert.Equal("No hay sillas disponibles. Debes crear un espacio para una silla adicional.", unavailable.Message);
 
         Chair secondChair = Chair.Create("Silla 2", today, null, UtcNow);
         await service.AddChairAsync(secondChair, cancellationToken);
@@ -451,6 +451,33 @@ public sealed class AdministrationServiceTests
     }
 
     [Fact]
+    public async Task CollaboratorContribution_IsPersistedButExcludedFromOperationalResults()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        DateOnly date = new(2026, 7, 18);
+        Collaborator collaborator = Collaborator.Create("Inversionista", date, null, UtcNow);
+        await service.AddAsync(collaborator, cancellationToken);
+        await service.AddCollaboratorContributionAsync(
+            CollaboratorContribution.Create(
+                collaborator.Id, date, Money.FromDecimal(1_000m), "Capital", UtcNow),
+            cancellationToken);
+        await service.AddAsync(
+            FinancialEntry.CreateIncome(date, "Ingreso operativo", Money.FromDecimal(100m), UtcNow),
+            cancellationToken);
+
+        AdministrationData data = await service.LoadAsync(cancellationToken);
+        MonthlySummaryResult summary = AdministrationReports.MonthlySummary(
+            data, Money.FromDecimal(0m), Percentage.FromPercent(20m), new YearMonth(2026, 7));
+
+        Assert.Single(data.CollaboratorContributions);
+        Assert.Equal(100_000, data.CollaboratorContributions[0].Amount.MinorUnits);
+        Assert.Equal(10_000, summary.IncomeMinorUnits);
+        Assert.Equal(2_000, summary.CollaboratorFundMinorUnits);
+    }
+
+    [Fact]
     public async Task SaveSettings_RecordsNewRateOnlyWhenFeeChanges()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
@@ -512,7 +539,8 @@ public sealed class AdministrationServiceTests
                 Entities.OfType<DistributionPayment>().Where(Active).ToArray(),
                 Entities.OfType<Chair>().Where(Active).ToArray(),
                 Entities.OfType<PeluqueriaAdmin.Domain.Activity.ActivityRecord>().Where(Active).ToArray(),
-                Entities.OfType<UnofficialExpense>().Where(Active).ToArray()));
+                Entities.OfType<UnofficialExpense>().Where(Active).ToArray(),
+                Entities.OfType<CollaboratorContribution>().Where(Active).ToArray()));
 
         public Task SaveAsync(
             IReadOnlyCollection<AuditableEntity> additions,
