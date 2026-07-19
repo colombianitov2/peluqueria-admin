@@ -10,7 +10,7 @@ Este registro impide que la implementación convierta supuestos en reglas de neg
 - **Tecnología adoptada:** C#, .NET 10, WPF y SQLite.
 - **Actualizador previsto:** Velopack con GitHub Releases públicos.
 
-La creación de la solución base queda autorizada en la Fase 1. La implementación de módulos funcionales, SQLite, Velopack y paquetes externos continúa fuera del alcance de esta fase.
+Esta nota se conserva como antecedente histórico; esas funciones fueron autorizadas e implementadas en las fases posteriores.
 
 ## Decisiones resueltas en la Fase 2 (18 de julio de 2026)
 
@@ -23,46 +23,35 @@ La creación de la solución base queda autorizada en la Fase 1. La implementaci
 
 La decisión de moneda queda cerrada. No define reglas semanales de cobro ni fórmulas financieras.
 
-## Decisiones pendientes antes de implementar
+## Decisiones resueltas en la Fase 3 (18 de julio de 2026)
 
-### 1. Generación del cobro semanal
+- **Compatibilidad inicial:** Windows 10 y Windows 11 de 64 bits, únicamente x64. Windows 11 es la plataforma principal de validación.
+- **Nombre del módulo:** `Uso del local`.
+- **Cuota semanal:** primera cuota en la fecha de ingreso y posteriores cada siete días, sin día fijo, sin prorrateo, anticipos ni saldos a favor.
+- **Retiro:** no se generan periodos cuyo inicio sea posterior a la fecha de retiro; un periodo iniciado se cobra completo.
+- **Histórico:** cada cuota conserva el importe vigente al generarse y los cambios de tarifa solo afectan cuotas futuras.
+- **Pagos:** se admiten pagos parciales hasta el valor exacto de la deuda actual.
+- **Colaboradores:** participan por defecto quienes estén vigentes al último día del mes; el cierre confirma participantes y conserva una fotografía inmutable sin prorrateo.
+- **Obligaciones:** el punto de equilibrio usa el importe real si está completamente pagada y el esperado mientras esté pendiente o parcial, sin sumar ambos.
+- **Copias:** máximo una automática diaria cuando cambie la base, retención de 30, copias diferenciadas antes de migraciones y respaldo previo a restaurar.
+- **Firma:** el alfa se distribuye sin certificado; se documenta la advertencia posible de SmartScreen y se prepara configuración futura sin guardar certificados.
+- **Actualizaciones:** Velopack 1.2.0 consulta GitHub Releases públicos sin token; una etiqueta SemVer `v*` deliberada activa el workflow de publicación.
+- **Datos:** SQLite, copias y exportaciones viven bajo `%LocalAppData%\PeluqueriaAdmin`, fuera de la carpeta actualizada.
 
-Se debe definir:
+La distribución de residuos de centavos será determinista por identificador estable de participante para que la suma coincida exactamente con el fondo.
 
-- qué intervalo representa una semana cobrable;
-- en qué momento se genera la obligación;
-- cómo se trata la semana de ingreso y la semana de retiro;
-- cómo se comporta el cálculo cuando la fecha de ingreso o retiro cae a mitad de semana.
+## Decisiones resueltas en la Fase 3.1 (18 de julio de 2026)
 
-**Restricción vigente:** el sábado no está confirmado como día de generación o cobro. No se asumirá ningún día.
+- **Cierres históricos:** un cierre confirmado es la fuente inmutable para resumen mensual, balance anual y CSV; la reapertura restaura el cálculo dinámico.
+- **Reapertura:** se bloquea si existen pagos de distribución. Sin pagos, las asignaciones anteriores se invalidan lógicamente en la misma transacción.
+- **Pagos calculados:** solo las asignaciones activas de cierres confirmados pueden pagarse.
+- **Inicio:** se limita a servicios e impuestos pendientes hasta el fin del mes, deudas de Uso del local y faltante mensual.
+- **Capacidad:** total, ocupación, disponibilidad y sobrecupo pertenecen únicamente a Uso del local.
+- **Integridad histórica:** no se eliminan padres con dependencias, cierres ni asignaciones calculadas.
+- **Informes:** el balance anual desglosa las categorías aprobadas y usa el indicador explícito `Positivo` o `Negativo`.
 
-### 2. Versiones de Windows compatibles
+## Decisiones que permanecen abiertas
 
-Definir las versiones y arquitecturas mínimas admitidas, por ejemplo:
-
-- Windows 10 y Windows 11, o solamente Windows 11;
-- procesadores x64 y, si se requiere, ARM64.
-
-Esta decisión afecta el instalador, las pruebas, el soporte y la estrategia de empaquetado.
-
-## Decisiones adicionales que conviene cerrar
-
-### 3. Nombre del módulo de personas que pagan por usar el local
-
-El nombre **Trabajadores y alquiler de sillas** está prohibido. Debe elegirse un nombre definitivo que no confunda este grupo con los colaboradores.
-
-### 4. Colaboradores correspondientes a cada mes
-
-Se debe definir cómo se determina quiénes participan en el reparto de un mes cuando una persona entra o sale durante ese mes. No se deben inventar prorrateos ni reglas laborales.
-
-### 5. Importes pagados y presupuestados en el punto de equilibrio
-
-Se debe precisar, por cada tipo de servicio u obligación, cuándo se usa el valor pagado y cuándo el presupuestado para evitar dobles conteos.
-
-### 6. Política de copias de seguridad
-
-Definir la frecuencia, cantidad de copias a conservar y ubicación elegida por el usuario. La arquitectura ya exige copia previa a migraciones importantes y restauración manual segura.
-
-### 7. Firma de código
-
-Decidir, antes de una distribución real, si los instaladores y ejecutables se firmarán con un certificado de firma de código.
+- Compatibilidad comprobada en equipos Windows 10 reales; por ahora solo se declara como objetivo.
+- Certificado y proveedor de firma para una versión estable futura.
+- Verificación de actualización entre dos Releases reales; no puede probarse sin publicar deliberadamente dos versiones.

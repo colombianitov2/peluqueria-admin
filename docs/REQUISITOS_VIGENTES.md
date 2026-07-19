@@ -2,7 +2,7 @@
 
 ## Carácter canónico y precedencia
 
-Este documento es la fuente canónica actual de requisitos del proyecto a partir de la instrucción de Fase 0 recibida el 18 de julio de 2026.
+Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 3.1 del 18 de julio de 2026.
 
 - Cuando exista contradicción con ideas iniciales de `Programa para peluquería.txt`, prevalece este documento.
 - `Instrucciones codex.txt` conserva las normas de trabajo y seguridad del proyecto, excepto cuando contradiga expresamente la solicitud vigente.
@@ -35,13 +35,13 @@ La aplicación:
 - Cada persona paga actualmente USD 12 semanales por utilizar el local y guardar sus pertenencias de trabajo.
 - Los USD 12 constituyen un valor general configurable en Ajustes, no una tarifa individual.
 - No está definido que el cobro sea los sábados y no se asumirá ningún día de cobro.
-- La regla exacta para generar las semanas cobradas permanece como decisión pendiente.
+- La primera cuota se genera al ingreso y las posteriores cada siete días exactos; cada periodo iniciado se cobra completo y conserva su tarifa histórica.
 - Los pagos registrados reducen la deuda de cada persona.
 - La página principal muestra el nombre de cada persona con deuda y el importe adeudado.
 
 ## 3. Personas que pagan por utilizar el local
 
-El módulo no se llamará **Trabajadores y alquiler de sillas**. Su nombre definitivo permanece pendiente.
+El módulo se llama **Uso del local** y no representa una relación laboral.
 
 Datos mínimos previstos:
 
@@ -317,6 +317,13 @@ No mostrar allí:
 - Se agregan internamente fechas de creación, modificación y eliminación cuando sean necesarias.
 - La base de datos real, sus copias de seguridad, archivos personales, contraseñas, tokens y certificados no se guardan en Git.
 
+Copias y exportación:
+
+- máximo una copia automática diaria cuando la base cambió y retención de las 30 automáticas más recientes;
+- copia diferenciada antes de migrar un esquema existente y antes de restaurar;
+- restauración manual después de validar compatibilidad y con recuperación de la base anterior ante fallo;
+- exportación CSV UTF-8 de resumen mensual, balance anual, flujo de caja, inventario y deudas por Uso del local.
+
 La arquitectura debe contemplar:
 
 - copias de seguridad automáticas;
@@ -347,7 +354,7 @@ Política de versiones y publicación:
 
 - usar versiones semánticas;
 - preparar versiones estables mediante GitHub Releases;
-- incorporar posteriormente automatización de compilación, pruebas, empaquetado y publicación por etiquetas de versión;
+- automatizar compilación, pruebas, empaquetado y publicación exclusivamente mediante etiquetas SemVer `v*` deliberadas;
 - no incrustar un token personal de GitHub en el ejecutable.
 
 El proyecto utiliza un único repositorio público para el código y los lanzamientos:
@@ -357,3 +364,21 @@ El proyecto utiliza un único repositorio público para el código y los lanzami
 - Los GitHub Releases públicos del mismo repositorio serán el canal previsto para las actualizaciones.
 
 El ejecutable nunca debe incluir un token personal de GitHub ni otra credencial para consultar o descargar actualizaciones públicas.
+
+La primera alpha es x64, sin certificado y puede activar una advertencia de SmartScreen. Windows 11 es la plataforma principal de validación; Windows 10 x64 sigue siendo un objetivo no verificado en un equipo real. No se declara verificada una actualización entre Releases hasta disponer de dos versiones publicadas.
+
+## 17. Correcciones de aceptación de la Fase 3.1
+
+- Editar y eliminar son acciones separadas: la confirmación se exige solo para eliminar y se reinicia después de usarla.
+- Al crear una persona de Uso del local se generan inmediatamente sus cuotas aplicables. Al crear una obligación recurrente se generan inmediatamente sus ocurrencias aplicables, sin reiniciar la aplicación y sin duplicados.
+- Una recurrencia mensual conserva como ancla la fecha original; por ejemplo, una obligación del día 31 pasa por el último día de febrero y vuelve al día 31 cuando el mes lo permite.
+- Un cambio de ingreso o retiro que invalide cuotas con pagos se rechaza. Sin pagos, las cuotas incompatibles pueden invalidarse de forma lógica y transaccional.
+- Reabrir un cierre con pagos de distribución se rechaza. Sin pagos, la reapertura invalida sus asignaciones calculadas; un cierre nuevo crea una sola distribución activa cuya suma coincide exactamente con el fondo.
+- Solo las asignaciones de cierres confirmados se pueden pagar o mostrar como pendientes.
+- Un cierre confirmado es una fotografía histórica para el resumen mensual, el balance anual y los CSV. Un mes reabierto vuelve al cálculo dinámico.
+- Inicio muestra exclusivamente servicios e impuestos pendientes vencidos o del mes actual, deudas por Uso del local y el faltante mensual.
+- La capacidad de sillas se muestra únicamente en Uso del local, incluyendo total, personas vigentes, disponibles y sobrecupo explícito.
+- El balance anual y su CSV desglosan las categorías aprobadas y muestran un indicador explícito `Positivo` o `Negativo`.
+- Las correcciones de inventario conservan las invariantes de cantidad, dinero y existencia cronológica no negativa. Los nombres activos de productos son únicos sin distinguir mayúsculas.
+- No se permite eliminar padres con historial dependiente ni registros calculados como cierres o asignaciones. Los datos históricos huérfanos heredados se muestran con una descripción segura en vez de cerrar la pantalla.
+- Los estados y categorías visibles y exportados se presentan en español.

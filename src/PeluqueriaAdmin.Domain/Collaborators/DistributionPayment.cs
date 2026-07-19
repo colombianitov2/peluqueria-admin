@@ -1,0 +1,56 @@
+using PeluqueriaAdmin.Domain.Common;
+using PeluqueriaAdmin.Domain.Settings;
+
+namespace PeluqueriaAdmin.Domain.Collaborators;
+
+public sealed class DistributionPayment : AuditableEntity
+{
+    private DistributionPayment()
+    {
+    }
+
+    private DistributionPayment(
+        Guid id,
+        Guid participantId,
+        DateOnly date,
+        Money amount,
+        DateTime utcNow) : base(id, utcNow)
+    {
+        ParticipantId = participantId;
+        Date = date;
+        Amount = amount;
+    }
+
+    public Guid ParticipantId { get; private set; }
+
+    public DateOnly Date { get; private set; }
+
+    public Money Amount { get; private set; }
+
+    public static DistributionPayment Create(
+        Guid participantId,
+        DateOnly date,
+        Money amount,
+        Money pending,
+        DateTime utcNow)
+    {
+        if (amount.MinorUnits == 0 || amount.MinorUnits > pending.MinorUnits)
+        {
+            throw new InvalidOperationException("El pago debe ser mayor que cero y no superar el pendiente.");
+        }
+
+        return new DistributionPayment(Guid.NewGuid(), participantId, date, amount, utcNow);
+    }
+
+    public void Update(DateOnly date, Money amount, Money available, DateTime utcNow)
+    {
+        if (amount.MinorUnits == 0 || amount.MinorUnits > available.MinorUnits)
+        {
+            throw new InvalidOperationException("El pago editado no puede superar el pendiente disponible.");
+        }
+
+        Date = date;
+        Amount = amount;
+        MarkUpdated(utcNow);
+    }
+}

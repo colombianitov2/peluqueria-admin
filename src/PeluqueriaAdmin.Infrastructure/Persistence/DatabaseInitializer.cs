@@ -7,11 +7,18 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence;
 public sealed class DatabaseInitializer(
     IDbContextFactory<PeluqueriaDbContext> contextFactory,
     ApplicationPaths applicationPaths,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    DatabaseBackupService? backupService = null)
 {
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         applicationPaths.EnsureDirectories();
+
+        if (backupService is not null
+            && await backupService.HasPendingSchemaChangesAsync(cancellationToken))
+        {
+            await backupService.CreateBeforeMigrationAsync(cancellationToken);
+        }
 
         await using PeluqueriaDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await context.Database.MigrateAsync(cancellationToken);
@@ -27,6 +34,11 @@ public sealed class DatabaseInitializer(
         if (existingSettings != 1)
         {
             throw new InvalidOperationException("La base de datos contiene una cantidad inválida de configuraciones generales.");
+        }
+
+        if (backupService is not null)
+        {
+            await backupService.CreateAutomaticIfNeededAsync(cancellationToken);
         }
     }
 }

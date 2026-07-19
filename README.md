@@ -1,6 +1,6 @@
 # Peluquería Admin
 
-> Estado: base técnica, persistencia SQLite y configuración general implementadas.
+> Estado: primera versión alfa administrativa completa, pendiente de revisión del PR y publicación deliberada.
 
 Peluquería Admin será una aplicación local para administrar el funcionamiento interno de una peluquería. Su propósito es registrar ingresos propios del local, gastos, obligaciones, inventario y el punto de equilibrio mensual.
 
@@ -15,11 +15,13 @@ Las personas que trabajan en el local utilizan sus propios implementos y cobran 
 - C# y .NET 10.
 - WPF para la aplicación de escritorio Windows.
 - SQLite para los datos locales.
-- Velopack, previsto para la instalación y actualizaciones mediante GitHub Releases públicos.
+- Velopack 1.2.0 para instalación y actualizaciones mediante GitHub Releases públicos.
 
 ## Estado de implementación
 
-Existe una solución compilable en .NET 10 con separación por capas, navegación entre Inicio y Ajustes, una configuración general persistida mediante SQLite y pruebas automatizadas. Todavía no existe instalador ni actualización automática. Tampoco se han implementado cobros semanales, inventario, ventas, colaboradores, fórmulas de punto de equilibrio ni reparto de ganancias.
+La aplicación implementa los 15 módulos aprobados: Inicio, Uso del local, Colaboradores, Ventas, Inventario, Otros ingresos, Gastos, Imprevistos, Obligaciones, Mantenimiento, Nómina de colaboradores, Resumen mensual, Balance anual, Flujo de caja y Ajustes. Incluye cuotas cada siete días, inventario por movimientos, cierres históricos, fórmulas mensuales/anuales, copias, restauración, CSV y actualización con Velopack.
+
+El instalador alpha x64 se construyó localmente sin firma y permanece ignorado por Git. No se ha publicado un Release ni se ha probado todavía una actualización real entre dos Releases.
 
 ## Estructura de proyectos
 
@@ -29,6 +31,7 @@ Existe una solución compilable en .NET 10 con separación por capas, navegació
 - `PeluqueriaAdmin.App`: interfaz WPF, composición y arranque; depende de Application e Infrastructure.
 - `PeluqueriaAdmin.Domain.Tests`: pruebas de validaciones y representaciones exactas del dominio.
 - `PeluqueriaAdmin.Infrastructure.Tests`: pruebas de migración y persistencia sobre bases temporales.
+- `PeluqueriaAdmin.Application.Tests`: pruebas de los casos de uso críticos.
 
 ## Requisitos actuales para desarrollo
 
@@ -51,11 +54,19 @@ dotnet ef migrations list --project src/PeluqueriaAdmin.Infrastructure --startup
 dotnet ef migrations add NombreDescriptivo --project src/PeluqueriaAdmin.Infrastructure --startup-project src/PeluqueriaAdmin.Infrastructure --output-dir Persistence/Migrations
 ```
 
-Estos comandos son para desarrollo; todavía no generan un instalador ni configuran actualizaciones automáticas.
+Para publicar una compilación autocontenida x64 y crear un paquete local de desarrollo:
+
+```powershell
+dotnet publish src/PeluqueriaAdmin.App/PeluqueriaAdmin.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/publish -p:Version=0.1.0-alpha.1
+dotnet tool install --tool-path artifacts/tools vpk --version 1.2.0
+artifacts/tools/vpk pack --packId Colombianito.PeluqueriaAdmin --packVersion 0.1.0-alpha.1 --packDir artifacts/publish --mainExe PeluqueriaAdmin.App.exe --packTitle "Peluquería Admin" --runtime win-x64 --outputDir Releases
+```
+
+`artifacts/` y `Releases/` están ignorados. El workflow `release.yml` publica únicamente al empujar deliberadamente una etiqueta SemVer `v*`.
 
 ## Datos locales
 
-La aplicación crea la base de datos en `%LocalAppData%\PeluqueriaAdmin\Data\peluqueria-admin.db`. También prepara `%LocalAppData%\PeluqueriaAdmin\Backups` y `%LocalAppData%\PeluqueriaAdmin\Logs` para fases futuras. El ejecutable y los datos se mantienen en carpetas distintas.
+La aplicación crea la base en `%LocalAppData%\PeluqueriaAdmin\Data\peluqueria-admin.db` y usa las carpetas `Backups`, `Exports` y `Logs` bajo la misma raíz. El ejecutable y los datos permanecen separados para conservarlos durante actualizaciones.
 
 Las pruebas sustituyen esa ruta por carpetas temporales y nunca utilizan la base real del usuario.
 
@@ -69,6 +80,12 @@ No se deben subir datos reales de la peluquería, bases de datos, copias de segu
 - [Arquitectura propuesta y adoptada](docs/ARQUITECTURA_PROPUESTA.md)
 - [Decisiones pendientes](docs/DECISIONES_PENDIENTES.md)
 - [Dependencias](docs/DEPENDENCIAS.md)
+- [Modelo de datos](docs/MODELO_DATOS.md)
+- [Fórmulas financieras](docs/FORMULAS_FINANCIERAS.md)
+- [Copias y restauración](docs/COPIAS_Y_RESTAURACION.md)
+- [Actualizaciones y Releases](docs/ACTUALIZACIONES_Y_RELEASES.md)
+- [Manual de usuario](docs/MANUAL_USUARIO.md)
+- [Pruebas](docs/PRUEBAS.md)
 
 ## Contribuciones
 
