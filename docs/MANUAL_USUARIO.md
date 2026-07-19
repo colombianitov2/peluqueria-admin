@@ -46,6 +46,12 @@ Permite configurar tarifa semanal, porcentaje de colaboradores, reserva opcional
 
 En **Datos** puede crear/restaurar copias, abrir las carpetas, exportar CSV o crear una exportación completa a Excel en el Escritorio. Reinicie después de restaurar. Los Ajustes válidos se guardan automáticamente; una entrada temporalmente inválida queda como borrador recuperable.
 
+En **Uso del local**, seleccione **Añadir silla** o **Añadir trabajador**. Las tablas de trabajadores y sillas permanecen visibles independientemente del filtro de actividad. Abra un perfil con doble clic para registrar pagos, administrar la silla, retirar al trabajador o consultar el historial.
+
+En **Colaboradores**, abra un perfil con doble clic para registrar aportes de capital y consultar cierres y distribuciones. Los aportes no se cuentan como ingresos operativos.
+
+El módulo Manual se implementará únicamente cuando las funciones estén definitivamente aprobadas; no forma parte de esta fase.
+
 En **Actualizaciones** puede buscar, descargar e instalar una versión publicada. Sin Internet, el resto de la administración local continúa funcionando.
 
 ## Límites de esta alpha

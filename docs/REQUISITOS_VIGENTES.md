@@ -2,9 +2,11 @@
 
 ## Carácter canónico y precedencia
 
-Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.1 del 19 de julio de 2026.
+Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.2 del 19 de julio de 2026.
 
-La Fase 4.1 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre cobro sin día fijo, cobro al ingresar, prohibición general de texto libre, prohibición de filtros históricos, inventario con unidad de medida, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. La excepción autorizada en Inicio es únicamente el precio sugerido por silla.
+La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, cobro semanal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. La excepción autorizada en Inicio es únicamente el precio sugerido por silla.
+
+Los trabajadores son quienes usan y alquilan las sillas. Los colaboradores son exclusivamente inversionistas y nunca ocupan sillas. La interfaz, los mensajes, Excel y la documentación usan esta distinción.
 
 - Cuando exista contradicción con ideas iniciales de `Programa para peluquería.txt`, prevalece este documento.
 - `Instrucciones codex.txt` conserva las normas de trabajo y seguridad del proyecto, excepto cuando contradiga expresamente la solicitud vigente.
@@ -80,7 +82,7 @@ El registro de un pago será simple y contendrá únicamente:
 
 ## 4. Sillas y capacidad
 
-Cada silla es un registro individual con nombre o número, fecha de creación, descripción opcional y, si corresponde, un único peluquero vigente asignado. Los colaboradores son inversionistas y nunca ocupan sillas. Se muestran total de sillas, peluqueros vigentes y sillas disponibles.
+Cada silla es un registro individual con nombre o número, fecha de creación, descripción opcional y, si corresponde, un único trabajador vigente asignado. Los colaboradores son inversionistas y nunca ocupan sillas. Se muestran total de sillas, trabajadores vigentes y sillas disponibles.
 
 No incluir:
 
@@ -102,7 +104,17 @@ Los servicios prestados directamente por las personas a sus clientes no se regis
 
 ## 6. Inventario
 
-El inventario usa exclusivamente estas categorías: Alimento o bebida para venta, Otro producto para venta, Cortesía para clientes, Aseo, Insumo del local y Otro producto del local. No existe campo de unidad de medida en la interfaz.
+El inventario usa exclusivamente estas categorías: Alimento o bebida para venta, Otro producto para venta, Cortesía para clientes, Aseo, Insumo del local y Otro producto del local. No se expone el antiguo atributo técnico de unidades en interfaz, CSV, Excel ni formularios.
+
+Los productos destinados a venta aparecen inmediatamente en Ventas, pueden buscarse por nombre sin distinguir mayúsculas y muestran existencia y precio predeterminado. Cambiar a una categoría no vendible los retira del selector; cambiar a una categoría vendible los incorpora tras guardar, sin reiniciar.
+
+## 6.1 Uso del local y perfiles
+
+Uso del local conserva las tres tarjetas y la actividad filtrada, pero usa tablas independientes de trabajadores y sillas. El selector **Acción** contiene únicamente **Añadir silla** y **Añadir trabajador**. El perfil de cada trabajador se abre por doble clic dentro del módulo y reúne datos, silla, tarifas históricas, deuda, pago, asignación/retiro y un historial cronológico virtualizado.
+
+## 6.2 Aportes de colaboradores
+
+Cada colaborador dispone de un perfil con aportes de capital, participaciones de cierres y distribuciones. Los aportes son inversión no operativa: no son ventas ni otros ingresos, no aumentan la ganancia neta, no generan un nuevo porcentaje y no alteran el punto de equilibrio. Se conservan mediante eliminación lógica y se incluyen en copias, CSV, Excel e historial.
 
 Los productos personales de quienes trabajan en el local no pertenecen al inventario.
 

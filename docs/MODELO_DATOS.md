@@ -14,18 +14,20 @@
 | Área | Tablas | Responsabilidad |
 |---|---|---|
 | Ajustes | `Settings`, `UnofficialExpenses` | Tarifa semanal, porcentaje, reserva, moneda y gastos extraoficiales separados. `TotalChairs` se conserva solo para migrar bases antiguas. |
-| Uso del local | `Chairs`, `LocalUsePeople`, `WeeklyRates`, `WeeklyCharges`, `LocalUsePayments` | Sillas individuales, peluqueros, histórico de tarifas, cuotas de periodos completos y pagos. |
+| Uso del local | `Chairs`, `LocalUsePeople`, `WeeklyRates`, `WeeklyCharges`, `LocalUsePayments` | Sillas individuales, trabajadores, histórico de tarifas, cuotas de periodos completos y pagos. |
 | Inventario | `Products`, `InventoryMovements`, `MonthlyRestockPlans` | Catálogo mínimo, existencias por movimientos y necesidad opcional mensual. |
 | Caja | `FinancialEntries` | Otros ingresos, gastos e imprevistos sin duplicar movimientos originados en otros módulos. |
 | Obligaciones | `Obligations`, `ObligationPayments` | Importe esperado, recurrencia y pagos parciales/finales. |
 | Mantenimiento | `MaintenanceRecords` | Plan y ejecución con costo estimado o real. |
-| Colaboradores | `Collaborators`, `MonthlyCloses`, `MonthlyCloseParticipants`, `DistributionPayments` | Participantes, fotografía del cierre y pagos de distribución. |
+| Colaboradores | `Collaborators`, `CollaboratorContributions`, `MonthlyCloses`, `MonthlyCloseParticipants`, `DistributionPayments` | Inversionistas, aportes de capital no operativo, fotografía del cierre y pagos de distribución. |
 | Actividad | `ActivityRecords` | Registro no editable de altas, ediciones, pagos, ventas, compras, asignaciones, cierres y eliminaciones. |
 
 ## Integridad relevante
 
 - Una cuota semanal es única por persona y fecha de inicio; solo existe tras siete días completos, vence el primer sábado posterior o igual al final y la generación repetida es idempotente.
-- `Chairs.AssignedPersonId` es único: una silla no admite dos peluqueros y un peluquero no admite dos sillas.
+- `Chairs.AssignedPersonId` es único: una silla no admite dos trabajadores y un trabajador no admite dos sillas.
+- `CollaboratorContributions` referencia a `Collaborators`, conserva fecha, valor y descripción, y se elimina solo lógicamente.
+- `Products.UnitOfMeasure` permanece únicamente como columna heredada para leer bases alpha.1; la aplicación escribe un valor técnico neutro y no lo muestra ni lo exporta.
 - Las altas de personas y obligaciones recurrentes guardan en una sola transacción el registro y los periodos que corresponden hasta la fecha solicitada.
 - Los movimientos de inventario determinan la existencia. No se guarda una existencia editable paralela.
 - Venta, consumo o corrección se rechazan si producen inventario negativo.
@@ -43,5 +45,6 @@
 2. `CompleteAdministration`: agrega las tablas operativas sin eliminar ni recrear `Settings`.
 3. `PersistentFormDrafts`: conserva silenciosamente formularios incompletos ante cierres bruscos.
 4. `Phase41BusinessModel`: agrega sillas, actividad, gastos extraoficiales, descripciones y precio predeterminado; convierte `TotalChairs` en `Silla 1`, `Silla 2`, etc. de forma idempotente.
+5. `Phase42WorkersAndContributions`: agrega aportes de colaboradores mediante una tabla aditiva y conserva todas las tablas de Fase 4.1.
 
 La prueba de integración migra una base alpha.1, conserva su configuración y tablas, convierte el conteo histórico de sillas y valida las entidades nuevas. Antes de migrar una base existente con cambios pendientes, el inicializador crea una copia `pre-migration-*`.

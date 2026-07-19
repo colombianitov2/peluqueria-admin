@@ -81,3 +81,7 @@ Mientras el cierre permanezca confirmado, sus totales guardados prevalecen sobre
 El balance suma los 12 resultados mensuales, distribuciones pagadas de cierres confirmados y obligaciones pendientes sin repetir obligaciones anuales ya incluidas en un mes. Desglosa servicios, impuestos, otras obligaciones, mercancía, insumos obligatorios y opcionales, mantenimiento, imprevistos, otros gastos y planes de reposición. El ajuste histórico reconcilia el desglose dinámico con la meta guardada de un cierre confirmado. El indicador es `Positivo` cuando el resultado retenido acumulado es mayor o igual a cero y `Negativo` cuando es inferior a cero.
 
 Las operaciones originales de ingresos y gastos se conservan para los cálculos internos, pero Flujo de caja ya no es un módulo visible ni una hoja independiente de Excel.
+
+## Aportes de capital
+
+Los aportes de colaboradores se registran en `CollaboratorContributions` y se excluyen por completo de `MonthlySummaryInput`, ingresos operativos, meta, faltante, resultado base, fondo de colaboradores y resultado retenido. Son capital/inversión histórica y no generan un porcentaje adicional.
