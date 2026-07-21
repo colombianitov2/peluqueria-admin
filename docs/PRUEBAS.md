@@ -9,7 +9,7 @@ La solución contiene cuatro proyectos de pruebas:
 - Infrastructure.Tests: SQLite, migraciones, borradores, política de durabilidad, eliminación lógica, copias, restauración, CSV y Excel.
 - App.Tests: comandos y presentación segura de la interfaz WPF sin abrir una ventana real.
 
-En la validación local consolidada de la Fase 4.4 pasan 129 pruebas: 53 de dominio, 34 de aplicación, 15 de infraestructura y 27 de interfaz. La misma suite se ejecutó en Debug y Release, para un total de 258 ejecuciones satisfactorias.
+En la validación local consolidada de la Fase 4.5 pasan 135 pruebas: 54 de dominio, 35 de aplicación, 16 de infraestructura y 30 de interfaz. La misma suite se ejecutó en Debug y Release, para un total de 270 ejecuciones satisfactorias.
 
 ## Cobertura funcional comprobada
 
@@ -45,6 +45,10 @@ En la validación local consolidada de la Fase 4.4 pasan 129 pruebas: 53 de domi
 - auditoría transaccional, historial financiero del colaborador y migración conservadora desde una base `0.1.0-alpha.1`;
 - ausencia del módulo Flujo de caja en navegación, interfaz y Excel, y contratos visuales de acciones contextuales;
 - exportación Excel ampliada con sillas, asignaciones, gastos extraoficiales, precio sugerido, historial financiero y actividad.
+- conservación exacta de la fecha elegida al registrar una persona, reinicio de la fecha al cambiar de acción y advertencia visible al recuperar un borrador;
+- perfil independiente del filtro general de actividad, abierto en `Todo el historial`, con pagos de otra semana visibles una sola vez;
+- persistencia SQLite tras reinicio de fechas, cuotas, pagos, deuda y crédito de Uso del local;
+- atomicidad del pago: un error de guardado no deja pago, actividad ni cambio parcial de deuda.
 
 ## Comandos finales
 
@@ -74,6 +78,10 @@ dotnet ef migrations has-pending-model-changes --project src/PeluqueriaAdmin.Inf
 - revisión del perfil de Uso del local en la segunda pantalla, con cabecera fija, pestaña de pago, deuda y crédito visibles e historial largo con desplazamiento propio;
 - integridad `ok` y última migración `20260719212257_Phase43MaintenanceRecurrence` sobre una copia temporal derivada de la base de revisión de alpha.1;
 - persistencia visible de un pago de USD 12, deuda restante de USD 12, próxima cuota del 22 de julio de 2026 y silla final sin asignar en datos de demostración aislados.
+- revisión Fase 4.5 en la segunda pantalla a tamaños lógicos equivalentes a 100 %, 125 % y 150 %, sin cortes ni superposiciones en la cabecera, pago e historial;
+- demostración aislada de una persona ingresada el 20 de julio de 2026 con deuda cero y otra ingresada el 16 de junio con cuatro cuotas, pago del 19 de julio y deuda restante de USD 36;
+- confirmación visual de `Todo el historial`, del pago del 19 de julio mostrado una sola vez y de `Próximo pago requerido` con fecha e importe unidos;
+- comprobación de integridad SQLite `ok` antes del arranque de revisión y ejecución con prioridad de proceso baja.
 
 ## No comprobado aún
 

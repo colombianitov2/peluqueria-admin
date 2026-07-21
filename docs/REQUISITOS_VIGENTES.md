@@ -2,9 +2,9 @@
 
 ## Carácter canónico y precedencia
 
-Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.4 del 20 de julio de 2026.
+Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.5 del 20 de julio de 2026.
 
-La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, cobro semanal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. La Fase 4.4 concreta las reglas vigentes de Uso del local, perfil, sillas, cuenta y pagos anticipados. La excepción autorizada en Inicio es únicamente el precio sugerido por silla.
+La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, cobro semanal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 y 4.5 concretan las reglas vigentes de Uso del local, perfil, fechas, sillas, cuenta, historial y pagos anticipados. La excepción autorizada en Inicio es únicamente el precio sugerido por silla.
 
 Los trabajadores son quienes usan y alquilan las sillas. Los colaboradores son exclusivamente inversionistas y nunca ocupan sillas. La interfaz, los mensajes, Excel y la documentación usan esta distinción.
 
@@ -110,13 +110,13 @@ Los productos destinados a venta aparecen inmediatamente en Ventas, pueden busca
 
 ## 6.1 Uso del local y perfiles
 
-Uso del local conserva las tres tarjetas y usa tablas independientes de trabajadores y sillas. El selector **Acción** contiene únicamente **Añadir silla** y **Añadir trabajador**. La silla inicial del trabajador es opcional; la ausencia de sillas vacías no bloquea su alta. El formulario no expone una acción visible para limpiar, pero conserva el borrador interno.
+Uso del local conserva las tres tarjetas y usa tablas independientes de trabajadores y sillas. El selector **Acción** contiene únicamente **Añadir silla** y **Añadir trabajador**. La silla inicial del trabajador es opcional; la ausencia de sillas vacías no bloquea su alta. La fecha visible se persiste exactamente, cambiar de acción o terminar un alta prepara la fecha local actual y un borrador recuperado muestra un aviso junto con su fecha antes de guardar. El formulario no expone una acción visible para limpiar, pero conserva el borrador interno.
 
 El selector de silla del alta y el selector del perfil son colecciones independientes. El perfil ofrece únicamente sillas activas vacías más la silla actual, permite asignar, cambiar o retirar en una transacción y mantiene al trabajador aunque quede sin silla. Seleccionar la silla actual no genera eventos duplicados.
 
-El perfil se abre por doble clic y reúne datos, cuenta individual, tarifas históricas, pago y silla. Su cabecera permanece fija; solo el historial cronológico, separado visualmente y ordenado de más reciente a más antiguo, se desplaza y virtualiza.
+El perfil se abre por doble clic y reúne datos, cuenta individual, tarifas históricas, pago y silla. Su cabecera permanece fija; solo el historial cronológico, separado visualmente y ordenado de más reciente a más antiguo, se desplaza y virtualiza. El filtro inicial es **Todo el historial**; registrar un pago vuelve a ese filtro para mostrar exactamente un movimiento de inmediato.
 
-Se acepta cualquier pago positivo, incluso anticipado o superior a la deuda. La deuda nunca es negativa y el excedente queda como saldo a favor. El crédito cubre las cuotas futuras por orden, sin reiniciar el ciclo semanal anclado al ingreso. La cuenta informa próxima cuota y valor, próximo pago requerido, importe faltante y cobertura estimada. Las cuotas causadas conservan su tarifa; las futuras usan la vigente. El retiro detiene nuevas cuotas, conserva el crédito y no genera devolución en esta fase.
+Se acepta cualquier pago positivo, incluso anticipado o superior a la deuda acumulada. La deuda acumulada nunca es negativa y el excedente queda como saldo a favor. El crédito cubre las cuotas futuras por orden, sin reiniciar el ciclo semanal anclado al ingreso. La cuenta informa próxima cuota y valor, próximo pago requerido con fecha e importe en la misma tarjeta, y cobertura estimada. No se muestra otra tarjeta que duplique la deuda. Las cuotas causadas conservan su tarifa; las futuras usan la vigente. El retiro detiene nuevas cuotas, conserva el crédito y no genera devolución en esta fase.
 
 ## 6.2 Aportes de colaboradores
 

@@ -10,9 +10,9 @@ Los formularios usan fechas `AAAA-MM-DD`, meses `AAAA-MM`, importes con dos deci
 
 ### Uso del local
 
-Registre nombre e ingreso; la silla inicial es opcional. Si no hay sillas vacías, el trabajador puede guardarse igualmente y asignarse después desde su perfil. Al guardar, las cuotas aplicables aparecen inmediatamente desde el ingreso y luego cada siete días.
+Registre nombre e ingreso; la silla inicial es opcional. La fecha visible es la que se guarda y, después de cada alta, el formulario vuelve a la fecha local actual. Si se recuperó un borrador, aparece un aviso para revisar su fecha antes de guardar. Si no hay sillas vacías, el trabajador puede guardarse igualmente y asignarse después desde su perfil. Al guardar, las cuotas aplicables aparecen solo por periodos completos de siete días desde el ingreso.
 
-El perfil permite registrar cualquier pago positivo, aunque la deuda sea cero. El excedente aparece como **Saldo a favor** y se aplica automáticamente a las próximas cuotas sin cambiar el ciclo semanal. Allí también se muestran deuda, próxima cuota, valor, próximo pago requerido, importe estimado faltante y cobertura estimada. Cada trabajador mantiene su cuenta independiente. Al retirar una silla, el trabajador permanece activo; al retirar al trabajador, dejan de proyectarse cuotas nuevas y cualquier crédito se conserva.
+El perfil permite registrar cualquier pago positivo, aunque la deuda sea cero. El excedente aparece como **Saldo a favor** y se aplica automáticamente a las próximas cuotas sin cambiar el ciclo semanal. Allí también se muestran **Deuda acumulada**, próxima cuota y valor, próximo pago requerido con fecha e importe, y cobertura estimada. Cada trabajador mantiene su cuenta independiente. El historial abre en **Todo el historial** y, después de un pago, vuelve a ese filtro para mostrarlo inmediatamente incluso si su fecha queda fuera del filtro usado antes. Al retirar una silla, el trabajador permanece activo; al retirar al trabajador, dejan de proyectarse cuotas nuevas y cualquier crédito se conserva.
 
 La cabecera del módulo muestra total de sillas, personas vigentes, sillas disponibles y cualquier sobrecupo. Esta capacidad no aparece en Inicio.
 
@@ -48,7 +48,7 @@ Permite configurar tarifa semanal, porcentaje de colaboradores, reserva opcional
 
 En **Datos** puede crear/restaurar copias, abrir las carpetas, exportar CSV o crear una exportación completa a Excel en el Escritorio. Reinicie después de restaurar. Los Ajustes válidos se guardan automáticamente; una entrada temporalmente inválida queda como borrador recuperable.
 
-En **Uso del local**, seleccione **Añadir silla** o **Añadir trabajador**. Las tablas de trabajadores y sillas permanecen visibles independientemente del filtro de actividad. Abra un perfil con doble clic para registrar pagos anticipados, administrar la silla, retirar al trabajador o consultar el historial más reciente primero. Solo el historial se desplaza; la cabecera del perfil permanece fija.
+En **Uso del local**, seleccione **Añadir silla** o **Añadir trabajador**. Cambiar de acción prepara la fecha local actual para evitar reutilizar una fecha anterior; un borrador recuperado conserva y muestra expresamente su propia fecha. Las tablas de trabajadores y sillas permanecen visibles independientemente del filtro de actividad. Abra un perfil con doble clic para registrar pagos anticipados, administrar la silla, retirar al trabajador o consultar **Todo el historial** del más reciente al más antiguo. Solo el historial se desplaza; la cabecera del perfil permanece fija.
 
 En **Colaboradores**, abra un perfil con doble clic para registrar aportes de capital y consultar cierres y distribuciones. Los aportes no se cuentan como ingresos operativos.
 

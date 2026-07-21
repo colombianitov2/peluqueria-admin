@@ -5,13 +5,13 @@ Todas las operaciones monetarias usan unidades menores enteras. Los redondeos ne
 ## Uso del local
 
 ```text
-deuda actual = máximo(suma de cuotas generadas - suma de pagos válidos, 0)
+deuda acumulada = máximo(suma de cuotas generadas - suma de pagos válidos, 0)
 saldo a favor = máximo(suma de pagos válidos - suma de cuotas generadas, 0)
 ```
 
 Al ingresar la deuda es cero. La primera cuota se causa tras siete días completos y vence el primer sábado igual o posterior al final del periodo. Los periodos siguientes avanzan siete días desde la fecha de ingreso; registrar un pago nunca reinicia ese ciclo. No se cobra un periodo incompleto y cada cuota ya causada conserva su tarifa histórica. Las cuotas futuras usan la tarifa vigente al inicio de cada periodo.
 
-Se permite cualquier pago positivo, incluso con deuda cero. El pago se aplica primero a las cuotas causadas más antiguas. El excedente queda como saldo a favor y cubre automáticamente las próximas cuotas, por trabajador y sin mezclar cuentas. La proyección avanza hasta la primera cuota que el crédito no cubre completamente e informa fecha requerida, importe faltante y última fecha cubierta. Retirar al trabajador detiene las cuotas futuras, pero conserva su crédito; esta fase no implementa devoluciones.
+Se permite cualquier pago positivo, incluso con deuda cero. El pago se aplica primero a las cuotas causadas más antiguas. El excedente queda como saldo a favor y cubre automáticamente las próximas cuotas, por trabajador y sin mezclar cuentas. La proyección avanza hasta la primera cuota que el crédito no cubre completamente e informa en un solo dato la fecha y el importe del próximo pago requerido, además de la última fecha cubierta. Retirar al trabajador detiene las cuotas futuras, pero conserva su crédito; esta fase no implementa devoluciones.
 
 ## Precio sugerido por silla
 
