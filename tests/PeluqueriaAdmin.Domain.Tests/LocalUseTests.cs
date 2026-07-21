@@ -27,6 +27,26 @@ public sealed class LocalUseTests
     }
 
     [Fact]
+    public void EntryOnJuly20OwesZeroWhileEntryOnJune16OwesFortyEightOnJuly20()
+    {
+        DateOnly today = new(2026, 7, 20);
+        WeeklyRate rate = WeeklyRate.Create(new DateOnly(2026, 6, 16), Money.FromDecimal(12m), UtcNow);
+        LocalUsePerson current = LocalUsePerson.Create("Actual", today, null, UtcNow);
+        LocalUsePerson historical = LocalUsePerson.Create(
+            "Histórico", new DateOnly(2026, 6, 16), null, UtcNow);
+
+        IReadOnlyList<WeeklyCharge> currentCharges = WeeklyChargeCalculator.Generate(
+            current, [], [rate], today, UtcNow);
+        IReadOnlyList<WeeklyCharge> historicalCharges = WeeklyChargeCalculator.Generate(
+            historical, [], [rate], today, UtcNow);
+
+        Assert.Empty(currentCharges);
+        Assert.Equal(4, historicalCharges.Count);
+        Assert.Equal(0, WeeklyChargeCalculator.CalculateDebt(currentCharges, [], today).MinorUnits);
+        Assert.Equal(4_800, WeeklyChargeCalculator.CalculateDebt(historicalCharges, [], today).MinorUnits);
+    }
+
+    [Fact]
     public void Generate_UsesHistoricalRateAndDoesNotDuplicateExistingPeriods()
     {
         DateOnly entry = new(2026, 1, 1);

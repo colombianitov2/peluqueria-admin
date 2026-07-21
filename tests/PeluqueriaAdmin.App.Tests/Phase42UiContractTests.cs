@@ -58,12 +58,12 @@ public sealed class Phase42UiContractTests
         string view = Read("src", "PeluqueriaAdmin.App", "Views", "LocalUseView.xaml");
         string viewModel = Read("src", "PeluqueriaAdmin.App", "ViewModels", "LocalUseViewModel.cs");
 
-        Assert.Contains("Deuda actual", view, StringComparison.Ordinal);
+        Assert.Contains("Deuda acumulada", view, StringComparison.Ordinal);
         Assert.Contains("Saldo a favor", view, StringComparison.Ordinal);
         Assert.Contains("Próxima cuota", view, StringComparison.Ordinal);
         Assert.Contains("Valor de la cuota", view, StringComparison.Ordinal);
         Assert.Contains("Próximo pago requerido", view, StringComparison.Ordinal);
-        Assert.Contains("Importe estimado que faltará", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Importe estimado que faltará", view, StringComparison.Ordinal);
         Assert.Contains("Cobertura estimada hasta", view, StringComparison.Ordinal);
         Assert.Contains("Puedes registrar pagos anticipados.", view, StringComparison.Ordinal);
         Assert.Contains("[RelayCommand]\n    private async Task RegisterWorkerPaymentAsync()", viewModel.Replace("\r\n", "\n"), StringComparison.Ordinal);
@@ -71,6 +71,9 @@ public sealed class Phase42UiContractTests
         Assert.Contains("Stopwatch.GetElapsedTime", viewModel, StringComparison.Ordinal);
         Assert.Contains("Pago registrado correctamente.", viewModel, StringComparison.Ordinal);
         Assert.Contains("Silla asignada correctamente: {chairName}", viewModel, StringComparison.Ordinal);
+        Assert.Contains("Todo el historial", viewModel, StringComparison.Ordinal);
+        Assert.Contains("HasRecoveredActionDraft", view, StringComparison.Ordinal);
+        Assert.Contains("ActionDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged", view, StringComparison.Ordinal);
     }
 
     [Fact]

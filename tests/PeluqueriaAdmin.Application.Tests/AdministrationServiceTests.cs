@@ -75,6 +75,32 @@ public sealed class AdministrationServiceTests
     }
 
     [Fact]
+    public async Task RegisterPayment_WhenTransactionFailsDoesNotChangeDebtOrCreateHistory()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var service = CreateService(repository, settingsRepository);
+        DateOnly today = new(2026, 7, 20);
+        LocalUsePerson person = LocalUsePerson.Create("Ana", new DateOnly(2026, 6, 16), null, UtcNow);
+        await service.AddLocalUsePersonAsync(person, today, cancellationToken);
+        AdministrationData before = await service.LoadAsync(cancellationToken);
+        Assert.Equal(4_800, WeeklyChargeCalculator.CalculateDebt(
+            before.WeeklyCharges, before.LocalUsePayments, today).MinorUnits);
+        repository.FailNextSave = true;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterLocalUsePaymentAsync(
+            person.Id, new DateOnly(2026, 7, 19), Money.FromDecimal(12m),
+            cancellationToken, completedDraftKey: "pago-prueba", description: "No debe persistir"));
+
+        AdministrationData after = await service.LoadAsync(cancellationToken);
+        Assert.Empty(after.LocalUsePayments);
+        Assert.Equal(before.ActivityRecords.Count, after.ActivityRecords.Count);
+        Assert.Equal(4_800, WeeklyChargeCalculator.CalculateDebt(
+            after.WeeklyCharges, after.LocalUsePayments, today).MinorUnits);
+    }
+
+    [Fact]
     public async Task AddPerson_GeneratesChargesAndAllowsPaymentInSameSession()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
@@ -691,6 +717,8 @@ public sealed class AdministrationServiceTests
 
         public bool LastSaveWasSingleTransaction { get; private set; }
 
+        public bool FailNextSave { get; set; }
+
         public Task<AdministrationData> LoadAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new AdministrationData(
                 Entities.OfType<LocalUsePerson>().Where(Active).ToArray(),
@@ -718,6 +746,12 @@ public sealed class AdministrationServiceTests
             IReadOnlyCollection<AuditableEntity> updates,
             CancellationToken cancellationToken = default)
         {
+            if (FailNextSave)
+            {
+                FailNextSave = false;
+                throw new InvalidOperationException("Falla transaccional simulada.");
+            }
+
             Entities.AddRange(additions);
             LastSaveWasSingleTransaction = true;
             return Task.CompletedTask;

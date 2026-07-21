@@ -1,3 +1,4 @@
+using System.Text.Json;
 using OxyPlot.Series;
 using PeluqueriaAdmin.App.ViewModels;
 using PeluqueriaAdmin.Application.Administration;
@@ -338,6 +339,121 @@ public sealed class AdministrationViewModelTests
 
         Assert.Contains("976", viewModel.ProfileCredit, StringComparison.Ordinal);
         Assert.Contains("retirado", viewModel.ProfileNextRequiredPayment, StringComparison.OrdinalIgnoreCase);
+        Assert.Single((await service.LoadAsync(cancellationToken)).LocalUsePayments);
+    }
+
+    [Fact]
+    public async Task LocalUse_NewWorkerPersistsVisibleDateAndResetsDateWithoutLeakingPreviousSelection()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        DateTime reviewUtc = new(2026, 7, 20, 12, 0, 0, DateTimeKind.Utc);
+        DateOnly today = new(2026, 7, 20);
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(reviewUtc));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(reviewUtc));
+        var service = new AdministrationService(repository, settingsRepository, timeProvider);
+        var viewModel = new LocalUseViewModel(
+            service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
+        await viewModel.LoadAsync();
+
+        viewModel.ActionDate = new DateTime(2026, 6, 16);
+        viewModel.SelectedAction = "Añadir trabajador";
+        Assert.Equal(today.ToDateTime(TimeOnly.MinValue), viewModel.ActionDate);
+        viewModel.NameText = "Ingreso actual";
+        await viewModel.SaveActionCommand.ExecuteAsync(null);
+
+        LocalUsePerson current = (await service.LoadAsync(cancellationToken)).LocalUsePeople.Single();
+        Assert.Equal(today, current.EntryDate);
+        Assert.Equal(0, WeeklyChargeCalculator.CalculateDebt(
+            (await service.LoadAsync(cancellationToken)).WeeklyCharges.Where(item => item.PersonId == current.Id),
+            [], today).MinorUnits);
+        Assert.Equal(today.ToDateTime(TimeOnly.MinValue), viewModel.ActionDate);
+
+        viewModel.NameText = "Ingreso histórico";
+        viewModel.ActionDate = new DateTime(2026, 6, 16);
+        await viewModel.SaveActionCommand.ExecuteAsync(null);
+
+        AdministrationData data = await service.LoadAsync(cancellationToken);
+        LocalUsePerson historical = data.LocalUsePeople.Single(item => item.Name == "Ingreso histórico");
+        Assert.Equal(new DateOnly(2026, 6, 16), historical.EntryDate);
+        Assert.Equal(4_800, WeeklyChargeCalculator.CalculateDebt(
+            data.WeeklyCharges.Where(item => item.PersonId == historical.Id),
+            data.LocalUsePayments.Where(item => item.PersonId == historical.Id),
+            today).MinorUnits);
+        Assert.Equal(today.ToDateTime(TimeOnly.MinValue), viewModel.ActionDate);
+    }
+
+    [Fact]
+    public async Task LocalUse_RecoveredDraftMakesHistoricalDateExplicitBeforeSave()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        DateTime reviewUtc = new(2026, 7, 20, 12, 0, 0, DateTimeKind.Utc);
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(reviewUtc));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(reviewUtc));
+        var drafts = new FakeFormDraftStore();
+        string payload = JsonSerializer.Serialize(new
+        {
+            Action = "Añadir trabajador",
+            Name = "Borrador visible",
+            Date = (DateTime?)new DateTime(2026, 6, 16),
+            Description = "Fecha histórica intencional",
+            ChairId = (Guid?)null,
+        });
+        await drafts.UpsertAsync(FormDraft.Create(
+            "Uso del local:Fase42:accion", "Uso del local", "Añadir trabajador",
+            payload, null, false, reviewUtc), cancellationToken);
+        var viewModel = new LocalUseViewModel(
+            new AdministrationService(repository, settingsRepository, timeProvider),
+            new GetSettingsUseCase(settingsRepository), drafts, timeProvider);
+
+        await viewModel.LoadAsync();
+
+        Assert.True(viewModel.HasRecoveredActionDraft);
+        Assert.True(viewModel.IsWorkerAction);
+        Assert.Equal("Borrador visible", viewModel.NameText);
+        Assert.Equal(new DateTime(2026, 6, 16), viewModel.ActionDate);
+    }
+
+    [Fact]
+    public async Task LocalUse_PaymentOutsidePreviousWeekAppearsImmediatelyOnceInCompleteHistory()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        DateTime reviewUtc = new(2026, 7, 20, 12, 0, 0, DateTimeKind.Utc);
+        DateOnly today = new(2026, 7, 20);
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(reviewUtc));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(reviewUtc));
+        var service = new AdministrationService(repository, settingsRepository, timeProvider);
+        LocalUsePerson worker = LocalUsePerson.Create(
+            "Trabajador con cuatro cuotas", new DateOnly(2026, 6, 16), null, reviewUtc);
+        await service.AddLocalUsePersonAsync(worker, today, cancellationToken);
+        var viewModel = new LocalUseViewModel(
+            service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
+        await viewModel.LoadAsync();
+        viewModel.SelectedWorkerRow = viewModel.Workers.Single(item => item.Worker.Id == worker.Id);
+        await viewModel.OpenSelectedWorkerProfileCommand.ExecuteAsync(null);
+        Assert.Equal("Todo el historial", viewModel.SelectedWorkerHistoryPeriod);
+        Assert.Contains("48", viewModel.ProfileDebt, StringComparison.Ordinal);
+        viewModel.SelectedWorkerHistoryPeriod = "Esta semana";
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+        Assert.Empty(viewModel.WorkerHistoryRows);
+        viewModel.PaymentDate = new DateTime(2026, 7, 19);
+        viewModel.PaymentAmount = "12";
+        viewModel.PaymentDescription = "Pago del domingo";
+
+        await viewModel.RegisterWorkerPaymentCommand.ExecuteAsync(null);
+
+        Assert.Equal("Todo el historial", viewModel.SelectedWorkerHistoryPeriod);
+        Assert.Contains("36", viewModel.ProfileDebt, StringComparison.Ordinal);
+        Assert.Contains("2026-07-04", viewModel.ProfileNextRequiredPayment, StringComparison.Ordinal);
+        Assert.Contains("12", viewModel.ProfileNextRequiredPayment, StringComparison.Ordinal);
+        OperationRow payment = Assert.Single(
+            viewModel.WorkerHistoryRows, item => item.Principal == "Pago registrado");
+        Assert.Equal("2026-07-19", payment.Date);
+        Assert.Equal("Pago del domingo", payment.Detail);
+        Assert.Contains("12", payment.Amount, StringComparison.Ordinal);
+        Assert.Equal("Pago en otra fecha", payment.Status);
         Assert.Single((await service.LoadAsync(cancellationToken)).LocalUsePayments);
     }
 

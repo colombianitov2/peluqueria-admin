@@ -25,6 +25,7 @@ public sealed partial class LocalUseViewModel(
     private CancellationTokenSource? draftCancellation;
     private CancellationTokenSource? workerEditCancellation;
     private CancellationTokenSource? chairEditCancellation;
+    private Task pendingDraftPersistence = Task.CompletedTask;
     private bool suppressChanges;
     private Guid? profileWorkerId;
     private Guid? profileChairId;
@@ -34,6 +35,9 @@ public sealed partial class LocalUseViewModel(
 
     public ObservableCollection<string> PeriodOptions { get; } =
         ["Hoy", "Esta semana", "Este mes", "Últimos 3 meses", "Últimos 6 meses", "Este año", "Rango personalizado"];
+
+    public ObservableCollection<string> WorkerHistoryPeriodOptions { get; } =
+        ["Todo el historial", "Hoy", "Esta semana", "Este mes", "Últimos 3 meses", "Últimos 6 meses", "Este año", "Rango personalizado"];
 
     public ObservableCollection<WorkerRow> Workers { get; } = [];
 
@@ -51,17 +55,20 @@ public sealed partial class LocalUseViewModel(
 
     [ObservableProperty] private string selectedAction = "Añadir silla";
     [ObservableProperty] private string selectedPeriod = "Hoy";
-    [ObservableProperty] private DateTime? customPeriodFrom = DateTime.Today;
-    [ObservableProperty] private DateTime? customPeriodThrough = DateTime.Today;
+    [ObservableProperty] private string selectedWorkerHistoryPeriod = "Todo el historial";
+    [ObservableProperty] private DateTime? customPeriodFrom = timeProvider.GetLocalNow().DateTime.Date;
+    [ObservableProperty] private DateTime? customPeriodThrough = timeProvider.GetLocalNow().DateTime.Date;
     [ObservableProperty] private bool showCustomPeriod;
+    [ObservableProperty] private bool showCustomWorkerHistoryPeriod;
     [ObservableProperty] private int totalChairs;
     [ObservableProperty] private int currentWorkers;
     [ObservableProperty] private int availableChairs;
     [ObservableProperty] private string nameText = string.Empty;
-    [ObservableProperty] private DateTime? actionDate = DateTime.Today;
+    [ObservableProperty] private DateTime? actionDate = timeProvider.GetLocalNow().DateTime.Date;
     [ObservableProperty] private string descriptionText = string.Empty;
     [ObservableProperty] private EntityOption? selectedNewWorkerChair;
     [ObservableProperty] private bool isWorkerAction;
+    [ObservableProperty] private bool hasRecoveredActionDraft;
     [ObservableProperty] private WorkerRow? selectedWorkerRow;
     [ObservableProperty] private ChairRow? selectedChairRow;
     [ObservableProperty] private bool isWorkerProfileOpen;
@@ -77,14 +84,13 @@ public sealed partial class LocalUseViewModel(
     [ObservableProperty] private string profileNextCharge = string.Empty;
     [ObservableProperty] private string profileNextChargeAmount = string.Empty;
     [ObservableProperty] private string profileNextRequiredPayment = string.Empty;
-    [ObservableProperty] private string profileNextRequiredAmount = string.Empty;
     [ObservableProperty] private string profileCoveredThrough = string.Empty;
     [ObservableProperty] private int profileTabIndex = 1;
-    [ObservableProperty] private DateTime? paymentDate = DateTime.Today;
+    [ObservableProperty] private DateTime? paymentDate = timeProvider.GetLocalNow().DateTime.Date;
     [ObservableProperty] private string paymentAmount = string.Empty;
     [ObservableProperty] private string paymentDescription = string.Empty;
     [ObservableProperty] private EntityOption? workerProfileSelectedChair;
-    [ObservableProperty] private DateTime? retirementDate = DateTime.Today;
+    [ObservableProperty] private DateTime? retirementDate = timeProvider.GetLocalNow().DateTime.Date;
     [ObservableProperty] private bool confirmWorkerDelete;
     [ObservableProperty] private string chairEditName = string.Empty;
     [ObservableProperty] private DateTime? chairEditCreationDate;
@@ -110,6 +116,7 @@ public sealed partial class LocalUseViewModel(
             AdministrationData data = await service.GenerateScheduledRecordsAsync(today);
             SettingsDto settings = await getSettings.ExecuteAsync();
             ActivityDateRange range = CurrentRange(today);
+            ActivityDateRange workerHistoryRange = CurrentWorkerHistoryRange(today);
 
             Workers.Clear();
             foreach (LocalUsePerson worker in data.LocalUsePeople.OrderBy(item => item.Name))
@@ -177,7 +184,7 @@ public sealed partial class LocalUseViewModel(
 
             if (IsWorkerProfileOpen)
             {
-                await LoadWorkerProfileAsync(data, settings, range, today);
+                await LoadWorkerProfileAsync(data, settings, workerHistoryRange, today);
             }
 
             if (IsChairProfileOpen)
@@ -204,6 +211,7 @@ public sealed partial class LocalUseViewModel(
         IsBusy = true;
         try
         {
+            await CancelPendingDraftPersistenceAsync();
             DateOnly date = RequiredDate(ActionDate, "fecha");
             DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
             if (SelectedAction == "Añadir silla")
@@ -268,8 +276,10 @@ public sealed partial class LocalUseViewModel(
         ProfileDescription = SelectedWorkerRow.Worker.Description ?? string.Empty;
         ProfileEntryDate = SelectedWorkerRow.Worker.EntryDate.ToDateTime(TimeOnly.MinValue);
         ProfileExitDate = SelectedWorkerRow.Worker.ExitDate?.ToDateTime(TimeOnly.MinValue);
-        RetirementDate = DateTime.Today;
+        RetirementDate = LocalTodayDateTime();
         ProfileTabIndex = 1;
+        SelectedWorkerHistoryPeriod = "Todo el historial";
+        ShowCustomWorkerHistoryPeriod = false;
         suppressChanges = false;
         await RefreshAsync();
         await RestorePaymentDraftAsync();
@@ -350,6 +360,7 @@ public sealed partial class LocalUseViewModel(
         IsBusy = true;
         try
         {
+            await CancelPendingDraftPersistenceAsync();
             string key = PaymentDraftKey(SelectedWorkerRow.Worker.Id);
             await service.RegisterLocalUsePaymentAsync(
                 SelectedWorkerRow.Worker.Id,
@@ -357,8 +368,12 @@ public sealed partial class LocalUseViewModel(
                 ParseMoney(PaymentAmount),
                 completedDraftKey: key,
                 description: PaymentDescription);
+            suppressChanges = true;
             PaymentAmount = string.Empty;
             PaymentDescription = string.Empty;
+            SelectedWorkerHistoryPeriod = "Todo el historial";
+            ShowCustomWorkerHistoryPeriod = false;
+            suppressChanges = false;
             await RefreshAsync();
             StatusMessage = "Pago registrado correctamente.";
             IsError = false;
@@ -461,6 +476,7 @@ public sealed partial class LocalUseViewModel(
     [RelayCommand]
     private async Task ClearFormAsync()
     {
+        await CancelPendingDraftPersistenceAsync();
         ClearActionForm();
         await formDraftStore.DeleteAsync(ActionDraftKey);
         if (SelectedWorkerRow is not null)
@@ -471,7 +487,7 @@ public sealed partial class LocalUseViewModel(
 
     public async Task FlushPendingAsync()
     {
-        draftCancellation?.Cancel();
+        await CancelPendingDraftPersistenceAsync();
         workerEditCancellation?.Cancel();
         chairEditCancellation?.Cancel();
         await PersistDraftAsync();
@@ -514,7 +530,10 @@ public sealed partial class LocalUseViewModel(
         ProfileNextRequiredPayment = FormatDate(
             balance.NextRequiredPaymentDate,
             worker.ExitDate.HasValue ? "No aplica (retirado)" : "Cubierto con saldo a favor");
-        ProfileNextRequiredAmount = FormatMoney(settings.CurrencyCode, balance.NextRequiredPaymentAmount);
+        if (balance.NextRequiredPaymentDate.HasValue && balance.NextRequiredPaymentAmount.HasValue)
+        {
+            ProfileNextRequiredPayment = $"{ProfileNextRequiredPayment} · {FormatMoney(settings.CurrencyCode, balance.NextRequiredPaymentAmount)}";
+        }
         ProfileCoveredThrough = FormatDate(balance.CoveredThroughDate, "Sin cobertura completa registrada");
         ProfileWeeklyRates = string.Join(" · ", data.WeeklyRates
             .OrderBy(item => item.EffectiveFrom)
@@ -652,6 +671,24 @@ public sealed partial class LocalUseViewModel(
         CustomPeriodFrom.HasValue ? DateOnly.FromDateTime(CustomPeriodFrom.Value) : null,
         CustomPeriodThrough.HasValue ? DateOnly.FromDateTime(CustomPeriodThrough.Value) : null);
 
+    private ActivityDateRange CurrentWorkerHistoryRange(DateOnly today) =>
+        SelectedWorkerHistoryPeriod == "Todo el historial"
+            ? new ActivityDateRange(DateOnly.MinValue, DateOnly.MaxValue)
+            : ActivityPeriodCalculator.Calculate(
+                SelectedWorkerHistoryPeriod switch
+                {
+                    "Esta semana" => ActivityPeriod.ThisWeek,
+                    "Este mes" => ActivityPeriod.ThisMonth,
+                    "Últimos 3 meses" => ActivityPeriod.LastThreeMonths,
+                    "Últimos 6 meses" => ActivityPeriod.LastSixMonths,
+                    "Este año" => ActivityPeriod.ThisYear,
+                    "Rango personalizado" => ActivityPeriod.Custom,
+                    _ => ActivityPeriod.Today,
+                },
+                today,
+                CustomPeriodFrom.HasValue ? DateOnly.FromDateTime(CustomPeriodFrom.Value) : null,
+                CustomPeriodThrough.HasValue ? DateOnly.FromDateTime(CustomPeriodThrough.Value) : null);
+
     private static OperationRow History(
         DateOnly date,
         string operation,
@@ -671,15 +708,17 @@ public sealed partial class LocalUseViewModel(
     {
         suppressChanges = true;
         NameText = string.Empty;
-        ActionDate = DateTime.Today;
+        ActionDate = LocalTodayDateTime();
         DescriptionText = string.Empty;
         SelectedNewWorkerChair = null;
+        HasRecoveredActionDraft = false;
         suppressChanges = false;
     }
 
     private async Task RestoreActionDraftAsync()
     {
         FormDraft? draft = await formDraftStore.FindAsync(ActionDraftKey);
+        HasRecoveredActionDraft = draft is not null;
         if (draft is null) return;
         ActionDraftPayload? payload = JsonSerializer.Deserialize<ActionDraftPayload>(draft.PayloadJson);
         if (payload is null) return;
@@ -715,7 +754,34 @@ public sealed partial class LocalUseViewModel(
         if (suppressChanges) return;
         draftCancellation?.Cancel();
         draftCancellation = new CancellationTokenSource();
-        _ = PersistDraftAfterDelayAsync(draftCancellation.Token);
+        pendingDraftPersistence = PersistDraftAfterDelayAsync(draftCancellation.Token);
+    }
+
+    private async Task CancelPendingDraftPersistenceAsync()
+    {
+        CancellationTokenSource? cancellation = draftCancellation;
+        if (cancellation is null)
+        {
+            return;
+        }
+
+        cancellation.Cancel();
+        try
+        {
+            await pendingDraftPersistence;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(draftCancellation, cancellation))
+            {
+                draftCancellation = null;
+            }
+
+            cancellation.Dispose();
+        }
     }
 
     private async Task PersistDraftAfterDelayAsync(CancellationToken cancellationToken)
@@ -836,6 +902,11 @@ public sealed partial class LocalUseViewModel(
     partial void OnSelectedActionChanged(string value)
     {
         IsWorkerAction = value == "Añadir trabajador";
+        if (!suppressChanges)
+        {
+            ActionDate = LocalTodayDateTime();
+            HasRecoveredActionDraft = false;
+        }
         ScheduleDraft();
     }
 
@@ -845,8 +916,17 @@ public sealed partial class LocalUseViewModel(
         _ = RefreshAsync();
     }
 
-    partial void OnCustomPeriodFromChanged(DateTime? value) { if (ShowCustomPeriod) _ = RefreshAsync(); }
-    partial void OnCustomPeriodThroughChanged(DateTime? value) { if (ShowCustomPeriod) _ = RefreshAsync(); }
+    partial void OnSelectedWorkerHistoryPeriodChanged(string value)
+    {
+        ShowCustomWorkerHistoryPeriod = value == "Rango personalizado";
+        if (!suppressChanges && IsWorkerProfileOpen)
+        {
+            _ = RefreshAsync();
+        }
+    }
+
+    partial void OnCustomPeriodFromChanged(DateTime? value) { if (ShowCustomPeriod || ShowCustomWorkerHistoryPeriod) _ = RefreshAsync(); }
+    partial void OnCustomPeriodThroughChanged(DateTime? value) { if (ShowCustomPeriod || ShowCustomWorkerHistoryPeriod) _ = RefreshAsync(); }
     partial void OnNameTextChanged(string value) => ScheduleDraft();
     partial void OnActionDateChanged(DateTime? value) => ScheduleDraft();
     partial void OnDescriptionTextChanged(string value) => ScheduleDraft();
@@ -874,6 +954,8 @@ public sealed partial class LocalUseViewModel(
     partial void OnChairEditDescriptionChanged(string value) => ScheduleChairEdit();
 
     private DateOnly Today() => DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+
+    private DateTime LocalTodayDateTime() => Today().ToDateTime(TimeOnly.MinValue);
 
     private static DateOnly RequiredDate(DateTime? value, string field) => value.HasValue
         ? DateOnly.FromDateTime(value.Value)

@@ -13,6 +13,55 @@ namespace PeluqueriaAdmin.Infrastructure.Tests;
 public sealed class AdvancePaymentPersistenceTests
 {
     [Fact]
+    public async Task WorkerEntryDatesAndZeroOrFortyEightDollarDebtSurviveRealSqliteRestart()
+    {
+        string root = Path.Combine(AppContext.BaseDirectory, "TestData", Guid.NewGuid().ToString("N"));
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        DateTime utc = new(2026, 7, 20, 12, 0, 0, DateTimeKind.Utc);
+        DateOnly today = new(2026, 7, 20);
+        var clock = new FixedTimeProvider(new DateTimeOffset(utc));
+        try
+        {
+            ApplicationPaths paths = ApplicationPaths.FromRoot(root);
+            paths.EnsureDirectories();
+            var firstFactory = new Factory(paths.DatabaseFilePath);
+            await new DatabaseInitializer(firstFactory, paths, clock).InitializeAsync(cancellationToken);
+            var firstService = new AdministrationService(
+                new EfAdministrationRepository(firstFactory),
+                new EfSettingsRepository(firstFactory),
+                clock);
+            LocalUsePerson current = LocalUsePerson.Create("Ingreso actual", today, null, utc);
+            LocalUsePerson historical = LocalUsePerson.Create(
+                "Ingreso histórico", new DateOnly(2026, 6, 16), null, utc);
+            await firstService.AddLocalUsePersonAsync(current, today, cancellationToken);
+            await firstService.AddLocalUsePersonAsync(historical, today, cancellationToken);
+
+            SqliteConnection.ClearAllPools();
+            AdministrationData reloaded = await new EfAdministrationRepository(
+                new Factory(paths.DatabaseFilePath)).LoadAsync(cancellationToken);
+            LocalUsePerson reloadedCurrent = reloaded.LocalUsePeople.Single(item => item.Id == current.Id);
+            LocalUsePerson reloadedHistorical = reloaded.LocalUsePeople.Single(item => item.Id == historical.Id);
+
+            Assert.Equal(today, reloadedCurrent.EntryDate);
+            Assert.Equal(new DateOnly(2026, 6, 16), reloadedHistorical.EntryDate);
+            Assert.Equal(0, WeeklyChargeCalculator.CalculateDebt(
+                reloaded.WeeklyCharges.Where(item => item.PersonId == current.Id),
+                reloaded.LocalUsePayments.Where(item => item.PersonId == current.Id), today).MinorUnits);
+            Assert.Equal(4_800, WeeklyChargeCalculator.CalculateDebt(
+                reloaded.WeeklyCharges.Where(item => item.PersonId == historical.Id),
+                reloaded.LocalUsePayments.Where(item => item.PersonId == historical.Id), today).MinorUnits);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task AdvancePayment_IsPersistedOnceAndRecalculatedAfterRealSqliteRestart()
     {
         string root = Path.Combine(AppContext.BaseDirectory, "TestData", Guid.NewGuid().ToString("N"));
