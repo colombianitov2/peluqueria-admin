@@ -9,12 +9,13 @@ La solución contiene cuatro proyectos de pruebas:
 - Infrastructure.Tests: SQLite, migraciones, borradores, política de durabilidad, eliminación lógica, copias, restauración, CSV y Excel.
 - App.Tests: comandos y presentación segura de la interfaz WPF sin abrir una ventana real.
 
-En la validación local consolidada de la Fase 4.1 pasan 84 pruebas: 35 de dominio, 26 de aplicación, 11 de infraestructura y 12 de interfaz.
+En la validación local consolidada de la Fase 4.4 pasan 129 pruebas: 53 de dominio, 34 de aplicación, 15 de infraestructura y 27 de interfaz. La misma suite se ejecutó en Debug y Release, para un total de 258 ejecuciones satisfactorias.
 
 ## Cobertura funcional comprobada
 
 - primera cuota, periodos de siete días, retiro, cambio futuro de tarifa e idempotencia;
-- pago parcial, deuda y rechazo de sobrepago;
+- pagos parciales y anticipados de 6, 12, 24 y 1000; deuda no negativa, crédito, cobertura de 83 semanas y faltante de 8 en la semana 84;
+- deuda previa de 24 con pago de 1000 y crédito resultante de 976; múltiples pagos, tarifa futura, cuentas independientes y crédito tras retiro;
 - existencia inicial, compra, venta, consumo, conteo, sobrante, reposición e inventario negativo;
 - obligaciones esperadas/reales, recurrencia mensual/anual y no duplicación;
 - mantenimiento estimado frente a real;
@@ -37,6 +38,7 @@ En la validación local consolidada de la Fase 4.1 pasan 84 pruebas: 35 de domin
 - disposición de Administración y Ajustes en los espacios lógicos equivalentes a 1366×768 con escalas de 100 %, 125 % y 150 %.
 - regla semanal definitiva sin cobro de entrada, periodos completos de siete días, vencimiento el primer sábado posterior y deuda calculada a la fecha de corte;
 - sillas individuales, asignación exclusiva, disponibilidad, retiro y liberación de asignaciones vencidas;
+- alta de trabajador con y sin silla, selectores independientes, cambio/retiro atómico de silla y ausencia de eventos al elegir la silla actual;
 - precio de venta predeterminado, control de existencia, recompra y seis categorías visibles de inventario;
 - precio sugerido por silla con gastos extraoficiales separados del balance oficial;
 - filtros de actividad Hoy, semana, mes, tres meses, seis meses, año y periodo personalizado, incluido el cambio silencioso de día;
@@ -69,6 +71,9 @@ dotnet ef migrations has-pending-model-changes --project src/PeluqueriaAdmin.Inf
 - empaquetado limpio local Velopack `0.1.0-alpha.1` con bootstrap verificado, instalador, portable, paquete completo y feeds;
 - auditoría NuGet directa/transitiva sin vulnerabilidades conocidas y modelo EF Core sin migraciones pendientes;
 - escaneo del árbol sin secretos candidatos ni binarios rastreados por Git.
+- revisión del perfil de Uso del local en la segunda pantalla, con cabecera fija, pestaña de pago, deuda y crédito visibles e historial largo con desplazamiento propio;
+- integridad `ok` y última migración `20260719212257_Phase43MaintenanceRecurrence` sobre una copia temporal derivada de la base de revisión de alpha.1;
+- persistencia visible de un pago de USD 12, deuda restante de USD 12, próxima cuota del 22 de julio de 2026 y silla final sin asignar en datos de demostración aislados.
 
 ## No comprobado aún
 

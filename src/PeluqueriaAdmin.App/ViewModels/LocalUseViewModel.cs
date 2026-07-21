@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -27,6 +28,7 @@ public sealed partial class LocalUseViewModel(
     private bool suppressChanges;
     private Guid? profileWorkerId;
     private Guid? profileChairId;
+    private long lastPaymentSubmissionTimestamp;
 
     public ObservableCollection<string> ActionOptions { get; } = ["Añadir silla", "Añadir trabajador"];
 
@@ -37,7 +39,9 @@ public sealed partial class LocalUseViewModel(
 
     public ObservableCollection<ChairRow> Chairs { get; } = [];
 
-    public ObservableCollection<EntityOption> AvailableChairOptions { get; } = [];
+    public ObservableCollection<EntityOption> NewWorkerChairOptions { get; } = [];
+
+    public ObservableCollection<EntityOption> WorkerProfileChairOptions { get; } = [];
 
     public ObservableCollection<OperationRow> ActivityRows { get; } = [];
 
@@ -56,7 +60,7 @@ public sealed partial class LocalUseViewModel(
     [ObservableProperty] private string nameText = string.Empty;
     [ObservableProperty] private DateTime? actionDate = DateTime.Today;
     [ObservableProperty] private string descriptionText = string.Empty;
-    [ObservableProperty] private EntityOption? selectedAvailableChair;
+    [ObservableProperty] private EntityOption? selectedNewWorkerChair;
     [ObservableProperty] private bool isWorkerAction;
     [ObservableProperty] private WorkerRow? selectedWorkerRow;
     [ObservableProperty] private ChairRow? selectedChairRow;
@@ -69,10 +73,17 @@ public sealed partial class LocalUseViewModel(
     [ObservableProperty] private string profileChair = "Sin silla asignada";
     [ObservableProperty] private string profileWeeklyRates = string.Empty;
     [ObservableProperty] private string profileDebt = string.Empty;
+    [ObservableProperty] private string profileCredit = string.Empty;
+    [ObservableProperty] private string profileNextCharge = string.Empty;
+    [ObservableProperty] private string profileNextChargeAmount = string.Empty;
+    [ObservableProperty] private string profileNextRequiredPayment = string.Empty;
+    [ObservableProperty] private string profileNextRequiredAmount = string.Empty;
+    [ObservableProperty] private string profileCoveredThrough = string.Empty;
+    [ObservableProperty] private int profileTabIndex = 1;
     [ObservableProperty] private DateTime? paymentDate = DateTime.Today;
     [ObservableProperty] private string paymentAmount = string.Empty;
     [ObservableProperty] private string paymentDescription = string.Empty;
-    [ObservableProperty] private EntityOption? profileSelectedChair;
+    [ObservableProperty] private EntityOption? workerProfileSelectedChair;
     [ObservableProperty] private DateTime? retirementDate = DateTime.Today;
     [ObservableProperty] private bool confirmWorkerDelete;
     [ObservableProperty] private string chairEditName = string.Empty;
@@ -143,13 +154,7 @@ public sealed partial class LocalUseViewModel(
                 SelectedChairRow = Chairs.SingleOrDefault(item => item.Chair.Id == profileChairId.Value);
             }
 
-            AvailableChairOptions.Clear();
-            foreach (Chair chair in data.Chairs
-                .Where(item => !item.AssignedPersonId.HasValue)
-                .OrderBy(item => item.Name))
-            {
-                AvailableChairOptions.Add(new EntityOption(chair.Id, chair.Name));
-            }
+            RefreshNewWorkerChairOptions(data.Chairs);
 
             TotalChairs = data.Chairs.Count;
             CurrentWorkers = data.LocalUsePeople.Count(item => item.IsCurrentOn(today));
@@ -209,23 +214,33 @@ public sealed partial class LocalUseViewModel(
             }
             else
             {
-                if (SelectedAvailableChair is null)
+                Guid? chairId = SelectedNewWorkerChair is { Id: var selectedChairId }
+                    && selectedChairId != Guid.Empty
+                        ? selectedChairId
+                        : null;
+                LocalUsePerson worker = LocalUsePerson.Create(
+                    NameText, date, null, utcNow, DescriptionText);
+                if (chairId.HasValue)
                 {
-                    throw new InvalidOperationException(
-                        "No hay sillas disponibles. Debes crear un espacio para una silla adicional.");
+                    await service.AddLocalUsePersonWithChairAsync(
+                        worker,
+                        chairId.Value,
+                        Today(),
+                        completedDraftKey: ActionDraftKey);
                 }
-
-                await service.AddLocalUsePersonWithChairAsync(
-                    LocalUsePerson.Create(NameText, date, null, utcNow, DescriptionText),
-                    SelectedAvailableChair.Id,
-                    Today(),
-                    completedDraftKey: ActionDraftKey);
+                else
+                {
+                    await service.AddLocalUsePersonAsync(
+                        worker,
+                        Today(),
+                        completedDraftKey: ActionDraftKey);
+                }
             }
 
             ClearActionForm();
+            await RefreshAsync();
             StatusMessage = "La operación se guardó correctamente.";
             IsError = false;
-            await RefreshAsync();
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
@@ -254,6 +269,7 @@ public sealed partial class LocalUseViewModel(
         ProfileEntryDate = SelectedWorkerRow.Worker.EntryDate.ToDateTime(TimeOnly.MinValue);
         ProfileExitDate = SelectedWorkerRow.Worker.ExitDate?.ToDateTime(TimeOnly.MinValue);
         RetirementDate = DateTime.Today;
+        ProfileTabIndex = 1;
         suppressChanges = false;
         await RefreshAsync();
         await RestorePaymentDraftAsync();
@@ -266,7 +282,8 @@ public sealed partial class LocalUseViewModel(
         profileWorkerId = null;
         SelectedWorkerRow = null;
         WorkerHistoryRows.Clear();
-        ProfileSelectedChair = null;
+        WorkerProfileSelectedChair = null;
+        WorkerProfileChairOptions.Clear();
         await RefreshAsync();
     }
 
@@ -320,6 +337,16 @@ public sealed partial class LocalUseViewModel(
             return;
         }
 
+        long submissionTimestamp = Stopwatch.GetTimestamp();
+        if (lastPaymentSubmissionTimestamp != 0
+            && Stopwatch.GetElapsedTime(lastPaymentSubmissionTimestamp, submissionTimestamp)
+                < TimeSpan.FromSeconds(1))
+        {
+            return;
+        }
+
+        lastPaymentSubmissionTimestamp = submissionTimestamp;
+
         IsBusy = true;
         try
         {
@@ -332,9 +359,9 @@ public sealed partial class LocalUseViewModel(
                 description: PaymentDescription);
             PaymentAmount = string.Empty;
             PaymentDescription = string.Empty;
-            StatusMessage = "El pago se registró correctamente.";
-            IsError = false;
             await RefreshAsync();
+            StatusMessage = "Pago registrado correctamente.";
+            IsError = false;
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
@@ -350,15 +377,18 @@ public sealed partial class LocalUseViewModel(
     [RelayCommand]
     private async Task AssignProfileChairAsync()
     {
-        if (SelectedWorkerRow is null || ProfileSelectedChair is null)
+        if (SelectedWorkerRow is null || WorkerProfileSelectedChair is null)
         {
-            StatusMessage = "Selecciona una silla disponible.";
+            StatusMessage = "Selecciona una silla vacía";
             IsError = true;
             return;
         }
 
-        await RunProfileOperationAsync(() => service.AssignChairAsync(
-            SelectedWorkerRow.Worker.Id, ProfileSelectedChair.Id, Today()));
+        string chairName = WorkerProfileSelectedChair.Display;
+        await RunProfileOperationAsync(
+            () => service.AssignChairAsync(
+                SelectedWorkerRow.Worker.Id, WorkerProfileSelectedChair.Id, Today()),
+            $"Silla asignada correctamente: {chairName}");
     }
 
     [RelayCommand]
@@ -369,8 +399,10 @@ public sealed partial class LocalUseViewModel(
             return;
         }
 
-        await RunProfileOperationAsync(() => service.AssignChairAsync(
-            SelectedWorkerRow.Worker.Id, null, Today()));
+        WorkerProfileSelectedChair = null;
+        await RunProfileOperationAsync(
+            () => service.AssignChairAsync(SelectedWorkerRow.Worker.Id, null, Today()),
+            "Silla retirada correctamente");
     }
 
     [RelayCommand]
@@ -469,26 +501,38 @@ public sealed partial class LocalUseViewModel(
 
         Chair? currentChair = data.Chairs.SingleOrDefault(item => item.AssignedPersonId == workerId);
         ProfileChair = currentChair?.Name ?? "Sin silla asignada";
-        Money debt = WeeklyChargeCalculator.CalculateDebt(
+        WorkerAccountBalance balance = WeeklyChargeCalculator.CalculateAccount(
+            worker,
             data.WeeklyCharges.Where(item => item.PersonId == workerId),
             data.LocalUsePayments.Where(item => item.PersonId == workerId),
+            data.WeeklyRates,
             today);
-        ProfileDebt = $"{settings.CurrencyCode} {debt.ToDecimal():N2}";
+        ProfileDebt = FormatMoney(settings.CurrencyCode, balance.Debt);
+        ProfileCredit = FormatMoney(settings.CurrencyCode, balance.Credit);
+        ProfileNextCharge = FormatDate(balance.NextChargeDate, worker.ExitDate.HasValue ? "No aplica (retirado)" : "Sin cuota proyectada");
+        ProfileNextChargeAmount = FormatMoney(settings.CurrencyCode, balance.NextChargeAmount);
+        ProfileNextRequiredPayment = FormatDate(
+            balance.NextRequiredPaymentDate,
+            worker.ExitDate.HasValue ? "No aplica (retirado)" : "Cubierto con saldo a favor");
+        ProfileNextRequiredAmount = FormatMoney(settings.CurrencyCode, balance.NextRequiredPaymentAmount);
+        ProfileCoveredThrough = FormatDate(balance.CoveredThroughDate, "Sin cobertura completa registrada");
         ProfileWeeklyRates = string.Join(" · ", data.WeeklyRates
             .OrderBy(item => item.EffectiveFrom)
             .Select(item => $"Desde {item.EffectiveFrom:yyyy-MM-dd}: {settings.CurrencyCode} {item.Amount.ToDecimal():N2}"));
 
-        AvailableChairOptions.Clear();
+        Guid? preservedChairId = WorkerProfileSelectedChair?.Id;
+        WorkerProfileChairOptions.Clear();
         foreach (Chair chair in data.Chairs
             .Where(item => !item.AssignedPersonId.HasValue || item.AssignedPersonId == workerId)
             .OrderBy(item => item.Name))
         {
-            AvailableChairOptions.Add(new EntityOption(chair.Id, chair.Name));
+            WorkerProfileChairOptions.Add(new EntityOption(chair.Id, chair.Name));
         }
 
-        ProfileSelectedChair = currentChair is null
-            ? null
-            : AvailableChairOptions.SingleOrDefault(item => item.Id == currentChair.Id);
+        Guid? desiredChairId = preservedChairId ?? currentChair?.Id;
+        WorkerProfileSelectedChair = desiredChairId.HasValue
+            ? WorkerProfileChairOptions.SingleOrDefault(item => item.Id == desiredChairId.Value)
+            : null;
 
         var history = new List<(DateOnly Date, DateTime Order, OperationRow Row)>();
         if (range.Contains(worker.EntryDate))
@@ -535,7 +579,10 @@ public sealed partial class LocalUseViewModel(
         }
 
         WorkerHistoryRows.Clear();
-        foreach (OperationRow row in history.OrderBy(item => item.Date).ThenBy(item => item.Order).Select(item => item.Row))
+        foreach (OperationRow row in history
+            .OrderByDescending(item => item.Date)
+            .ThenByDescending(item => item.Order)
+            .Select(item => item.Row))
         {
             WorkerHistoryRows.Add(row);
         }
@@ -569,15 +616,15 @@ public sealed partial class LocalUseViewModel(
         }
     }
 
-    private async Task RunProfileOperationAsync(Func<Task> operation)
+    private async Task RunProfileOperationAsync(Func<Task> operation, string successMessage = "La operación se guardó correctamente.")
     {
         IsBusy = true;
         try
         {
             await operation();
-            StatusMessage = "La operación se guardó correctamente.";
-            IsError = false;
             await RefreshAsync();
+            StatusMessage = successMessage;
+            IsError = false;
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
@@ -626,9 +673,7 @@ public sealed partial class LocalUseViewModel(
         NameText = string.Empty;
         ActionDate = DateTime.Today;
         DescriptionText = string.Empty;
-        SelectedAvailableChair = null;
-        PaymentAmount = string.Empty;
-        PaymentDescription = string.Empty;
+        SelectedNewWorkerChair = null;
         suppressChanges = false;
     }
 
@@ -645,8 +690,8 @@ public sealed partial class LocalUseViewModel(
         ActionDate = payload.Date;
         DescriptionText = payload.Description;
         await RefreshAsync();
-        SelectedAvailableChair = payload.ChairId.HasValue
-            ? AvailableChairOptions.SingleOrDefault(item => item.Id == payload.ChairId.Value)
+        SelectedNewWorkerChair = payload.ChairId.HasValue
+            ? NewWorkerChairOptions.SingleOrDefault(item => item.Id == payload.ChairId.Value)
             : null;
         suppressChanges = false;
     }
@@ -690,7 +735,13 @@ public sealed partial class LocalUseViewModel(
         if (!string.IsNullOrWhiteSpace(NameText) || !string.IsNullOrWhiteSpace(DescriptionText))
         {
             string payload = JsonSerializer.Serialize(new ActionDraftPayload(
-                SelectedAction, NameText, ActionDate, DescriptionText, SelectedAvailableChair?.Id));
+                SelectedAction,
+                NameText,
+                ActionDate,
+                DescriptionText,
+                SelectedNewWorkerChair is { Id: var selectedChairId } && selectedChairId != Guid.Empty
+                    ? selectedChairId
+                    : null));
             await formDraftStore.UpsertAsync(FormDraft.Create(
                 ActionDraftKey, Module, SelectedAction, payload, null, false,
                 timeProvider.GetUtcNow().UtcDateTime), cancellationToken);
@@ -799,7 +850,7 @@ public sealed partial class LocalUseViewModel(
     partial void OnNameTextChanged(string value) => ScheduleDraft();
     partial void OnActionDateChanged(DateTime? value) => ScheduleDraft();
     partial void OnDescriptionTextChanged(string value) => ScheduleDraft();
-    partial void OnSelectedAvailableChairChanged(EntityOption? value) => ScheduleDraft();
+    partial void OnSelectedNewWorkerChairChanged(EntityOption? value) => ScheduleDraft();
     partial void OnPaymentDateChanged(DateTime? value) => ScheduleDraft();
     partial void OnPaymentAmountChanged(string value) => ScheduleDraft();
     partial void OnPaymentDescriptionChanged(string value) => ScheduleDraft();
@@ -844,6 +895,37 @@ public sealed partial class LocalUseViewModel(
     }
 
     private static string PaymentDraftKey(Guid workerId) => $"Uso del local:Fase42:pago:{workerId:N}";
+
+    private void RefreshNewWorkerChairOptions(IReadOnlyCollection<Chair> chairs)
+    {
+        Guid? selectedId = SelectedNewWorkerChair is { Id: var selectedChairId }
+            && selectedChairId != Guid.Empty
+                ? selectedChairId
+                : null;
+        NewWorkerChairOptions.Clear();
+        foreach (Chair chair in chairs.Where(item => !item.AssignedPersonId.HasValue).OrderBy(item => item.Name))
+        {
+            NewWorkerChairOptions.Add(new EntityOption(chair.Id, chair.Name));
+        }
+
+        if (NewWorkerChairOptions.Count == 0)
+        {
+            NewWorkerChairOptions.Add(new EntityOption(Guid.Empty, "No hay sillas vacías"));
+        }
+
+        SelectedNewWorkerChair = selectedId.HasValue
+            ? NewWorkerChairOptions.SingleOrDefault(item => item.Id == selectedId.Value)
+            : NewWorkerChairOptions.Count == 1 && NewWorkerChairOptions[0].Id == Guid.Empty
+                ? NewWorkerChairOptions[0]
+                : null;
+    }
+
+    private static string FormatMoney(string currencyCode, Money? amount) => amount.HasValue
+        ? $"{currencyCode} {amount.Value.ToDecimal():N2}"
+        : "No aplica";
+
+    private static string FormatDate(DateOnly? date, string emptyText) =>
+        date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? emptyText;
 
     private sealed record ActionDraftPayload(
         string Action,

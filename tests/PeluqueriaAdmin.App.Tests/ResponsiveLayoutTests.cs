@@ -39,11 +39,19 @@ public sealed class ResponsiveLayoutTests
 
                     var localUse = new LocalUseView { DataContext = new LayoutContext() };
                     AssertFits(localUse, width, height, scale);
-                    var localUseProfile = new LocalUseView
+                    foreach (int profileTab in new[] { 0, 1, 2 })
                     {
-                        DataContext = new LayoutContext { IsWorkerProfileOpen = true },
-                    };
-                    AssertFits(localUseProfile, width, height, scale);
+                        var localUseProfile = new LocalUseView
+                        {
+                            DataContext = new LayoutContext
+                            {
+                                IsWorkerProfileOpen = true,
+                                ProfileTabIndex = profileTab,
+                            },
+                        };
+                        AssertFits(localUseProfile, width, height, scale);
+                        AssertProfileKeepsHeaderAndHistoryVisible(localUseProfile, height, scale);
+                    }
 
                     var collaborators = new CollaboratorsView { DataContext = new LayoutContext() };
                     AssertFits(collaborators, width, height, scale);
@@ -101,6 +109,20 @@ public sealed class ResponsiveLayoutTests
         }
     }
 
+    private static void AssertProfileKeepsHeaderAndHistoryVisible(
+        FrameworkElement profile,
+        double availableHeight,
+        double scale)
+    {
+        var header = Assert.IsType<StackPanel>(profile.FindName("WorkerProfileHeader"));
+        var historyBand = Assert.IsType<Border>(profile.FindName("WorkerHistoryBand"));
+        var history = Assert.IsType<DataGrid>(profile.FindName("WorkerHistoryGrid"));
+        Assert.True(header.ActualHeight > 0, $"La cabecera desapareció a {scale:P0}.");
+        Assert.True(historyBand.ActualHeight >= 32, $"La banda del historial se recortó a {scale:P0}.");
+        Assert.True(history.ActualHeight >= 80,
+            $"El historial quedó sin área desplazable a {scale:P0}; cabecera {header.ActualHeight:N0} de {availableHeight:N0}.");
+    }
+
     private sealed class LayoutContext
     {
         public string Title => "Mantenimiento";
@@ -152,6 +174,7 @@ public sealed class ResponsiveLayoutTests
         public string CurrencyCode { get; set; } = "COP";
         public string RestorePath { get; set; } = string.Empty;
         public bool IsWorkerProfileOpen { get; set; }
+        public int ProfileTabIndex { get; set; } = 1;
         public bool IsProfileOpen { get; set; }
     }
 }

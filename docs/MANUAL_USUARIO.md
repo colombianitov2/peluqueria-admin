@@ -10,7 +10,9 @@ Los formularios usan fechas `AAAA-MM-DD`, meses `AAAA-MM`, importes con dos deci
 
 ### Uso del local
 
-Registre nombre, ingreso y retiro opcional. Al guardar, las cuotas aplicables aparecen inmediatamente desde el ingreso y luego cada siete días. Para registrar un pago, seleccione la persona e indique fecha y monto; no se aceptan sobrepagos. Un cambio de fechas que invalidaría cuotas ya pagadas se rechaza con un mensaje claro.
+Registre nombre e ingreso; la silla inicial es opcional. Si no hay sillas vacías, el trabajador puede guardarse igualmente y asignarse después desde su perfil. Al guardar, las cuotas aplicables aparecen inmediatamente desde el ingreso y luego cada siete días.
+
+El perfil permite registrar cualquier pago positivo, aunque la deuda sea cero. El excedente aparece como **Saldo a favor** y se aplica automáticamente a las próximas cuotas sin cambiar el ciclo semanal. Allí también se muestran deuda, próxima cuota, valor, próximo pago requerido, importe estimado faltante y cobertura estimada. Cada trabajador mantiene su cuenta independiente. Al retirar una silla, el trabajador permanece activo; al retirar al trabajador, dejan de proyectarse cuotas nuevas y cualquier crédito se conserva.
 
 La cabecera del módulo muestra total de sillas, personas vigentes, sillas disponibles y cualquier sobrecupo. Esta capacidad no aparece en Inicio.
 
@@ -46,7 +48,7 @@ Permite configurar tarifa semanal, porcentaje de colaboradores, reserva opcional
 
 En **Datos** puede crear/restaurar copias, abrir las carpetas, exportar CSV o crear una exportación completa a Excel en el Escritorio. Reinicie después de restaurar. Los Ajustes válidos se guardan automáticamente; una entrada temporalmente inválida queda como borrador recuperable.
 
-En **Uso del local**, seleccione **Añadir silla** o **Añadir trabajador**. Las tablas de trabajadores y sillas permanecen visibles independientemente del filtro de actividad. Abra un perfil con doble clic para registrar pagos, administrar la silla, retirar al trabajador o consultar el historial.
+En **Uso del local**, seleccione **Añadir silla** o **Añadir trabajador**. Las tablas de trabajadores y sillas permanecen visibles independientemente del filtro de actividad. Abra un perfil con doble clic para registrar pagos anticipados, administrar la silla, retirar al trabajador o consultar el historial más reciente primero. Solo el historial se desplaza; la cabecera del perfil permanece fija.
 
 En **Colaboradores**, abra un perfil con doble clic para registrar aportes de capital y consultar cierres y distribuciones. Los aportes no se cuentan como ingresos operativos.
 

@@ -212,6 +212,11 @@ public sealed class AdministrationService(
         }
 
         Chair? current = data.Chairs.SingleOrDefault(item => item.AssignedPersonId == personId);
+        if (current?.Id == target?.Id)
+        {
+            return;
+        }
+
         if (target is null && current is null)
         {
             return;
@@ -596,15 +601,15 @@ public sealed class AdministrationService(
         string? description = null)
     {
         AdministrationData data = await repository.LoadAsync(cancellationToken);
-        Money debt = WeeklyChargeCalculator.CalculateDebt(
-            data.WeeklyCharges.Where(item => item.PersonId == personId),
-            data.LocalUsePayments.Where(item => item.PersonId == personId),
-            date);
+        if (data.LocalUsePeople.All(item => item.Id != personId))
+        {
+            throw new InvalidOperationException("El trabajador seleccionado ya no está disponible.");
+        }
+
         LocalUsePayment payment = LocalUsePayment.Create(
             personId,
             date,
             amount,
-            debt,
             timeProvider.GetUtcNow().UtcDateTime,
             description);
         await SaveAsync([payment], [], completedDraftKey, cancellationToken);

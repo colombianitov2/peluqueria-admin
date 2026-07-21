@@ -14,7 +14,7 @@
 | Área | Tablas | Responsabilidad |
 |---|---|---|
 | Ajustes | `Settings`, `UnofficialExpenses` | Tarifa semanal, porcentaje, reserva, moneda y gastos extraoficiales separados. `TotalChairs` se conserva solo para migrar bases antiguas. |
-| Uso del local | `Chairs`, `LocalUsePeople`, `WeeklyRates`, `WeeklyCharges`, `LocalUsePayments` | Sillas individuales, trabajadores, histórico de tarifas, cuotas de periodos completos y pagos. |
+| Uso del local | `Chairs`, `LocalUsePeople`, `WeeklyRates`, `WeeklyCharges`, `LocalUsePayments` | Sillas individuales y opcionales, trabajadores, histórico de tarifas, cuotas de periodos completos y pagos positivos incluidos anticipos. `WorkerAccountBalance` calcula deuda, crédito y proyección sin persistir ni cambiar el esquema. |
 | Inventario | `Products`, `InventoryMovements`, `MonthlyRestockPlans` | Catálogo mínimo, existencias por movimientos y necesidad opcional mensual. |
 | Caja | `FinancialEntries` | Otros ingresos, gastos e imprevistos sin duplicar movimientos originados en otros módulos. |
 | Obligaciones | `Obligations`, `ObligationPayments` | Importe esperado, recurrencia y pagos parciales/finales. |

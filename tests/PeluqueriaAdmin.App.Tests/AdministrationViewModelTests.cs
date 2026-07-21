@@ -247,6 +247,100 @@ public sealed class AdministrationViewModelTests
         Assert.Equal(3, (await repository.LoadAsync(cancellationToken)).ActivityRecords.Count);
     }
 
+    [Fact]
+    public async Task LocalUse_ChairSelectorsRemainIndependentAcrossProfileAssignmentAndWithdrawal()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
+        var service = new AdministrationService(repository, settingsRepository, timeProvider);
+        DateOnly today = DateOnly.FromDateTime(UtcNow);
+        Chair first = Chair.Create("Silla 1", today, null, UtcNow);
+        Chair second = Chair.Create("Silla 2", today, null, UtcNow);
+        await service.AddChairAsync(first, cancellationToken);
+        await service.AddChairAsync(second, cancellationToken);
+        var viewModel = new LocalUseViewModel(
+            service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
+        await viewModel.LoadAsync();
+
+        viewModel.SelectedAction = "Añadir trabajador";
+        viewModel.NameText = "Trabajador sin silla";
+        viewModel.ActionDate = UtcNow;
+        viewModel.SelectedNewWorkerChair = null;
+        await viewModel.SaveActionCommand.ExecuteAsync(null);
+
+        WorkerRow worker = Assert.Single(viewModel.Workers);
+        Assert.Equal("Sin silla", worker.Chair);
+        viewModel.NameText = "Borrador de otro trabajador";
+        viewModel.SelectedNewWorkerChair = viewModel.NewWorkerChairOptions.Single(item => item.Id == second.Id);
+        viewModel.SelectedWorkerRow = worker;
+        await viewModel.OpenSelectedWorkerProfileCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, viewModel.WorkerProfileChairOptions.Count);
+        Assert.Equal(second.Id, viewModel.SelectedNewWorkerChair?.Id);
+        Assert.Equal("Borrador de otro trabajador", viewModel.NameText);
+        viewModel.WorkerProfileSelectedChair = viewModel.WorkerProfileChairOptions.Single(item => item.Id == first.Id);
+        await viewModel.AssignProfileChairCommand.ExecuteAsync(null);
+
+        Assert.Equal("Silla 1", viewModel.ProfileChair);
+        Assert.Equal(second.Id, viewModel.SelectedNewWorkerChair?.Id);
+        Assert.Contains("Silla asignada correctamente: Silla 1", viewModel.StatusMessage, StringComparison.Ordinal);
+        Assert.Equal(2, viewModel.WorkerProfileChairOptions.Count);
+
+        await viewModel.UnassignProfileChairCommand.ExecuteAsync(null);
+
+        Assert.Equal("Sin silla asignada", viewModel.ProfileChair);
+        Assert.Equal(2, viewModel.WorkerProfileChairOptions.Count);
+        Assert.All((await service.LoadAsync(cancellationToken)).Chairs, chair => Assert.Null(chair.AssignedPersonId));
+        Assert.Single((await service.LoadAsync(cancellationToken)).LocalUsePeople);
+
+        await viewModel.CloseWorkerProfileCommand.ExecuteAsync(null);
+        Assert.Equal(second.Id, viewModel.SelectedNewWorkerChair?.Id);
+        Assert.Equal("Borrador de otro trabajador", viewModel.NameText);
+    }
+
+    [Fact]
+    public async Task LocalUse_AdvancePaymentUpdatesHistoryOnceAndCreditSurvivesRetirement()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
+        var service = new AdministrationService(repository, settingsRepository, timeProvider);
+        DateOnly today = DateOnly.FromDateTime(UtcNow);
+        LocalUsePerson worker = LocalUsePerson.Create("Trabajador con deuda", today.AddDays(-14), null, UtcNow);
+        await service.AddLocalUsePersonAsync(worker, today, cancellationToken);
+        var viewModel = new LocalUseViewModel(
+            service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
+        await viewModel.LoadAsync();
+        viewModel.SelectedPeriod = "Últimos 3 meses";
+        viewModel.SelectedWorkerRow = viewModel.Workers.Single(item => item.Worker.Id == worker.Id);
+        await viewModel.OpenSelectedWorkerProfileCommand.ExecuteAsync(null);
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+        viewModel.PaymentDate = UtcNow;
+        viewModel.PaymentAmount = "1000";
+        viewModel.PaymentDescription = "Pago anticipado de prueba";
+
+        await viewModel.RegisterWorkerPaymentCommand.ExecuteAsync(null);
+        await viewModel.RegisterWorkerPaymentCommand.ExecuteAsync(null);
+
+        AdministrationData paid = await service.LoadAsync(cancellationToken);
+        Assert.Single(paid.LocalUsePayments);
+        Assert.Contains("976", viewModel.ProfileCredit, StringComparison.Ordinal);
+        Assert.Equal(string.Empty, viewModel.PaymentAmount);
+        Assert.Equal(string.Empty, viewModel.PaymentDescription);
+        Assert.Equal(UtcNow.Date, viewModel.PaymentDate?.Date);
+        Assert.Single(viewModel.WorkerHistoryRows, item => item.Principal == "Pago registrado");
+
+        viewModel.RetirementDate = UtcNow;
+        await viewModel.RetireWorkerCommand.ExecuteAsync(null);
+
+        Assert.Contains("976", viewModel.ProfileCredit, StringComparison.Ordinal);
+        Assert.Contains("retirado", viewModel.ProfileNextRequiredPayment, StringComparison.OrdinalIgnoreCase);
+        Assert.Single((await service.LoadAsync(cancellationToken)).LocalUsePayments);
+    }
+
     private static async Task AssertEditRoundTripAsync(
         AdministrationViewModel viewModel,
         string module,

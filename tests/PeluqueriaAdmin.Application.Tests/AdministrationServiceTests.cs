@@ -44,7 +44,7 @@ public sealed class AdministrationServiceTests
     }
 
     [Fact]
-    public async Task RegisterPayment_RejectsOverpaymentAtApplicationBoundary()
+    public async Task RegisterPayment_AllowsAdvanceAtZeroDebtAndPersistsAfterServiceRestart()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
@@ -54,12 +54,24 @@ public sealed class AdministrationServiceTests
         await service.AddAsync(person, cancellationToken);
         await service.GenerateScheduledRecordsAsync(new DateOnly(2026, 7, 1), cancellationToken);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterLocalUsePaymentAsync(
+        await service.RegisterLocalUsePaymentAsync(
             person.Id,
             new DateOnly(2026, 7, 2),
-            Money.FromDecimal(13m),
-            cancellationToken));
-        Assert.Empty((await service.LoadAsync(cancellationToken)).LocalUsePayments);
+            Money.FromDecimal(1000m),
+            cancellationToken);
+
+        var restartedService = CreateService(repository, settingsRepository);
+        AdministrationData reloaded = await restartedService.LoadAsync(cancellationToken);
+        Assert.Single(reloaded.LocalUsePayments);
+        Assert.Equal(100_000, reloaded.LocalUsePayments.Single().Amount.MinorUnits);
+        WorkerAccountBalance balance = WeeklyChargeCalculator.CalculateAccount(
+            person,
+            reloaded.WeeklyCharges,
+            reloaded.LocalUsePayments,
+            reloaded.WeeklyRates,
+            new DateOnly(2026, 7, 2));
+        Assert.Equal(100_000, balance.Credit.MinorUnits);
+        Assert.Equal(800, balance.NextRequiredPaymentAmount?.MinorUnits);
     }
 
     [Fact]
@@ -371,6 +383,44 @@ public sealed class AdministrationServiceTests
         Assert.Equal(2, data.Chairs.Count);
         Assert.Equal(2, data.Chairs.Select(x => x.AssignedPersonId).Distinct().Count());
         Assert.DoesNotContain(data.Collaborators, _ => true);
+    }
+
+    [Fact]
+    public async Task ChairAssignment_SameChairIsNoOp_ChangeAndWithdrawalAreSingleAtomicEvents()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        DateOnly today = new(2026, 7, 18);
+        Chair first = Chair.Create("Silla 1", today, null, UtcNow);
+        Chair second = Chair.Create("Silla 2", today, null, UtcNow);
+        LocalUsePerson worker = LocalUsePerson.Create("Ana", today, null, UtcNow);
+        await service.AddChairAsync(first, cancellationToken);
+        await service.AddChairAsync(second, cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(worker, first.Id, today, cancellationToken);
+        int initialEvents = repository.Entities
+            .OfType<PeluqueriaAdmin.Domain.Activity.ActivityRecord>()
+            .Count();
+
+        await service.AssignChairAsync(worker.Id, first.Id, today, cancellationToken);
+        Assert.Equal(initialEvents, repository.Entities
+            .OfType<PeluqueriaAdmin.Domain.Activity.ActivityRecord>()
+            .Count());
+
+        await service.AssignChairAsync(worker.Id, second.Id, today, cancellationToken);
+        Assert.Null(first.AssignedPersonId);
+        Assert.Equal(worker.Id, second.AssignedPersonId);
+        Assert.Equal(initialEvents + 1, repository.Entities
+            .OfType<PeluqueriaAdmin.Domain.Activity.ActivityRecord>()
+            .Count());
+
+        await service.AssignChairAsync(worker.Id, null, today, cancellationToken);
+        Assert.Null(first.AssignedPersonId);
+        Assert.Null(second.AssignedPersonId);
+        Assert.Equal(initialEvents + 2, repository.Entities
+            .OfType<PeluqueriaAdmin.Domain.Activity.ActivityRecord>()
+            .Count());
+        Assert.True(repository.LastSaveWasSingleTransaction);
     }
 
     [Fact]

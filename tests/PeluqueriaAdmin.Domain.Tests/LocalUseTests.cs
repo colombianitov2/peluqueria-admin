@@ -65,7 +65,7 @@ public sealed class LocalUseTests
     }
 
     [Fact]
-    public void Payment_AllowsPartialAmountAndRejectsOverpayment()
+    public void Payment_AllowsPartialAndAdvanceAmountsWithoutNegativeDebt()
     {
         DateOnly entry = new(2026, 1, 1);
         LocalUsePerson person = LocalUsePerson.Create("Sara", entry, null, UtcNow);
@@ -75,13 +75,110 @@ public sealed class LocalUseTests
         Money initialDebt = WeeklyChargeCalculator.CalculateDebt(charges, []);
 
         LocalUsePayment partial = LocalUsePayment.Create(
-            person.Id, entry.AddDays(8), Money.FromDecimal(5m), initialDebt, UtcNow);
+            person.Id, entry.AddDays(8), Money.FromDecimal(5m), UtcNow);
+        LocalUsePayment advance = LocalUsePayment.Create(
+            person.Id, entry.AddDays(9), Money.FromDecimal(20m), UtcNow);
         Money remaining = WeeklyChargeCalculator.CalculateDebt(charges, [partial]);
+        Money afterAdvance = WeeklyChargeCalculator.CalculateDebt(charges, [partial, advance]);
 
         Assert.Equal(1_200, initialDebt.MinorUnits);
         Assert.Equal(700, remaining.MinorUnits);
-        Assert.Throws<InvalidOperationException>(() => LocalUsePayment.Create(
-            person.Id, entry.AddDays(9), Money.FromDecimal(20m), remaining, UtcNow));
+        Assert.Equal(0, afterAdvance.MinorUnits);
+    }
+
+    [Theory]
+    [InlineData(6, 600, 0, 13, 600, 600)]
+    [InlineData(12, 1200, 7, 20, 1200, 0)]
+    [InlineData(24, 2400, 14, 27, 1200, 0)]
+    [InlineData(1000, 100000, 581, 594, 800, 400)]
+    public void Account_ProjectsAdvancePaymentsAcrossAnchoredSevenDayCycles(
+        decimal paymentAmount,
+        long expectedCredit,
+        int expectedCoveredDays,
+        int expectedRequiredDays,
+        long expectedMissing,
+        long expectedRemainder)
+    {
+        DateOnly entry = new(2026, 7, 19);
+        LocalUsePerson person = LocalUsePerson.Create("Sara", entry, null, UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(entry, Money.FromDecimal(12m), UtcNow);
+        LocalUsePayment payment = LocalUsePayment.Create(
+            person.Id, entry, Money.FromDecimal(paymentAmount), UtcNow);
+
+        WorkerAccountBalance balance = WeeklyChargeCalculator.CalculateAccount(
+            person, [], [payment], [rate], entry);
+
+        Assert.Equal(0, balance.Debt.MinorUnits);
+        Assert.Equal(expectedCredit, balance.Credit.MinorUnits);
+        Assert.Equal(entry.AddDays(7), balance.NextChargeDate);
+        Assert.Equal(entry.AddDays(expectedRequiredDays), balance.NextRequiredPaymentDate);
+        Assert.Equal(expectedMissing, balance.NextRequiredPaymentAmount?.MinorUnits);
+        Assert.Equal(
+            expectedCoveredDays == 0 ? null : entry.AddDays(expectedCoveredDays),
+            balance.CoveredThroughDate);
+        Assert.Equal(expectedRemainder, expectedCredit % 1_200);
+    }
+
+    [Fact]
+    public void Account_WorkerOwingTwentyFourWhoPaysOneThousandKeepsNineHundredSeventySixCredit()
+    {
+        DateOnly entry = new(2026, 1, 1);
+        DateOnly today = entry.AddDays(14);
+        LocalUsePerson person = LocalUsePerson.Create("Luis", entry, null, UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(entry, Money.FromDecimal(12m), UtcNow);
+        IReadOnlyList<WeeklyCharge> charges = WeeklyChargeCalculator.Generate(person, [], [rate], today, UtcNow);
+        LocalUsePayment payment = LocalUsePayment.Create(
+            person.Id, today, Money.FromDecimal(1000m), UtcNow);
+
+        WorkerAccountBalance balance = WeeklyChargeCalculator.CalculateAccount(
+            person, charges, [payment], [rate], today);
+
+        Assert.Equal(2_400, balance.TotalCharged.MinorUnits);
+        Assert.Equal(100_000, balance.TotalPaid.MinorUnits);
+        Assert.Equal(0, balance.Debt.MinorUnits);
+        Assert.Equal(97_600, balance.Credit.MinorUnits);
+    }
+
+    [Fact]
+    public void Account_AppliesMultiplePartialPaymentsAndFutureRateIndependentlyPerWorker()
+    {
+        DateOnly entry = new(2026, 7, 19);
+        LocalUsePerson first = LocalUsePerson.Create("Ana", entry, null, UtcNow);
+        LocalUsePerson second = LocalUsePerson.Create("Beto", entry, null, UtcNow);
+        WeeklyRate original = WeeklyRate.Create(entry, Money.FromDecimal(12m), UtcNow);
+        WeeklyRate changed = WeeklyRate.Create(entry.AddDays(7), Money.FromDecimal(20m), UtcNow.AddHours(1));
+        LocalUsePayment firstPart = LocalUsePayment.Create(first.Id, entry, Money.FromDecimal(5m), UtcNow);
+        LocalUsePayment secondPart = LocalUsePayment.Create(first.Id, entry, Money.FromDecimal(19m), UtcNow.AddMinutes(1));
+        LocalUsePayment otherWorker = LocalUsePayment.Create(second.Id, entry, Money.FromDecimal(100m), UtcNow);
+
+        WorkerAccountBalance firstBalance = WeeklyChargeCalculator.CalculateAccount(
+            first, [], [firstPart, secondPart, otherWorker], [original, changed], entry);
+        WorkerAccountBalance secondBalance = WeeklyChargeCalculator.CalculateAccount(
+            second, [], [firstPart, secondPart, otherWorker], [original, changed], entry);
+
+        Assert.Equal(2_400, firstBalance.Credit.MinorUnits);
+        Assert.Equal(entry.AddDays(7), firstBalance.CoveredThroughDate);
+        Assert.Equal(800, firstBalance.NextRequiredPaymentAmount?.MinorUnits);
+        Assert.Equal(10_000, secondBalance.Credit.MinorUnits);
+    }
+
+    [Fact]
+    public void Account_RetirementStopsFutureChargesAndPreservesCredit()
+    {
+        DateOnly entry = new(2026, 7, 1);
+        DateOnly exit = entry.AddDays(7);
+        LocalUsePerson person = LocalUsePerson.Create("Nora", entry, exit, UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(entry, Money.FromDecimal(12m), UtcNow);
+        IReadOnlyList<WeeklyCharge> charges = WeeklyChargeCalculator.Generate(person, [], [rate], exit, UtcNow);
+        LocalUsePayment payment = LocalUsePayment.Create(
+            person.Id, exit, Money.FromDecimal(24m), UtcNow);
+
+        WorkerAccountBalance balance = WeeklyChargeCalculator.CalculateAccount(
+            person, charges, [payment], [rate], exit);
+
+        Assert.Equal(1_200, balance.Credit.MinorUnits);
+        Assert.Null(balance.NextChargeDate);
+        Assert.Null(balance.NextRequiredPaymentDate);
     }
 
     [Fact]

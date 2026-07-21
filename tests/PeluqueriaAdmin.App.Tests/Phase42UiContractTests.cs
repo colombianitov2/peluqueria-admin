@@ -30,6 +30,50 @@ public sealed class Phase42UiContractTests
     }
 
     [Fact]
+    public void LocalUse_Phase44SeparatesChairSelectorsAndKeepsOnlyHistoryScrollable()
+    {
+        string view = Read("src", "PeluqueriaAdmin.App", "Views", "LocalUseView.xaml");
+        string viewModel = Read("src", "PeluqueriaAdmin.App", "ViewModels", "LocalUseViewModel.cs");
+        int profileStart = view.IndexOf("x:Name=\"WorkerProfileHeader\"", StringComparison.Ordinal);
+        int chairStart = view.IndexOf("IsChairProfileOpen", profileStart + 1, StringComparison.Ordinal);
+        string workerProfile = view[profileStart..chairStart];
+
+        Assert.Contains("NewWorkerChairOptions", view, StringComparison.Ordinal);
+        Assert.Contains("SelectedNewWorkerChair", view, StringComparison.Ordinal);
+        Assert.Contains("WorkerProfileChairOptions", view, StringComparison.Ordinal);
+        Assert.Contains("WorkerProfileSelectedChair", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("AvailableChairOptions", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("AvailableChairOptions", viewModel, StringComparison.Ordinal);
+        Assert.Contains("Silla inicial (opcional)", view, StringComparison.Ordinal);
+        Assert.Contains("No hay sillas vacías", viewModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("Limpiar formulario", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("<ScrollViewer", workerProfile, StringComparison.Ordinal);
+        Assert.Contains("ScrollViewer.VerticalScrollBarVisibility=\"Auto\"", workerProfile, StringComparison.Ordinal);
+        Assert.Contains("OrderByDescending(item => item.Date)", viewModel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LocalUse_Phase44ExposesAdvanceBalanceProjectionAndProtectedPaymentCommand()
+    {
+        string view = Read("src", "PeluqueriaAdmin.App", "Views", "LocalUseView.xaml");
+        string viewModel = Read("src", "PeluqueriaAdmin.App", "ViewModels", "LocalUseViewModel.cs");
+
+        Assert.Contains("Deuda actual", view, StringComparison.Ordinal);
+        Assert.Contains("Saldo a favor", view, StringComparison.Ordinal);
+        Assert.Contains("Próxima cuota", view, StringComparison.Ordinal);
+        Assert.Contains("Valor de la cuota", view, StringComparison.Ordinal);
+        Assert.Contains("Próximo pago requerido", view, StringComparison.Ordinal);
+        Assert.Contains("Importe estimado que faltará", view, StringComparison.Ordinal);
+        Assert.Contains("Cobertura estimada hasta", view, StringComparison.Ordinal);
+        Assert.Contains("Puedes registrar pagos anticipados.", view, StringComparison.Ordinal);
+        Assert.Contains("[RelayCommand]\n    private async Task RegisterWorkerPaymentAsync()", viewModel.Replace("\r\n", "\n"), StringComparison.Ordinal);
+        Assert.DoesNotContain("AllowConcurrentExecutions = true", viewModel, StringComparison.Ordinal);
+        Assert.Contains("Stopwatch.GetElapsedTime", viewModel, StringComparison.Ordinal);
+        Assert.Contains("Pago registrado correctamente.", viewModel, StringComparison.Ordinal);
+        Assert.Contains("Silla asignada correctamente: {chairName}", viewModel, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Collaborators_OpenProfilesAndExposeConfirmedCapitalContributions()
     {
         string view = Read("src", "PeluqueriaAdmin.App", "Views", "CollaboratorsView.xaml");

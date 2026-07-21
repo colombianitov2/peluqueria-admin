@@ -68,7 +68,6 @@
         <Border Margin="0,0,0,16" Padding="16" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
           <StackPanel>
             <DockPanel Margin="0,0,0,12">
-              <Button DockPanel.Dock="Right" Style="{StaticResource ActionButton}" Command="{Binding ClearFormCommand}" Content="Limpiar formulario" />
               <StackPanel Orientation="Horizontal">
                 <TextBlock Margin="0,8,10,0" Style="{StaticResource FieldLabel}" Text="Acción" />
                 <ComboBox Width="220" Style="{StaticResource FieldBox}" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding SelectedAction}" />
@@ -85,9 +84,9 @@
               </StackPanel>
               <StackPanel Width="235" Margin="0,0,14,12"
                           Visibility="{Binding IsWorkerAction, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock Style="{StaticResource FieldLabel}" Text="Silla disponible" />
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Silla inicial (opcional)" />
                 <ComboBox Style="{StaticResource FieldBox}" DisplayMemberPath="Display"
-                          ItemsSource="{Binding AvailableChairOptions}" SelectedItem="{Binding SelectedAvailableChair}" />
+                          ItemsSource="{Binding NewWorkerChairOptions}" SelectedItem="{Binding SelectedNewWorkerChair}" />
               </StackPanel>
               <StackPanel Width="300" Margin="0,0,14,12">
                 <TextBlock Style="{StaticResource FieldLabel}" Text="Descripción opcional" />
@@ -143,61 +142,88 @@
       </StackPanel>
     </ScrollViewer>
 
-    <Grid Margin="26">
+    <Grid Margin="18,8">
       <Grid.Style>
         <Style TargetType="Grid">
           <Setter Property="Visibility" Value="Collapsed" />
           <Style.Triggers><DataTrigger Binding="{Binding IsWorkerProfileOpen}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
         </Style>
       </Grid.Style>
-      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-      <ScrollViewer Grid.Row="0" MaxHeight="340" VerticalScrollBarVisibility="Auto">
-        <StackPanel>
-          <DockPanel Margin="0,0,0,12">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+      <StackPanel x:Name="WorkerProfileHeader" Grid.Row="0">
+          <DockPanel Margin="0,0,0,6">
             <Button DockPanel.Dock="Right" Style="{StaticResource ActionButton}" Command="{Binding CloseWorkerProfileCommand}" Content="Cerrar perfil" />
-            <StackPanel><TextBlock FontSize="26" FontWeight="SemiBold" Text="Perfil del trabajador" /><TextBlock Foreground="#5B6575" Text="Los cambios de datos válidos se guardan automáticamente." /></StackPanel>
+            <StackPanel><TextBlock FontSize="22" FontWeight="SemiBold" Text="Perfil del trabajador" /><TextBlock FontSize="11" Foreground="#5B6575" Text="Los cambios de datos válidos se guardan automáticamente." /></StackPanel>
           </DockPanel>
-          <WrapPanel>
-            <StackPanel Width="235" Margin="0,0,12,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Nombre" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ProfileName, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
-            <StackPanel Width="170" Margin="0,0,12,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de ingreso" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding ProfileEntryDate}" /></StackPanel>
-            <StackPanel Width="170" Margin="0,0,12,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de retiro" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding ProfileExitDate}" /></StackPanel>
-            <StackPanel Width="300" Margin="0,0,12,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ProfileDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
-          </WrapPanel>
-          <WrapPanel Margin="0,0,0,10">
-            <TextBlock Margin="0,0,24,0" FontWeight="SemiBold" Text="{Binding ProfileChair, StringFormat=Silla actual: {0}}" />
-            <TextBlock Margin="0,0,24,0" FontWeight="SemiBold" Text="{Binding ProfileDebt, StringFormat=Deuda actual: {0}}" />
-            <TextBlock Text="{Binding ProfileWeeklyRates, StringFormat=Tarifas históricas: {0}}" TextWrapping="Wrap" />
-          </WrapPanel>
-          <WrapPanel>
-            <StackPanel Width="150" Margin="0,0,10,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de pago" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding PaymentDate}" /></StackPanel>
-            <StackPanel Width="150" Margin="0,0,10,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Valor pagado" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding PaymentAmount, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
-            <StackPanel Width="240" Margin="0,0,10,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción opcional" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding PaymentDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
-            <Button Margin="0,23,10,10" Style="{StaticResource ActionButton}" Command="{Binding RegisterWorkerPaymentCommand}" Content="Registrar pago" />
-          </WrapPanel>
-          <WrapPanel>
-            <ComboBox Width="220" Margin="0,0,10,10" Style="{StaticResource FieldBox}" DisplayMemberPath="Display" ItemsSource="{Binding AvailableChairOptions}" SelectedItem="{Binding ProfileSelectedChair}" />
-            <Button Style="{StaticResource ActionButton}" Command="{Binding AssignProfileChairCommand}" Content="Asignar o cambiar silla" />
-            <Button Style="{StaticResource ActionButton}" Command="{Binding UnassignProfileChairCommand}" Content="Retirar silla" />
-            <DatePicker Width="150" Margin="8,0,10,10" Style="{StaticResource FieldBox}" SelectedDate="{Binding RetirementDate}" />
-            <Button Style="{StaticResource ActionButton}" Command="{Binding RetireWorkerCommand}" Content="Retirar trabajador del local" />
-          </WrapPanel>
-          <WrapPanel Margin="0,0,0,8">
-            <CheckBox Margin="0,8,12,0" IsChecked="{Binding ConfirmWorkerDelete}" Content="Confirmo eliminar al trabajador" />
-            <Button Style="{StaticResource ActionButton}" Command="{Binding DeleteWorkerCommand}" Content="Eliminar trabajador" />
-            <TextBlock Margin="8,7,0,0" Foreground="#9A3412" Text="Se conserva su historial y se libera la silla." />
-          </WrapPanel>
-          <DockPanel Margin="0,4,0,8">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-              <ComboBox Width="190" Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" />
-              <DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodFrom}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" />
-              <DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodThrough}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" />
-            </StackPanel>
-            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Historial cronológico" />
-          </DockPanel>
+          <UniformGrid Margin="0,0,0,5" Columns="4">
+            <Border Margin="0,0,5,4" Padding="4" Background="#F8FAFC" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Silla actual" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileChair}" TextWrapping="Wrap" /></StackPanel></Border>
+            <Border Margin="0,0,5,4" Padding="4" Background="#FFF7ED" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Deuda actual" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileDebt}" /></StackPanel></Border>
+            <Border Margin="0,0,5,4" Padding="4" Background="#F0FDF4" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Saldo a favor" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileCredit}" /></StackPanel></Border>
+            <Border Margin="0,0,0,4" Padding="4" Background="#F8FAFC" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Próxima cuota" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileNextCharge}" TextWrapping="Wrap" /></StackPanel></Border>
+            <Border Margin="0,0,5,0" Padding="4" Background="#F8FAFC" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Valor de la cuota" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileNextChargeAmount}" /></StackPanel></Border>
+            <Border Margin="0,0,5,0" Padding="4" Background="#EEF2FF" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Próximo pago requerido" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileNextRequiredPayment}" TextWrapping="Wrap" /></StackPanel></Border>
+            <Border Margin="0,0,5,0" Padding="4" Background="#EEF2FF" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Importe estimado que faltará" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileNextRequiredAmount}" /></StackPanel></Border>
+            <Border Padding="4" Background="#F0FDFA" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Cobertura estimada hasta" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileCoveredThrough}" TextWrapping="Wrap" /></StackPanel></Border>
+          </UniformGrid>
+          <TabControl Margin="0,-2,0,6" SelectedIndex="{Binding ProfileTabIndex}">
+            <TabItem Header="Datos del trabajador">
+              <Grid Margin="8,7">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,6"><TextBlock Style="{StaticResource FieldLabel}" Text="Nombre" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ProfileName, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,6"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ProfileDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,0"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de ingreso" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding ProfileEntryDate}" /></StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,0"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de retiro" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding ProfileExitDate}" /></StackPanel>
+                <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Margin="0,4,0,0" FontSize="10" Foreground="#475569"
+                           Text="{Binding ProfileWeeklyRates, StringFormat=Tarifas históricas: {0}}" TextWrapping="Wrap" />
+              </Grid>
+            </TabItem>
+            <TabItem Header="Registrar pago">
+              <StackPanel Margin="8,7">
+                <WrapPanel>
+                  <StackPanel Width="125" Margin="0,0,8,4"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de pago" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding PaymentDate}" /></StackPanel>
+                  <StackPanel Width="125" Margin="0,0,8,4"><TextBlock Style="{StaticResource FieldLabel}" Text="Valor pagado" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding PaymentAmount, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                  <StackPanel Width="180" Margin="0,0,8,4"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción opcional" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding PaymentDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                  <Button Margin="0,23,0,4" Style="{StaticResource ActionButton}" Command="{Binding RegisterWorkerPaymentCommand}" Content="Registrar pago" />
+                </WrapPanel>
+                <TextBlock Foreground="#475569" Text="Puedes registrar pagos anticipados. El excedente quedará como saldo a favor y se aplicará a las próximas cuotas." TextWrapping="Wrap" />
+              </StackPanel>
+            </TabItem>
+            <TabItem Header="Silla y retiro">
+              <StackPanel Margin="8,7">
+                <WrapPanel>
+                  <ComboBox Width="205" Margin="0,0,8,4" Style="{StaticResource FieldBox}" DisplayMemberPath="Display" ItemsSource="{Binding WorkerProfileChairOptions}" SelectedItem="{Binding WorkerProfileSelectedChair}" />
+                  <Button Style="{StaticResource ActionButton}" Command="{Binding AssignProfileChairCommand}" Content="Asignar o cambiar silla" />
+                  <Button Style="{StaticResource ActionButton}" Command="{Binding UnassignProfileChairCommand}" Content="Retirar silla" />
+                </WrapPanel>
+                <WrapPanel>
+                  <DatePicker Width="140" Margin="0,0,8,4" Style="{StaticResource FieldBox}" SelectedDate="{Binding RetirementDate}" />
+                  <Button Style="{StaticResource ActionButton}" Command="{Binding RetireWorkerCommand}" Content="Retirar trabajador del local" />
+                  <CheckBox Margin="8,8,8,0" IsChecked="{Binding ConfirmWorkerDelete}" Content="Confirmo eliminar" />
+                  <Button Style="{StaticResource ActionButton}" Command="{Binding DeleteWorkerCommand}" Content="Eliminar trabajador" />
+                </WrapPanel>
+                <TextBlock FontSize="11" Foreground="#9A3412" Text="Al eliminar se conserva el historial y se libera la silla." />
+              </StackPanel>
+            </TabItem>
+          </TabControl>
           <TextBlock Margin="0,0,0,8" Foreground="#0F766E" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
-        </StackPanel>
-      </ScrollViewer>
-      <DataGrid Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+      </StackPanel>
+      <Border x:Name="WorkerHistoryBand" Grid.Row="1" Margin="0,4,0,8" Padding="10,8" Background="#EAF0F7" CornerRadius="6">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+            <TextBlock Margin="0,8,8,0" Foreground="#475569" Text="Periodo a mostrar" />
+            <ComboBox Width="190" Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" />
+            <DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodFrom}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            <DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodThrough}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" />
+          </StackPanel>
+          <TextBlock VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Text="Historial cronológico" />
+        </DockPanel>
+      </Border>
+      <DataGrid x:Name="WorkerHistoryGrid" Grid.Row="2" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
                 EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True"
                 VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.VerticalScrollBarVisibility="Auto"
                 ItemsSource="{Binding WorkerHistoryRows}">

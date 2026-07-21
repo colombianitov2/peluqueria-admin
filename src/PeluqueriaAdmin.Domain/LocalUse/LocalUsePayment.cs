@@ -35,18 +35,12 @@ public sealed class LocalUsePayment : AuditableEntity
         Guid personId,
         DateOnly paymentDate,
         Money amount,
-        Money currentDebt,
         DateTime utcNow,
         string? description = null)
     {
         if (amount.MinorUnits == 0)
         {
             throw new ArgumentOutOfRangeException(nameof(amount), "El pago debe ser mayor que cero.");
-        }
-
-        if (amount.MinorUnits > currentDebt.MinorUnits)
-        {
-            throw new InvalidOperationException("El pago no puede superar la deuda actual.");
         }
 
         return new LocalUsePayment(Guid.NewGuid(), personId, paymentDate, amount, utcNow, description);
@@ -59,9 +53,10 @@ public sealed class LocalUsePayment : AuditableEntity
         DateTime utcNow,
         string? description = null)
     {
-        if (amount.MinorUnits == 0 || amount.MinorUnits > debtBeforeThisPayment.MinorUnits)
+        _ = debtBeforeThisPayment;
+        if (amount.MinorUnits == 0)
         {
-            throw new InvalidOperationException("El pago editado debe ser mayor que cero y no superar la deuda disponible.");
+            throw new InvalidOperationException("El pago editado debe ser mayor que cero.");
         }
 
         PaymentDate = paymentDate;
