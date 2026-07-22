@@ -21,7 +21,7 @@ public sealed partial class InventoryViewModel(
     public AdministrationViewModel Editor { get; } = editor;
     public ObservableCollection<InventoryCurrentRow> CurrentInventory { get; } = [];
     public ObservableCollection<InventoryMovementRow> MovementHistory { get; } = [];
-    public ObservableCollection<RestockPlanRow> RestockPlans { get; } = [];
+    public ObservableCollection<InventoryCurrentRow> RecentProducts { get; } = [];
     public ObservableCollection<string> PeriodOptions { get; } =
         ["Hoy", "Esta semana", "Este mes", "Últimos 3 meses", "Últimos 6 meses", "Este año", "Todos", "Rango personalizado"];
 
@@ -31,7 +31,6 @@ public sealed partial class InventoryViewModel(
     [ObservableProperty] private bool showCustomPeriod;
     [ObservableProperty] private InventoryCurrentRow? selectedCurrentRow;
     [ObservableProperty] private InventoryMovementRow? selectedMovementRow;
-    [ObservableProperty] private RestockPlanRow? selectedPlanRow;
     [ObservableProperty] private string statusMessage = string.Empty;
     [ObservableProperty] private bool isError;
 
@@ -49,10 +48,12 @@ public sealed partial class InventoryViewModel(
             AdministrationData data = await service.LoadAsync();
             SettingsDto settings = await getSettings.ExecuteAsync();
             CurrentInventory.Clear();
+            RecentProducts.Clear();
+            var productRows = new List<InventoryCurrentRow>();
             foreach (Product product in data.Products.OrderBy(item => item.Name))
             {
                 InventoryMovement[] movements = data.InventoryMovements.Where(item => item.ProductId == product.Id).ToArray();
-                CurrentInventory.Add(new InventoryCurrentRow(
+                var row = new InventoryCurrentRow(
                     product,
                     product.Name,
                     SpanishText.For(product.Category),
@@ -62,7 +63,13 @@ public sealed partial class InventoryViewModel(
                         : string.Empty,
                     product.DefaultSalePrice.HasValue ? $"{ApplicationCurrency.Code} {product.DefaultSalePrice.Value.ToDecimal():N2}" : string.Empty,
                     product.Description ?? string.Empty,
-                    product.UpdatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)));
+                    product.UpdatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture));
+                CurrentInventory.Add(row);
+                productRows.Add(row);
+            }
+            foreach (InventoryCurrentRow row in productRows.OrderByDescending(item => item.Product.CreatedUtc).Take(20))
+            {
+                RecentProducts.Add(row);
             }
 
             ActivityDateRange? range = CurrentRange();
@@ -84,18 +91,6 @@ public sealed partial class InventoryViewModel(
                     movement.Description ?? string.Empty));
             }
 
-            RestockPlans.Clear();
-            foreach (MonthlyRestockPlan plan in data.RestockPlans.OrderByDescending(item => item.Month.Year).ThenByDescending(item => item.Month.Month))
-            {
-                Product? product = data.Products.SingleOrDefault(item => item.Id == plan.ProductId);
-                decimal available = InventoryCalculator.CurrentQuantity(data.InventoryMovements.Where(item => item.ProductId == plan.ProductId));
-                RestockPlans.Add(new RestockPlanRow(
-                    plan,
-                    plan.Month.ToString(),
-                    product?.Name ?? "Producto eliminado",
-                    plan.NeededQuantity.Value.ToString("0.###", CultureInfo.CurrentCulture),
-                    plan.SuggestedPurchase(available).ToString("0.###", CultureInfo.CurrentCulture)));
-            }
             StatusMessage = CurrentInventory.Count == 0 ? "Sin productos registrados." : string.Empty;
             IsError = false;
         }
@@ -118,7 +113,7 @@ public sealed partial class InventoryViewModel(
     {
         if (Editor.SelectedRow is null)
         {
-            StatusMessage = "Selecciona un producto, movimiento o plan para editar.";
+            StatusMessage = "Selecciona un producto o movimiento para editar.";
             IsError = true;
             return;
         }
@@ -144,7 +139,6 @@ public sealed partial class InventoryViewModel(
     partial void OnSelectedCurrentRowChanged(InventoryCurrentRow? value)
     {
         SelectedMovementRow = null;
-        SelectedPlanRow = null;
         SelectEditorEntity(value?.Product);
         if (value is not null) Editor.LoadSelectedCommand.Execute(null);
     }
@@ -152,15 +146,7 @@ public sealed partial class InventoryViewModel(
     {
         if (value is null) return;
         SelectedCurrentRow = null;
-        SelectedPlanRow = null;
         SelectEditorEntity(value.Movement);
-    }
-    partial void OnSelectedPlanRowChanged(RestockPlanRow? value)
-    {
-        if (value is null) return;
-        SelectedCurrentRow = null;
-        SelectedMovementRow = null;
-        SelectEditorEntity(value.Plan);
     }
     partial void OnSelectedPeriodChanged(string value) { ShowCustomPeriod = value == "Rango personalizado"; _ = RefreshAsync(); }
     partial void OnCustomPeriodFromChanged(DateTime? value) { if (ShowCustomPeriod) _ = RefreshAsync(); }
@@ -217,4 +203,3 @@ public sealed record InventoryCurrentRow(Product Product, string Name, string Ca
     string AverageUnitCost, string DefaultSalePrice, string Description, string LastUpdate);
 public sealed record InventoryMovementRow(InventoryMovement Movement, string Date, string Type, string Product,
     string QuantityIn, string QuantityOut, string UnitCost, string TotalValue, string Description);
-public sealed record RestockPlanRow(MonthlyRestockPlan Plan, string Month, string Product, string NeededQuantity, string SuggestedPurchase);

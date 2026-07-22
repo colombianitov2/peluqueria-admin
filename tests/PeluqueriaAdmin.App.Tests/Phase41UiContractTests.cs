@@ -13,7 +13,7 @@ public sealed class Phase41UiContractTests
         Assert.DoesNotContain("Flujo de caja", main, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Borrador recuperado", administration, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Descartar borrador", administration, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Limpiar formulario", administration, StringComparison.Ordinal);
+        Assert.DoesNotContain("Limpiar formulario", administration, StringComparison.Ordinal);
     }
 
     [Fact]

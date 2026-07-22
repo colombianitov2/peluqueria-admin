@@ -6,11 +6,13 @@ using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.DataManagement;
 using PeluqueriaAdmin.Application.Drafts;
 using PeluqueriaAdmin.Application.Exporting;
+using PeluqueriaAdmin.Application.Notes;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Application.Updates;
 using PeluqueriaAdmin.Infrastructure.Administration;
 using PeluqueriaAdmin.Infrastructure.Drafts;
 using PeluqueriaAdmin.Infrastructure.Exporting;
+using PeluqueriaAdmin.Infrastructure.Notes;
 using PeluqueriaAdmin.Infrastructure.Persistence;
 using PeluqueriaAdmin.Infrastructure.Settings;
 using PeluqueriaAdmin.Infrastructure.Storage;
@@ -90,6 +92,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<ISettingsRepository, EfSettingsRepository>();
         services.AddSingleton<IAdministrationRepository, EfAdministrationRepository>();
         services.AddSingleton<IFormDraftStore, EfFormDraftStore>();
+        services.AddSingleton<INoteRepository, EfNoteRepository>();
         services.AddSingleton<IUserDesktopPath, CurrentUserDesktopPath>();
         services.AddSingleton<IExcelWorkbookWriter, ClosedXmlWorkbookWriter>();
         services.AddSingleton<IExcelExportService, ExcelExportService>();
@@ -107,6 +110,8 @@ public partial class App : System.Windows.Application
         services.AddSingleton<SalesViewModel>();
         services.AddSingleton<InventoryViewModel>();
         services.AddSingleton<MaintenanceViewModel>();
+        services.AddSingleton<ObligationsViewModel>();
+        services.AddSingleton<NotesViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 

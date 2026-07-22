@@ -35,9 +35,9 @@ public sealed class Phase43UiContractTests
         Assert.Contains("No se encontraron productos", sales, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding CurrentInventory}\"", inventory, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding MovementHistory}\"", inventory, StringComparison.Ordinal);
-        Assert.Contains("ItemsSource=\"{Binding RestockPlans}\"", inventory, StringComparison.Ordinal);
-        Assert.Contains("Header=\"Cantidad que entra\"", inventory, StringComparison.Ordinal);
-        Assert.Contains("Header=\"Cantidad que sale\"", inventory, StringComparison.Ordinal);
+        Assert.DoesNotContain("RestockPlans", inventory, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Entrada\"", inventory, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Salida\"", inventory, StringComparison.Ordinal);
         Assert.Contains("Header=\"Costo unitario\"", inventory, StringComparison.Ordinal);
         Assert.Contains("Header=\"Valor total\"", inventory, StringComparison.Ordinal);
     }

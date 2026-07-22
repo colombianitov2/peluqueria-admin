@@ -1,0 +1,22 @@
+<UserControl x:Class="PeluqueriaAdmin.App.Views.NotesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:PeluqueriaAdmin.App.ViewModels"
+             d:DataContext="{d:DesignInstance Type=viewModels:NotesViewModel, IsDesignTimeCreatable=False}"
+             d:DesignHeight="760" d:DesignWidth="990" mc:Ignorable="d">
+  <Grid Margin="26" Background="#F5F7FA">
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+    <StackPanel Margin="0,0,0,14">
+      <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#172033" Text="Notas" />
+      <TextBlock Margin="0,5,0,0" Foreground="#5B6575" Text="Bloc único con autoguardado local." />
+    </StackPanel>
+    <TextBox Grid.Row="1" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
+             VerticalContentAlignment="Top" Padding="14" FontSize="15"
+             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+             Text="{Binding Content, UpdateSourceTrigger=PropertyChanged}"
+             LostKeyboardFocus="OnLostKeyboardFocus" />
+    <TextBlock Grid.Row="2" Margin="0,8,0,0" Foreground="#0F766E" Text="{Binding StatusMessage}" />
+  </Grid>
+</UserControl>

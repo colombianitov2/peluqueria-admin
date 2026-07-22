@@ -114,7 +114,7 @@
                     VirtualizingPanel.VirtualizationMode="Recycling" ItemsSource="{Binding Workers}"
                     SelectedItem="{Binding SelectedWorkerRow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MouseDoubleClick="OnWorkerDoubleClick">
             <DataGrid.Columns>
-              <DataGridTextColumn Width="2*" Binding="{Binding Name}" Header="Nombre" />
+              <DataGridTextColumn Width="220" Binding="{Binding Name}" Header="Nombre" />
               <DataGridTextColumn Width="120" Binding="{Binding EntryDate}" Header="Ingreso" />
               <DataGridTextColumn Width="150" Binding="{Binding Chair}" Header="Silla actual" />
               <DataGridTextColumn Width="130" Binding="{Binding Debt}" Header="Deuda" />
@@ -135,8 +135,8 @@
             <DataGrid.Columns>
               <DataGridTextColumn Width="150" Binding="{Binding Name}" Header="Nombre" />
               <DataGridTextColumn Width="120" Binding="{Binding CreationDate}" Header="Creación" />
-              <DataGridTextColumn Width="2*" Binding="{Binding Worker}" Header="Trabajador asignado" />
-              <DataGridTextColumn Width="3*" Binding="{Binding Description}" Header="Descripción" />
+              <DataGridTextColumn Width="230" Binding="{Binding Worker}" Header="Trabajador asignado" />
+              <DataGridTextColumn Width="340" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Description}" Header="Descripción" />
               <DataGridTextColumn Width="110" Binding="{Binding State}" Header="Estado" />
             </DataGrid.Columns>
           </DataGrid>
@@ -232,7 +232,7 @@
         <DataGrid.Columns>
           <DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" />
           <DataGridTextColumn Width="190" Binding="{Binding Principal}" Header="Operación" />
-          <DataGridTextColumn Width="3*" Binding="{Binding Detail}" Header="Detalle" />
+          <DataGridTextColumn Width="340" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Detail}" Header="Detalle" />
           <DataGridTextColumn Width="130" Binding="{Binding Amount}" Header="Valor" />
           <DataGridTextColumn Width="180" Binding="{Binding Status}" Header="Estado" />
         </DataGrid.Columns>
@@ -263,7 +263,7 @@
         <TextBlock Margin="0,0,0,8" Foreground="#0F766E" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
       </StackPanel>
       <DataGrid Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding ChairHistoryRows}" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
-        <DataGrid.Columns><DataGridTextColumn Width="110" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="210" Binding="{Binding Principal}" Header="Evento" /><DataGridTextColumn Width="3*" Binding="{Binding Detail}" Header="Detalle" /><DataGridTextColumn Width="2*" Binding="{Binding Status}" Header="Información" /></DataGrid.Columns>
+        <DataGrid.Columns><DataGridTextColumn Width="110" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="210" Binding="{Binding Principal}" Header="Evento" /><DataGridTextColumn Width="340" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Detail}" Header="Detalle" /><DataGridTextColumn Width="250" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Status}" Header="Información" /></DataGrid.Columns>
       </DataGrid>
     </Grid>
   </Grid>

@@ -88,7 +88,16 @@
             <oxy:PlotView Height="260" Model="{Binding IncomeGoalChart}" />
           </GroupBox>
           <GroupBox Margin="8,0,0,8" Header="Composición de gastos por categoría">
-            <oxy:PlotView Height="260" Model="{Binding ExpenseCompositionChart}" />
+            <Grid Height="300">
+              <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+              <oxy:PlotView Model="{Binding ExpenseCompositionChart}" />
+              <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#64748B" FontWeight="SemiBold" Text="Sin datos" Visibility="{Binding ShowExpenseCompositionNoData, Converter={StaticResource BooleanToVisibilityConverter}}" />
+              <ScrollViewer Grid.Row="1" MaxHeight="105" HorizontalAlignment="Right" VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding ExpenseLegendRows}">
+                  <ItemsControl.ItemTemplate><DataTemplate><StackPanel Margin="4,2" Orientation="Horizontal"><Border Width="12" Height="12" Margin="0,2,7,0" Background="{Binding Color}" /><TextBlock MaxWidth="240" Text="{Binding Category}" TextWrapping="Wrap" /><TextBlock Margin="8,0,0,0" FontWeight="SemiBold" Text="{Binding Amount}" /><TextBlock Margin="6,0,0,0" Foreground="#64748B" Text="{Binding Percentage}" /></StackPanel></DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Grid>
           </GroupBox>
           <GroupBox Grid.ColumnSpan="2" Margin="0,8,0,0" Header="Evolución del resultado del periodo">
             <oxy:PlotView Height="280" Model="{Binding ResultEvolutionChart}" />
@@ -139,8 +148,8 @@
           </DataGrid.RowStyle>
           <DataGrid.Columns>
             <DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" />
-            <DataGridTextColumn Width="2*" Binding="{Binding Principal}" Header="Nombre" />
-            <DataGridTextColumn Width="2*" Binding="{Binding Detail}" Header="Detalle o descripción" />
+            <DataGridTextColumn Width="220" Binding="{Binding Principal}" Header="Nombre" />
+            <DataGridTextColumn Width="340" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Detail}" Header="Detalle o descripción" />
             <DataGridTextColumn Width="100" Binding="{Binding Quantity}" Header="Cantidad" />
             <DataGridTextColumn Width="135" Binding="{Binding Amount}" Header="Valor" />
             <DataGridTextColumn Width="165" Binding="{Binding Status}" Header="Estado" />
@@ -151,7 +160,7 @@
       <TextBlock Grid.Row="9" Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Registros del periodo" Visibility="{Binding ShowSimpleFinancialTable, Converter={StaticResource BooleanToVisibilityConverter}}" />
       <Border Grid.Row="10" Height="300" Margin="0,0,0,14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7" Visibility="{Binding ShowSimpleFinancialTable, Converter={StaticResource BooleanToVisibilityConverter}}">
         <DataGrid AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" BorderThickness="0" ItemsSource="{Binding SimpleFinancialRows}" SelectedItem="{Binding SelectedSimpleFinancialRow}">
-          <DataGrid.Columns><DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="2*" Binding="{Binding Concept}" Header="Nombre" /><DataGridTextColumn Width="140" Binding="{Binding Amount}" Header="Valor" /><DataGridTextColumn Width="3*" Binding="{Binding Description}" Header="Descripción" /></DataGrid.Columns>
+          <DataGrid.Columns><DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="220" Binding="{Binding Concept}" Header="Nombre" /><DataGridTextColumn Width="140" Binding="{Binding Amount}" Header="Valor" /><DataGridTextColumn Width="360" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Description}" Header="Descripción" /></DataGrid.Columns>
         </DataGrid>
       </Border>
 
@@ -164,7 +173,7 @@
             <DataGrid.Columns>
               <DataGridTextColumn Width="105" Header="Fecha" Binding="{Binding Date}" />
               <DataGridTextColumn Width="140" Header="Mes u operación" Binding="{Binding Principal}" />
-              <DataGridTextColumn Width="2*" Header="Porcentaje o descripción" Binding="{Binding Detail}" />
+              <DataGridTextColumn Width="300" ElementStyle="{StaticResource WrappingCellText}" Header="Porcentaje o descripción" Binding="{Binding Detail}" />
               <DataGridTextColumn Width="135" Header="Participación/pago" Binding="{Binding Amount}" />
               <DataGridTextColumn Width="220" Header="Pagado y pendiente" Binding="{Binding Status}" />
             </DataGrid.Columns>
@@ -176,10 +185,6 @@
               Visibility="{Binding IsFormVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
         <StackPanel>
           <DockPanel Margin="0,0,0,12">
-            <Button DockPanel.Dock="Right" Padding="11,6"
-                    Command="{Binding ClearFormFieldsCommand}"
-                    Content="Limpiar formulario"
-                    Visibility="{Binding HasRecoveredDraft, Converter={StaticResource BooleanToVisibilityConverter}}" />
             <ItemsControl ItemsSource="{Binding ActionOptions}">
               <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>

@@ -295,6 +295,10 @@ public sealed partial class AdministrationViewModel(
 
     public PlotModel ExpenseCompositionChart { get; } = new() { Title = "Composición de gastos" };
 
+    public ObservableCollection<ExpenseLegendRow> ExpenseLegendRows { get; } = [];
+
+    [ObservableProperty] private bool showExpenseCompositionNoData;
+
     public PlotModel ResultEvolutionChart { get; } = new() { Title = "Evolución del resultado" };
 
     public async Task SelectModuleAsync(string module)
@@ -556,7 +560,6 @@ public sealed partial class AdministrationViewModel(
             InventoryMovementType.Sale => "Registrar venta",
             _ => "Agregar producto",
         },
-        MonthlyRestockPlan => "Plan mensual",
         FinancialEntry entry => entry.Type switch
         {
             FinancialEntryType.OtherIncome => "Registrar ingreso",
@@ -735,9 +738,6 @@ public sealed partial class AdministrationViewModel(
             case (InventoryModule, "Conteo físico"):
                 await AddPhysicalCountAsync(date, utcNow, completedDraftKey);
                 break;
-            case (InventoryModule, "Plan mensual"):
-                await AddRestockPlanAsync(date, utcNow, completedDraftKey);
-                break;
             case (OtherIncomeModule, "Registrar ingreso"):
                 await service.AddAsync(FinancialEntry.CreateIncome(
                     date, PrimaryText, ParseMoney(AmountText), utcNow, OptionalDescriptionText), completedDraftKey: completedDraftKey);
@@ -863,17 +863,6 @@ public sealed partial class AdministrationViewModel(
         await service.AddInventoryMovementAsync(movement, completedDraftKey: completedDraftKey);
     }
 
-    private async Task AddRestockPlanAsync(DateOnly date, DateTime utcNow, string completedDraftKey)
-    {
-        AdministrationData data = await service.LoadAsync();
-        Product product = data.Products.Single(item => item.Id == RequireSelectedOption().Id);
-        await service.AddAsync(MonthlyRestockPlan.Create(
-            product.Id,
-            YearMonth.From(date),
-            Quantity.NonNegative(ParseDecimal(QuantityText, "necesidad mensual")),
-            utcNow), completedDraftKey: completedDraftKey);
-    }
-
     private async Task CloseMonthAsync(DateOnly date, string completedDraftKey)
     {
         AdministrationData data = await service.LoadAsync();
@@ -957,13 +946,6 @@ public sealed partial class AdministrationViewModel(
                     utcNow,
                     OptionalDescriptionText);
                 await service.UpdateInventoryMovementAsync(movement, completedDraftKey: completedDraftKey);
-                break;
-            case MonthlyRestockPlan plan:
-                plan.Update(
-                    YearMonth.From(date),
-                    Quantity.NonNegative(ParseDecimal(QuantityText, "necesidad mensual")),
-                    utcNow);
-                await service.UpdateAsync(plan, completedDraftKey: completedDraftKey);
                 break;
             case FinancialEntry financial:
                 financial.Update(
@@ -1134,13 +1116,6 @@ public sealed partial class AdministrationViewModel(
             yield return row;
         }
 
-        foreach (MonthlyRestockPlan plan in data.RestockPlans)
-        {
-            string product = data.Products.SingleOrDefault(item => item.Id == plan.ProductId)?.Name ?? "Producto eliminado";
-            yield return Row(
-                plan.Month.FirstDay, product, "Plan mensual", plan.NeededQuantity.Value.ToString("0.###"),
-                string.Empty, plan.Month.ToString(), plan);
-        }
     }
 
     private static IEnumerable<OperationRow> BuildInventoryMovementRows(
@@ -1243,12 +1218,12 @@ public sealed partial class AdministrationViewModel(
             month);
         return
         [
-            SummaryRow(month, "Ingresos", result.IncomeMinorUnits, ApplicationCurrency.Code),
-            SummaryRow(month, "Meta mensual", result.GoalMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "Ingresos reales", result.IncomeMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "Gastos reales", result.GoalMinorUnits, ApplicationCurrency.Code),
             SummaryRow(month, "Faltante", result.MissingMinorUnits, ApplicationCurrency.Code),
-            SummaryRow(month, "Resultado base", result.BaseResultMinorUnits, ApplicationCurrency.Code),
-            SummaryRow(month, "Fondo colaboradores", result.CollaboratorFundMinorUnits, ApplicationCurrency.Code),
-            SummaryRow(month, "Resultado retenido", result.RetainedResultMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "Ganancia neta antes de colaboradores", result.BaseResultMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "Fondo de colaboradores", result.CollaboratorFundMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "Ganancia retenida por el local", result.RetainedResultMinorUnits, ApplicationCurrency.Code),
         ];
     }
 
@@ -1297,12 +1272,14 @@ public sealed partial class AdministrationViewModel(
 
         ExpenseCompositionChart.Series.Clear();
         ExpenseCompositionChart.Axes.Clear();
+        ExpenseLegendRows.Clear();
         var pie = new PieSeries
         {
             StrokeThickness = 1,
-            InsideLabelPosition = 0.65,
-            OutsideLabelFormat = "{1}: {0:N0}",
-            Diameter = 0.62,
+            InsideLabelFormat = string.Empty,
+            OutsideLabelFormat = string.Empty,
+            TrackerFormatString = "{1}: USD {2:N2} ({3:P1})",
+            Diameter = 0.72,
         };
         OxyColor[] colors =
         [
@@ -1312,22 +1289,32 @@ public sealed partial class AdministrationViewModel(
             OxyColor.FromRgb(71, 85, 105),
         ];
         int colorIndex = 0;
-        foreach (IGrouping<string, ChartCashPoint> category in periodPoints
+        var expenseGroups = periodPoints
             .Where(item => item.SignedMinorUnits < 0)
             .GroupBy(item => item.Category)
-            .OrderBy(item => item.Key))
+            .OrderBy(item => item.Key)
+            .Select(group => new { Category = group.Key, MinorUnits = -group.Sum(item => item.SignedMinorUnits) })
+            .ToArray();
+        long expenseTotal = expenseGroups.Sum(item => item.MinorUnits);
+        foreach (var category in expenseGroups)
         {
+            OxyColor color = colors[colorIndex++ % colors.Length];
             AddSlice(
                 pie,
-                category.Key,
-                -category.Sum(item => item.SignedMinorUnits),
-                colors[colorIndex++ % colors.Length]);
+                category.Category,
+                category.MinorUnits,
+                color);
+            ExpenseLegendRows.Add(new ExpenseLegendRow(
+                color.ToString(),
+                category.Category,
+                $"{ApplicationCurrency.Code} {category.MinorUnits / 100m:N2}",
+                expenseTotal == 0 ? string.Empty : $"{category.MinorUnits * 100m / expenseTotal:N1} %"));
         }
-        if (pie.Slices.Count == 0)
+        ShowExpenseCompositionNoData = pie.Slices.Count == 0;
+        if (pie.Slices.Count > 0)
         {
-            pie.Slices.Add(new PieSlice("Sin datos", 1) { Fill = OxyColors.LightGray });
+            ExpenseCompositionChart.Series.Add(pie);
         }
-        ExpenseCompositionChart.Series.Add(pie);
         ExpenseCompositionChart.InvalidatePlot(true);
 
         ResultEvolutionChart.Series.Clear();
@@ -1369,8 +1356,8 @@ public sealed partial class AdministrationViewModel(
     private IReadOnlyList<ChartCashPoint> BuildChartCashPoints(AdministrationData data)
     {
         var result = new List<ChartCashPoint>();
-        result.AddRange(data.LocalUsePayments.Select(item =>
-            new ChartCashPoint(item.PaymentDate, item.CreatedUtc, "Uso del local", item.Amount.MinorUnits)));
+        result.AddRange(AdministrationReports.EarnedLocalUseIncome(data).Select(item =>
+            new ChartCashPoint(item.Date, item.OccurredUtc, "Uso del local", item.MinorUnits)));
         result.AddRange(data.InventoryMovements
             .Where(item => item.Type == InventoryMovementType.Sale)
             .Select(item => new ChartCashPoint(item.Date, item.CreatedUtc, "Ventas", item.CashAmount?.MinorUnits ?? 0)));
@@ -1388,8 +1375,6 @@ public sealed partial class AdministrationViewModel(
             .Where(item => item.CompletedDate.HasValue && item.ActualCost.HasValue)
             .Select(item => new ChartCashPoint(
                 item.CompletedDate!.Value, item.UpdatedUtc, "Mantenimiento", -item.ActualCost!.Value.MinorUnits)));
-        result.AddRange(data.DistributionPayments.Select(item =>
-            new ChartCashPoint(item.Date, item.CreatedUtc, "Pagos a colaboradores", -item.Amount.MinorUnits)));
         return result;
     }
 
@@ -1487,6 +1472,8 @@ public sealed partial class AdministrationViewModel(
         }
     }
 
+    public sealed record ExpenseLegendRow(string Color, string Category, string Amount, string Percentage);
+
     private IEnumerable<OperationRow> BuildAnnualRows(AdministrationData data, SettingsDto settings)
     {
         int year = ParseDate(DateText, "año a consultar").Year;
@@ -1514,7 +1501,6 @@ public sealed partial class AdministrationViewModel(
             SummaryRow(january, "Mantenimiento", expenses.MaintenanceMinorUnits, ApplicationCurrency.Code),
             SummaryRow(january, "Imprevistos", expenses.UnexpectedMinorUnits, ApplicationCurrency.Code),
             SummaryRow(january, "Otros gastos", expenses.OtherExpensesMinorUnits, ApplicationCurrency.Code),
-            SummaryRow(january, "Planes de reposición", expenses.PendingPlansMinorUnits, ApplicationCurrency.Code),
             SummaryRow(january, "Ajuste histórico de cierres", expenses.HistoricalAdjustmentMinorUnits, ApplicationCurrency.Code),
             Row(january.FirstDay, "Indicador", report.Indicator, string.Empty, string.Empty, report.Indicator, null),
         ];
@@ -1838,8 +1824,7 @@ public sealed partial class AdministrationViewModel(
         _ = LoadCollaboratorHistoryAsync();
         if (!suppressFormTracking
             && value?.CanEdit == true
-            && value.Entity is not InventoryMovement
-            && value.Entity is not MonthlyRestockPlan)
+            && value.Entity is not InventoryMovement)
         {
             LoadSelected();
         }
@@ -1981,8 +1966,8 @@ public sealed partial class AdministrationViewModel(
                 foreach (string x in new[] { "Alimento o bebida para venta", "Otro producto para venta", "Cortesía para clientes", "Aseo", "Insumo del local", "Otro producto del local" }) SecondaryOptions.Add(x); break;
             case (InventoryModule, "Registrar compra"):
                 PrimaryLabel = "Producto existente"; UsePrimarySelector = true; ShowQuantity = ShowAmount = true; QuantityLabel = "Cantidad comprada"; AmountLabel = "Costo por unidad o paquete"; break;
-            case (InventoryModule, "Registrar consumo" or "Conteo físico" or "Plan mensual"):
-                PrimaryLabel = "Producto"; UsePrimarySelector = true; ShowQuantity = true; QuantityLabel = SelectedAction == "Conteo físico" ? "Cantidad física encontrada" : SelectedAction == "Plan mensual" ? "Cantidad necesaria del mes" : "Cantidad consumida"; DateLabel = SelectedAction == "Plan mensual" ? "Mes del plan" : "Fecha"; break;
+            case (InventoryModule, "Registrar consumo" or "Conteo físico"):
+                PrimaryLabel = "Producto"; UsePrimarySelector = true; ShowQuantity = true; QuantityLabel = SelectedAction == "Conteo físico" ? "Cantidad física encontrada" : "Cantidad consumida"; DateLabel = "Fecha"; break;
             case (OtherIncomeModule, _):
                 PrimaryLabel = "Nombre del ingreso"; ShowAmount = true; AmountLabel = "Valor"; break;
             case (UnexpectedModule, _):
@@ -2032,7 +2017,7 @@ public sealed partial class AdministrationViewModel(
             LocalUseModule => ("Sillas, trabajadores, asignaciones, cuotas semanales y pagos.", ["Añadir silla", "Añadir trabajador", "Registrar pago", "Asignar o cambiar silla", "Retirar silla"]),
             CollaboratorsModule => ("Participantes de los cierres mensuales; no constituye nómina laboral.", ["Agregar colaborador"]),
             SalesModule => ("Ventas de productos del local. Selecciona el producto por nombre.", ["Registrar venta"]),
-            InventoryModule => ("Productos, compras, consumos, conteos y necesidades mensuales.", ["Agregar producto", "Registrar compra", "Registrar consumo", "Conteo físico", "Plan mensual"]),
+            InventoryModule => ("Productos, compras, consumos y conteos físicos.", ["Agregar producto", "Registrar compra", "Registrar consumo", "Conteo físico"]),
             OtherIncomeModule => ("Ingresos reales diferentes de uso del local y ventas.", ["Registrar ingreso"]),
             ExpensesModule => ("Gastos del local que no provienen ya de una compra de inventario.", ["Registrar gasto"]),
             UnexpectedModule => ("Daños, reparaciones y acontecimientos no planificados.", ["Registrar imprevisto"]),
@@ -2105,10 +2090,6 @@ public sealed partial class AdministrationViewModel(
                 AmountText = item.CashAmount?.ToDecimal().ToString("0.00") ?? string.Empty;
                 SecondaryAmountText = item.EstimatedCost?.ToDecimal().ToString("0.00") ?? string.Empty;
                 OptionalDescriptionText = item.Description ?? string.Empty;
-                break;
-            case MonthlyRestockPlan item:
-                DateText = FormatDate(item.Month.FirstDay);
-                QuantityText = item.NeededQuantity.Value.ToString("0.###", CultureInfo.CurrentCulture);
                 break;
             case FinancialEntry item:
                 PrimaryText = item.Concept;

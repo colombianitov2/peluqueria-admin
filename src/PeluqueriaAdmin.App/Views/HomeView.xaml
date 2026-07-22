@@ -32,30 +32,17 @@
                        FontSize="20"
                        Text="{Binding FechaActual}" />
           </StackPanel>
-          <StackPanel Grid.Column="1" Orientation="Horizontal">
-            <Grid Margin="0,0,10,0">
+          <Grid Grid.Column="1">
               <ToggleButton x:Name="MaintenanceBell" Width="46" Height="42" ToolTip="Mantenimientos para hoy o vencidos" AutomationProperties.Name="Notificaciones de mantenimiento" IsChecked="{Binding IsMaintenanceNotificationsOpen}">
                 <Grid><Path Width="20" Height="22" Stretch="Uniform" Stroke="#334155" StrokeThickness="1.8" Data="M 4,16 L 16,16 L 14.5,13 L 14.5,8 A 4.5,4.5 0 0 0 5.5,8 L 5.5,13 Z M 8,18 A 2,2 0 0 0 12,18" /></Grid>
               </ToggleButton>
               <Border Margin="30,-5,-5,0" Padding="5,1" HorizontalAlignment="Right" VerticalAlignment="Top" Background="#DC2626" CornerRadius="9"><TextBlock Foreground="White" FontSize="11" Text="{Binding MaintenanceNotificationCount}" /></Border>
               <Popup PlacementTarget="{Binding ElementName=MaintenanceBell}" Placement="Bottom" StaysOpen="False" IsOpen="{Binding IsMaintenanceNotificationsOpen}">
-                <Border Width="390" MaxHeight="330" Padding="12" Background="White" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6">
-                  <StackPanel><TextBlock Margin="0,0,0,8" FontWeight="SemiBold" Text="Mantenimientos pendientes" /><DataGrid MaxHeight="230" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding MaintenanceNotifications}"><DataGrid.Columns><DataGridTextColumn Width="*" Binding="{Binding Asset}" Header="Equipo" /><DataGridTextColumn Width="*" Binding="{Binding Type}" Header="Tipo" /><DataGridTextColumn Width="95" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="70" Binding="{Binding Status}" Header="Estado" /></DataGrid.Columns></DataGrid><Button Margin="0,8,0,0" Padding="10,5" HorizontalAlignment="Right" Command="{Binding GoToMaintenanceCommand}" Content="Ir a Mantenimiento" /></StackPanel>
+                <Border Width="660" MaxHeight="360" Padding="12" Background="White" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6">
+                  <StackPanel><TextBlock Margin="0,0,0,8" FontWeight="SemiBold" Text="Mantenimientos pendientes" /><DataGrid MaxHeight="255" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding MaintenanceNotifications}"><DataGrid.Columns><DataGridTextColumn Width="220" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Asset}" Header="Equipo" /><DataGridTextColumn Width="220" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Type}" Header="Tipo" /><DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="90" Binding="{Binding Status}" Header="Estado" /></DataGrid.Columns></DataGrid><Button Margin="0,8,0,0" Padding="10,5" HorizontalAlignment="Right" Command="{Binding GoToMaintenanceCommand}" Content="Ir a Mantenimiento" /></StackPanel>
                 </Border>
               </Popup>
-            </Grid>
-            <Grid>
-              <ToggleButton x:Name="ObligationBell" Width="46" Height="42" ToolTip="Obligaciones para hoy o vencidas" AutomationProperties.Name="Notificaciones de obligaciones" IsChecked="{Binding IsObligationNotificationsOpen}">
-                <Grid><Path Width="20" Height="22" Stretch="Uniform" Stroke="#334155" StrokeThickness="1.8" Data="M 4,2 L 16,2 L 16,20 L 4,20 Z M 7,7 L 13,7 M 7,11 L 13,11 M 7,15 L 11,15" /></Grid>
-              </ToggleButton>
-              <Border Margin="30,-5,-5,0" Padding="5,1" HorizontalAlignment="Right" VerticalAlignment="Top" Background="#DC2626" CornerRadius="9"><TextBlock Foreground="White" FontSize="11" Text="{Binding ObligationNotificationCount}" /></Border>
-              <Popup PlacementTarget="{Binding ElementName=ObligationBell}" Placement="Bottom" StaysOpen="False" IsOpen="{Binding IsObligationNotificationsOpen}">
-                <Border Width="440" MaxHeight="330" Padding="12" Background="White" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6">
-                  <StackPanel><TextBlock Margin="0,0,0,8" FontWeight="SemiBold" Text="Obligaciones pendientes" /><DataGrid MaxHeight="230" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding ObligationNotifications}"><DataGrid.Columns><DataGridTextColumn Width="*" Binding="{Binding Name}" Header="Nombre" /><DataGridTextColumn Width="95" Binding="{Binding Type}" Header="Tipo" /><DataGridTextColumn Width="95" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="110" Binding="{Binding Amount}" Header="Valor" /><DataGridTextColumn Width="70" Binding="{Binding Status}" Header="Estado" /></DataGrid.Columns></DataGrid><Button Margin="0,8,0,0" Padding="10,5" HorizontalAlignment="Right" Command="{Binding GoToObligationsCommand}" Content="Ir a Obligaciones" /></StackPanel>
-                </Border>
-              </Popup>
-            </Grid>
-          </StackPanel>
+          </Grid>
         </Grid>
 
         <GroupBox Grid.Row="2"

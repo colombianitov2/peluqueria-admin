@@ -10,7 +10,8 @@ public sealed record CollaboratorRow(
     string State,
     string Description,
     string ProfitShare,
-    string AssignedAmount);
+    string AssignedAmount,
+    string PaymentState);
 
 public sealed record ContributionRow(
     CollaboratorContribution Contribution,
@@ -18,3 +19,8 @@ public sealed record ContributionRow(
     string Amount,
     string Description,
     string State);
+
+public sealed record CollaboratorDistributionOption(
+    MonthlyCloseParticipant Participant,
+    string Display,
+    long PendingMinorUnits);

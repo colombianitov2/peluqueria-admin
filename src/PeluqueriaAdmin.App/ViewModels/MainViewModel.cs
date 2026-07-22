@@ -6,7 +6,6 @@ using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Domain.Common;
 using PeluqueriaAdmin.Domain.Maintenance;
-using PeluqueriaAdmin.Domain.Obligations;
 using PeluqueriaAdmin.Domain.Settings;
 
 namespace PeluqueriaAdmin.App.ViewModels;
@@ -27,6 +26,8 @@ public sealed partial class MainViewModel : ObservableObject
         SalesViewModel sales,
         InventoryViewModel inventory,
         MaintenanceViewModel maintenance,
+        ObligationsViewModel obligations,
+        NotesViewModel notes,
         AdministrationService administrationService,
         GetSettingsUseCase getSettings,
         TimeProvider timeProvider)
@@ -38,6 +39,8 @@ public sealed partial class MainViewModel : ObservableObject
         Sales = sales;
         Inventory = inventory;
         Maintenance = maintenance;
+        Obligations = obligations;
+        Notes = notes;
         this.administrationService = administrationService;
         this.getSettings = getSettings;
         this.timeProvider = timeProvider;
@@ -57,6 +60,7 @@ public sealed partial class MainViewModel : ObservableObject
             new(AdministrationViewModel.MonthlySummaryModule, true),
             new(AdministrationViewModel.AnnualBalanceModule, true),
             new("Ajustes", false),
+            new("Notas", false),
         ];
         currentPage = this;
         selectedNavigationItem = NavigationItems[0];
@@ -78,11 +82,13 @@ public sealed partial class MainViewModel : ObservableObject
 
     public MaintenanceViewModel Maintenance { get; }
 
+    public NotesViewModel Notes { get; }
+
+    public ObligationsViewModel Obligations { get; }
+
     public ObservableCollection<NavigationItem> NavigationItems { get; }
 
     public ObservableCollection<MaintenanceNotificationRow> MaintenanceNotifications { get; } = [];
-
-    public ObservableCollection<ObligationNotificationRow> ObligationNotifications { get; } = [];
 
     [ObservableProperty]
     private object? currentPage;
@@ -109,22 +115,13 @@ public sealed partial class MainViewModel : ObservableObject
     private string precioSugeridoPorSilla = "No se puede calcular: no hay sillas ocupadas";
 
     [ObservableProperty] private int maintenanceNotificationCount;
-    [ObservableProperty] private int obligationNotificationCount;
     [ObservableProperty] private bool isMaintenanceNotificationsOpen;
-    [ObservableProperty] private bool isObligationNotificationsOpen;
 
     [RelayCommand]
     private async Task GoToMaintenanceAsync()
     {
         IsMaintenanceNotificationsOpen = false;
         await NavigateToAsync(AdministrationViewModel.MaintenanceModule);
-    }
-
-    [RelayCommand]
-    private async Task GoToObligationsAsync()
-    {
-        IsObligationNotificationsOpen = false;
-        await NavigateToAsync(AdministrationViewModel.ObligationsModule);
     }
 
     [RelayCommand]
@@ -174,6 +171,13 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        if (item.Name == "Notas")
+        {
+            await Notes.LoadAsync();
+            CurrentPage = Notes;
+            return;
+        }
+
         if (item.Name == AdministrationViewModel.LocalUseModule)
         {
             await LocalUse.LoadAsync();
@@ -209,6 +213,13 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        if (item.Name == AdministrationViewModel.ObligationsModule)
+        {
+            await Obligations.LoadAsync();
+            CurrentPage = Obligations;
+            return;
+        }
+
         await Administration.SelectModuleAsync(item.Name);
         CurrentPage = Administration;
     }
@@ -235,23 +246,6 @@ public sealed partial class MainViewModel : ObservableObject
                 maintenance.ScheduledDate == today ? "Hoy" : "Vencido"));
         }
         MaintenanceNotificationCount = MaintenanceNotifications.Count;
-
-        ObligationNotifications.Clear();
-        foreach (Obligation obligation in data.Obligations
-            .Where(item => item.DueDate <= today
-                && item.Status(data.ObligationPayments.Where(payment => payment.ObligationId == item.Id), today)
-                    != ObligationStatus.Paid)
-            .OrderBy(item => item.DueDate)
-            .ThenBy(item => item.Name))
-        {
-            ObligationNotifications.Add(new ObligationNotificationRow(
-                obligation.Name,
-                ObligationTypeName(obligation.Type),
-                obligation.DueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                $"{ApplicationCurrency.Code} {obligation.ExpectedAmount.ToDecimal():N2}",
-                obligation.DueDate == today ? "Hoy" : "Vencida"));
-        }
-        ObligationNotificationCount = ObligationNotifications.Count;
 
         HomeDashboard dashboard = HomeDashboardCalculator.Calculate(
             data,
@@ -295,15 +289,9 @@ public sealed partial class MainViewModel : ObservableObject
         await Sales.FlushPendingAsync();
         await Inventory.FlushPendingAsync();
         await Maintenance.FlushPendingAsync();
+        await Notes.FlushPendingAsync();
+        await Obligations.FlushPendingAsync();
     }
-
-    private static string ObligationTypeName(ObligationType type) => type switch
-    {
-        ObligationType.Service => "Servicio",
-        ObligationType.Tax => "Impuesto",
-        ObligationType.OtherRecurring => "Otra obligación",
-        _ => type.ToString(),
-    };
 
     private void OnAdministrationDataChanged(object? sender, EventArgs eventArgs)
     {
@@ -338,18 +326,24 @@ public sealed partial class MainViewModel : ObservableObject
     private void OnDayChanged(object? state)
     {
         ScheduleDayChangeRefresh();
-        if (!ReferenceEquals(CurrentPage, this)) return;
         if (System.Windows.Application.Current?.Dispatcher is { } dispatcher)
         {
-            _ = dispatcher.InvokeAsync(RefreshHomeAsync);
+            _ = dispatcher.InvokeAsync(RefreshAfterDayChangeAsync);
         }
         else
         {
-            _ = RefreshHomeAsync();
+            _ = RefreshAfterDayChangeAsync();
         }
+    }
+
+    private async Task RefreshAfterDayChangeAsync()
+    {
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+        await administrationService.GenerateScheduledRecordsAsync(today);
+        if (ReferenceEquals(CurrentPage, this)) await RefreshHomeAsync();
+        else if (ReferenceEquals(CurrentPage, LocalUse)) await LocalUse.LoadAsync();
+        else if (ReferenceEquals(CurrentPage, Maintenance)) await Maintenance.LoadAsync();
     }
 }
 
 public sealed record MaintenanceNotificationRow(string Asset, string Type, string Date, string Status);
-
-public sealed record ObligationNotificationRow(string Name, string Type, string Date, string Amount, string Status);

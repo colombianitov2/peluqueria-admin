@@ -223,6 +223,9 @@ public sealed class AdministrationViewModelTests
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
         await service.AddAsync(FinancialEntry.CreateIncome(
             new DateOnly(2026, 7, 2), "Ingreso", Money.FromDecimal(100m), UtcNow), cancellationToken);
+        await service.AddAsync(FinancialEntry.CreateExpense(
+            new DateOnly(2026, 7, 3), "Gasto", ExpenseCategory.Other,
+            Money.FromDecimal(10m), UtcNow), cancellationToken);
         var viewModel = new AdministrationViewModel(
             service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
 

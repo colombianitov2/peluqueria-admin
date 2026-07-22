@@ -66,9 +66,9 @@ public sealed class Phase46UiContractTests
         string viewModel = Read("src", "PeluqueriaAdmin.App", "ViewModels", "AdministrationViewModel.cs");
 
         Assert.Contains("AutomationProperties.Name=\"Notificaciones de mantenimiento\"", home, StringComparison.Ordinal);
-        Assert.Contains("AutomationProperties.Name=\"Notificaciones de obligaciones\"", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("AutomationProperties.Name=\"Notificaciones de obligaciones\"", home, StringComparison.Ordinal);
         Assert.Contains("MaintenanceNotificationCount", home, StringComparison.Ordinal);
-        Assert.Contains("ObligationNotificationCount", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("ObligationNotificationCount", home, StringComparison.Ordinal);
         Assert.Contains("Fecha específica", viewModel, StringComparison.Ordinal);
         Assert.Contains("Año específico", viewModel, StringComparison.Ordinal);
         Assert.Contains("00}:00", viewModel, StringComparison.Ordinal);

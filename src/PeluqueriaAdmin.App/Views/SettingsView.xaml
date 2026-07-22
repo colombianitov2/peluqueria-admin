@@ -100,9 +100,9 @@
                     SelectedItem="{Binding SelectedUnofficialExpense}">
             <DataGrid.Columns>
               <DataGridTextColumn Width="110" Header="Desde" Binding="{Binding Date}" />
-              <DataGridTextColumn Width="*" Header="Nombre" Binding="{Binding Principal}" />
+              <DataGridTextColumn Width="220" Header="Nombre" Binding="{Binding Principal}" />
               <DataGridTextColumn Width="140" Header="Valor mensual (USD)" Binding="{Binding Amount}" />
-              <DataGridTextColumn Width="2*" Header="Descripción" Binding="{Binding Detail}" />
+              <DataGridTextColumn Width="340" ElementStyle="{StaticResource WrappingCellText}" Header="Descripción" Binding="{Binding Detail}" />
             </DataGrid.Columns>
           </DataGrid>
         </StackPanel>

@@ -35,6 +35,12 @@
     <DataTemplate DataType="{x:Type viewModels:MaintenanceViewModel}">
       <views:MaintenanceView />
     </DataTemplate>
+    <DataTemplate DataType="{x:Type viewModels:NotesViewModel}">
+      <views:NotesView />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type viewModels:ObligationsViewModel}">
+      <views:ObligationsView />
+    </DataTemplate>
   </Window.Resources>
   <DockPanel>
     <Border DockPanel.Dock="Left"
