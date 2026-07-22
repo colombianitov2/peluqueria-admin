@@ -16,6 +16,7 @@ Esta lista reúne comportamientos que dependen del paso real del tiempo o de cru
 - [ ] Mantener un trabajador de prueba hasta cumplirse 7, 14, 21 y más días desde su ingreso y verificar una sola cuota por cada periodo completo.
 - [ ] Confirmar que ningún periodo incompleto genera deuda al ingresar o al retirar al trabajador.
 - [ ] Registrar saldo a favor y observar su consumo progresivo al completarse cada periodo semanal.
+- [ ] Repetir manualmente la prueba automatizada `AdvanceBalance_DecreasesOncePerAnchoredWeekAndRestartDoesNotDuplicateCharges`: saldo grande, +7 días, +varias semanas, saldo parcial, faltante exacto y reinicio sin segunda deducción.
 - [ ] Confirmar en fechas futuras la próxima cuota y el próximo pago requerido, con su fecha e importe.
 - [ ] Programar un cambio de tarifa con fecha de vigencia y verificar tarifa histórica en periodos causados y tarifa nueva solo en los futuros.
 
@@ -25,10 +26,12 @@ Esta lista reúne comportamientos que dependen del paso real del tiempo o de cru
 - [ ] Mantener la aplicación abierta durante un cambio de día y comprobar que fecha local, filtros y generación programada se actualizan al volver al módulo o pulsar **Actualizar**.
 
 Para cada comprobación se debe usar una raíz de datos temporal, anotar fecha/hora local, zona horaria, versión, resultado esperado y resultado observado. No debe utilizarse la base real para estas pruebas.
-# Comprobaciones posteriores a Fase 4.6
+# Comprobaciones posteriores a Fase 4.7
 
-- Mantener la aplicación abierta durante el cambio de medianoche y comprobar que ambos contadores de Inicio se renuevan sin reiniciar.
+- Mantener la aplicación abierta durante el cambio de medianoche y comprobar que la campana de mantenimiento, el saldo semanal y el snapshot mensual se renuevan sin reiniciar.
 - Repetir las ocho escalas del Resumen mensual en el último día de febrero, cambio de año y zonas horarias con horario de verano.
 - Confirmar que un registro migrado cuya fecha operativa no coincide con `CreatedUtc` aparece en el total diario y en el aviso “sin hora”, pero nunca en una hora inventada.
 - Revisar Inicio, Colaboradores, Ventas, Inventario, Ajustes, Resumen mensual y Balance anual a 100 %, 125 % y 150 % en el segundo monitor.
 - Probar una carpeta de exportación de red temporalmente desconectada: debe mostrarse el error y no debe aparecer un archivo parcial ni cambiarse de carpeta silenciosamente.
+- Con datos temporales, escribir una nota, esperar menos y más que el debounce, cerrar de forma normal y abrupta y confirmar la recuperación razonable.
+- Confirmar visualmente obligaciones/pagos y mantenimiento pendiente/historial con nombres muy largos y suficientes filas para activar ambas barras internas.

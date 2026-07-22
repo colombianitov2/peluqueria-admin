@@ -95,6 +95,8 @@ Reglas técnicas:
 - La moneda de aplicación es la constante USD. Las columnas históricas de moneda y presupuesto opcional se conservan solo para migración, se normalizan a USD/cero y no participan en reglas vigentes.
 
 La migración `Phase46UsdExportsDistributionInventory` es aditiva: incorpora `Settings.ExportDirectory`, `Collaborators.ProfitShareBasisPoints` y `Products.DefaultUnitCostMinorUnits`. No reescribe importes, no elimina columnas heredadas y no altera snapshots de cierres. Los eventos de silla se escriben tanto para el trabajador como para la silla dentro de la misma transacción lógica, lo que permite perfiles coherentes sin inferir asignaciones nuevas.
+
+La migración `Phase47SimplificationAndNotes` también es aditiva: incorpora la participación interna del fondo sin reutilizar el porcentaje directo heredado, marca ocurrencias de obligación pagadas y agrega la nota singleton. La presentación separa catálogo/pagos y programación/realización; las fórmulas permanecen en Domain/Application y Excel lee una sola transacción consistente.
 - La eliminación funcional es lógica y las consultas normales excluyen registros eliminados.
 - Cada migración se identifica por versión y se ejecuta dentro de una transacción cuando SQLite lo permita.
 - Antes de una migración importante se crea una copia verificada de la base de datos cerrada o mediante el mecanismo seguro de copia de SQLite.

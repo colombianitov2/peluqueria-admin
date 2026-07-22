@@ -55,3 +55,13 @@ La distribución de residuos de centavos será determinista por identificador es
 - Compatibilidad comprobada en equipos Windows 10 reales; por ahora solo se declara como objetivo.
 - Certificado y proveedor de firma para una versión estable futura.
 - Verificación de actualización entre dos Releases reales; no puede probarse sin publicar deliberadamente dos versiones.
+
+## Decisiones resueltas en la Fase 4.7 (22 de julio de 2026)
+
+- **Resumen real:** solo usa cuotas devengadas y cubiertas, ventas, otros ingresos, compras reales, gastos, imprevistos, pagos de obligaciones y mantenimientos realizados.
+- **Fondo de colaboradores:** el porcentaje global crea el fondo; cada porcentaje individual representa una parte interna de máximo 100 % del fondo.
+- **Histórico:** los meses terminados con movimientos se preservan automáticamente una sola vez, sin controles técnicos visibles.
+- **Inventario:** `MonthlyRestockPlans` queda solo como compatibilidad histórica y no aparece ni afecta cálculos o Excel.
+- **Inicio:** conserva únicamente la campana de mantenimiento; las obligaciones siguen en el bloque normal.
+- **Notas:** bloc único persistente en SQLite, incluido en copias, restauración y Excel.
+- **Formularios:** no existe una acción visible de limpieza; el éxito limpia los campos correspondientes y el error conserva la entrada.

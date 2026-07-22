@@ -2,7 +2,7 @@
 
 ## Primer inicio
 
-La aplicación crea sus carpetas locales y aplica migraciones automáticamente. Inicio muestra únicamente el mes actual, obligaciones pendientes, deudas por Uso del local y el faltante mensual.
+La aplicación crea sus carpetas locales y aplica migraciones automáticamente. Inicio muestra obligaciones pendientes en su bloque normal, deudas por Uso del local, el faltante mensual y una única campana para mantenimientos vencidos o del día.
 
 Los formularios usan fechas `AAAA-MM-DD`, meses `AAAA-MM`, importes con dos decimales y cantidades de inventario con hasta tres. Los botones deshabilitados indican que falta una selección o dato válido.
 
@@ -16,9 +16,9 @@ El perfil permite registrar cualquier pago positivo, aunque la deuda sea cero. E
 
 La cabecera del módulo muestra total de sillas, personas vigentes, sillas disponibles y cualquier sobrecupo. Esta capacidad no aparece en Inicio.
 
-### Colaboradores y nómina
+### Colaboradores y distribución
 
-Registre colaboradores por fechas. En la misma sección **Colaboradores**, seleccione cada persona y asigne su subporcentaje; se muestran porcentaje global, asignado, faltante, fondo total y dinero pendiente. El panel de cierres, distribuciones y pagos está integrado debajo del formulario. El cierre guarda una fotografía histórica. No se puede reabrir un cierre que ya tenga pagos; sin pagos, la reapertura invalida las asignaciones anteriores y permite crear uno nuevo sin duplicarlas.
+Registre colaboradores por fechas y abra el perfil con doble clic o **Abrir perfil seleccionado**. `Ganancia colaboradores (%)` crea el fondo global. En cada perfil, **Participación dentro del fondo de colaboradores (%)** asigna de 0 % a 100 % de ese fondo; la suma activa no puede superar 100 %. La pantalla muestra solo porcentaje global, fondo total y la tabla de participaciones/valores/estado. Los meses terminados con movimientos se preservan internamente sin botones técnicos de cierre. **Añadir aporte** y **Registrar pago de ganancias** son operaciones diferentes.
 
 ### Inventario y ventas
 
@@ -30,7 +30,7 @@ Registre fecha, concepto y monto. No repita aquí una compra creada desde Invent
 
 ### Obligaciones y mantenimiento
 
-Las obligaciones admiten recurrencia mensual/anual y pagos parciales. Sus ocurrencias aplicables aparecen al guardar y se completan al consultar Inicio, resúmenes o exportaciones. Una recurrencia del día 31 usa el último día en meses cortos y vuelve al día 31 después. El estado se calcula. En mantenimiento, indique costo estimado para la planeación y costo/fecha real al ejecutar; el sistema evita sumar ambos.
+En **Obligaciones**, use **Agregar obligación** una sola vez para definir nombre, tipo, recurrencia, vencimiento inicial y valor esperado. Use **Registrar pago** para elegir esa obligación y guardar cada valor real; catálogo y pagos aparecen en columnas separadas. Una recurrencia del día 31 usa el último día en meses cortos y vuelve al día 31 sin deriva. En **Mantenimiento**, programe en el recuadro izquierdo y complete un pendiente en el derecho; pendientes e historial filtrable por equipo aparecen separados abajo.
 
 ### Reportes
 
@@ -48,11 +48,15 @@ Permite configurar tarifa semanal, porcentaje global de colaboradores, carpeta d
 
 En **Datos** puede crear/restaurar copias y crear una exportación completa a Excel. Cada pulsación genera un solo `.xlsx` en la carpeta configurada —Escritorio de forma predeterminada— y nunca genera CSV. Puede abrir el archivo o su carpeta al terminar. Reinicie después de restaurar. Los Ajustes válidos se guardan automáticamente; una entrada temporalmente inválida queda como borrador recuperable.
 
-En **Inicio**, la campana muestra mantenimientos para hoy o vencidos y el icono de documento muestra obligaciones para hoy o vencidas. En **Ventas**, escriba cantidad y precio unitario: el total USD se actualiza antes de registrar y la cantidad no puede superar la existencia. En **Resumen mensual**, el periodo cambia la escala de los gráficos; para fecha o año específicos use el selector superior y el botón **Consultar** situado a su derecha.
+En **Inicio**, la campana muestra mantenimientos para hoy o vencidos; no existe un icono emergente de obligaciones. En **Ventas**, escriba cantidad y precio unitario: el total USD se actualiza antes de registrar y la cantidad no puede superar la existencia. En **Resumen mensual**, las cifras son ingresos reales, gastos reales, ganancia neta antes de colaboradores, fondo y ganancia retenida. El gráfico circular no dibuja nombres sobre el pastel y usa una leyenda desplazable.
 
 En **Uso del local**, seleccione **Añadir silla** o **Añadir trabajador**. Cambiar de acción prepara la fecha local actual para evitar reutilizar una fecha anterior; un borrador recuperado conserva y muestra expresamente su propia fecha. Las tablas de trabajadores y sillas permanecen visibles independientemente del filtro de actividad. Abra un perfil con doble clic para registrar pagos anticipados, administrar la silla, retirar al trabajador o consultar **Todo el historial** del más reciente al más antiguo. Solo el historial se desplaza; la cabecera del perfil permanece fija.
 
-En **Colaboradores**, abra un perfil con doble clic para registrar aportes de capital y consultar cierres y distribuciones. Los aportes no se cuentan como ingresos operativos.
+En **Inventario**, las pestañas son **Inventario**, **Movimientos** y **Agregar**. Los planes de reposición ya no se muestran ni se exportan. En **Agregar**, la lista inferior contiene productos creados recientemente, no movimientos.
+
+En **Notas**, escriba libremente en el bloc único. Se guarda después de una pausa breve, al perder foco y al cerrar; no hay botones Guardar o Limpiar. El contenido vuelve exactamente al abrir y forma parte de SQLite, copias y Excel.
+
+En todo el programa las tablas tienen columnas fijas y barras internas. No existe el botón **Limpiar formulario**: un guardado correcto prepara el formulario siguiente, mientras un error conserva lo escrito.
 
 El módulo Manual se implementará únicamente cuando las funciones estén definitivamente aprobadas; no forma parte de esta fase.
 

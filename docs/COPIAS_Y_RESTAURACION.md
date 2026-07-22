@@ -35,9 +35,9 @@ No seleccione una base desconocida ni cierre Windows durante el reemplazo. Las c
 
 **Exportar toda la información a Excel** crea un único libro real `.xlsx` con nombre `Peluqueria-Administracion-AAAA-MM-DD-HHmmss.xlsx` en la carpeta configurada; de forma predeterminada usa el Escritorio. Si el nombre ya existe, añade un sufijo y nunca sobrescribe el archivo anterior. La interfaz no ofrece exportación CSV múltiple.
 
-La exportación usa una única fecha de corte y una lectura transaccional consistente. Incluye datos actuales, históricos y futuros ya conocidos, snapshots de cierres, desglose anual, inventario acumulado, eliminaciones lógicas y, en una hoja separada, borradores que aún no son operaciones registradas. Los textos peligrosos para fórmulas se escriben como texto. Primero se crea un temporal y solo se mueve al Escritorio cuando el libro está completo; ante una falla se elimina el temporal.
+La exportación usa una única fecha de corte y una lectura transaccional consistente. Incluye datos actuales, históricos y futuros ya conocidos, la hoja `Notas`, snapshots, desglose anual, inventario acumulado, eliminaciones lógicas y borradores separados. No exporta planes de reposición. Los textos peligrosos para fórmulas se escriben como texto. Primero se crea un temporal y solo se mueve al Escritorio cuando el libro está completo; ante una falla se elimina el temporal.
 
-El libro no modifica SQLite, no genera movimientos, no importa datos y no requiere Microsoft Excel instalado. Al finalizar, Ajustes muestra la ruta y habilita **Abrir archivo** y **Abrir carpeta**.
+El libro no modifica SQLite, no genera movimientos, no importa datos y no requiere Microsoft Excel instalado. La copia y restauración de SQLite incluye automáticamente `Notes` junto con el resto de tablas. Al finalizar, Ajustes muestra la ruta y habilita **Abrir archivo** y **Abrir carpeta**.
 
 ## Verificación realizada
 

@@ -13,12 +13,14 @@ En la validación local consolidada de la Fase 4.5 pasan 135 pruebas: 54 de domi
 
 En la validación final consolidada de la Fase 4.6 pasan **159 pruebas únicas**: 56 de dominio, 37 de aplicación, 16 de infraestructura y 50 de interfaz. La suite completa pasó en Debug y Release, para 318 ejecuciones satisfactorias, con compilación limpia en ambas configuraciones.
 
+La Fase 4.7 amplía la suite a **175 pruebas únicas**: 58 de dominio, 42 de aplicación, 19 de infraestructura y 56 de interfaz. La suite completa se ejecuta en Debug y Release, para **350 ejecuciones satisfactorias**. Incluye pruebas específicas del fondo 60/20/10/10, límite de 100 %, flujo real, obligaciones recurrentes sin deriva —también al editar una serie no pagada—, snapshot automático, saldo semanal con reloj controlado, migración desde Fase 4.6, persistencia SQLite/Excel de Notas y contratos XAML globales.
+
 ## Cobertura funcional comprobada
 
 - primera cuota, periodos de siete días, retiro, cambio futuro de tarifa e idempotencia;
 - pagos parciales y anticipados de 6, 12, 24 y 1000; deuda no negativa, crédito, cobertura de 83 semanas y faltante de 8 en la semana 84;
 - deuda previa de 24 con pago de 1000 y crédito resultante de 976; múltiples pagos, tarifa futura, cuentas independientes y crédito tras retiro;
-- existencia inicial, compra, venta, consumo, conteo, sobrante, reposición e inventario negativo;
+- existencia inicial, compra, venta, consumo, conteo, sobrante, productos recientes e inventario negativo; los planes heredados se excluyen de interfaz, resultados y Excel;
 - obligaciones esperadas/reales, recurrencia mensual/anual y no duplicación;
 - mantenimiento estimado frente a real;
 - ingresos, gastos, imprevistos, punto de equilibrio positivo/negativo y caja;
@@ -51,6 +53,12 @@ En la validación final consolidada de la Fase 4.6 pasan **159 pruebas únicas**
 - perfil independiente del filtro general de actividad, abierto en `Todo el historial`, con pagos de otra semana visibles una sola vez;
 - persistencia SQLite tras reinicio de fechas, cuotas, pagos, deuda y crédito de Uso del local;
 - atomicidad del pago: un error de guardado no deja pago, actividad ni cambio parcial de deuda.
+- saldo a favor consumido exactamente una vez por periodo de siete días, incluido saldo parcial y reinicio real de SQLite sin duplicados;
+- ingresos y gastos reales con exclusión de anticipos no devengados, capital, gastos extraoficiales, estimaciones y planes;
+- fondo global positivo, pérdida sin fondo y participaciones internas 60/20/10/10 con suma máxima 100 %;
+- obligación única con múltiples pagos, ocurrencia pagada y recurrencia anclada sin deriva;
+- Notas con debounce, guardado forzado, cierre/reapertura SQLite y hoja Excel;
+- columnas bloqueadas, barras internas, campana única, pestañas de Inventario, paneles separados y ausencia global de `Limpiar formulario`.
 
 ## Comandos finales
 

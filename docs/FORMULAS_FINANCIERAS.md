@@ -29,7 +29,6 @@ Los pagos actuales por uso del local no se restan porque crearían una fórmula 
 
 ```text
 existencia = entradas iniciales + compras - ventas - consumos + ajustes de conteo
-sugerencia mensual = máximo(0, necesidad del mes - existencia disponible)
 margen informativo = venta bruta - costo promedio estimado de lo vendido
 ```
 
@@ -37,42 +36,30 @@ La compra es la única salida de caja por adquirir inventario. Venta y consumo r
 
 ## Obligaciones y mantenimiento
 
-Para la meta mensual de una obligación se usa una sola cifra:
-
-```text
-si está pagada completamente: importe real acumulado
-si está pendiente o parcial: importe esperado
-```
-
-Los pagos parciales reducen el saldo, pero no duplican el gasto esperado. El flujo de caja incluye únicamente pagos reales.
-
-Para mantenimiento se usa costo real si fue ejecutado; de lo contrario, el costo estimado cuando corresponde al mes. Nunca se suman ambos.
+En el resumen y balance se usan únicamente pagos reales de obligaciones. El catálogo conserva por separado el valor esperado para control y para el precio sugerido por silla. En mantenimiento, el resumen usa únicamente el costo real de registros realizados; el costo estimado permanece como dato de programación.
 
 ## Resumen mensual
 
 ```text
-ingresos disponibles = pagos por Uso del local + ventas brutas + otros ingresos
-
-gasto opcional aplicable = insumos opcionales reales registrados
-
-meta mensual = obligaciones aplicables
-             + compras y gastos aplicables
-             + imprevistos
-             + mantenimiento aplicable
-             + gasto opcional aplicable
-             + planes mensuales pendientes aplicables
-
-faltante = máximo(0, meta mensual - ingresos disponibles)
-resultado base = ingresos disponibles - meta mensual
-fondo colaboradores = máximo(0, resultado base × porcentaje)
-resultado retenido = resultado base - fondo colaboradores
+ingresos reales = cuotas de Uso del local devengadas y cubiertas
+                + ventas registradas
+                + otros ingresos registrados
+gastos reales = compras reales de inventario
+              + gastos
+              + imprevistos
+              + pagos reales de obligaciones
+              + costos reales de mantenimientos realizados
+ganancia neta antes de colaboradores = ingresos reales - gastos reales
+fondo colaboradores = máximo(ganancia neta antes de colaboradores, 0) × porcentaje global
+asignación individual = fondo colaboradores × participación interna individual
+ganancia retenida por el local = ganancia neta antes de colaboradores - fondo colaboradores
 ```
 
 El porcentaje no cambia el punto de equilibrio cero. Las compras, obligaciones y mantenimientos se incorporan por una sola ruta para evitar doble conteo.
 
 ## Cierre y distribución
 
-El fondo positivo se divide en partes iguales entre los participantes confirmados. Primero se asignan centavos completos; los centavos residuales se entregan uno por uno siguiendo el orden estable de `Guid`. Así, la suma de pagos individuales coincide exactamente con el fondo.
+El fondo positivo se divide según participaciones internas cuya suma máxima es 100 %. Los residuos de centavos se asignan de forma determinista por `Guid`. Si la suma es inferior a 100 %, la porción no asignada queda retenida por el local.
 
 Un resultado base cero o negativo produce fondo cero y no crea deuda. Un cierre confirmado conserva mes, porcentaje, fondo, participantes e importes históricos.
 
@@ -80,19 +67,20 @@ Mientras el cierre permanezca confirmado, sus totales y asignaciones guardados p
 
 ## Balance anual
 
-El balance suma los 12 resultados mensuales, distribuciones pagadas de cierres confirmados y obligaciones pendientes sin repetir obligaciones anuales ya incluidas en un mes. Desglosa servicios, impuestos, otras obligaciones, mercancía, insumos obligatorios y opcionales, mantenimiento, imprevistos, otros gastos y planes de reposición. El ajuste histórico reconcilia el desglose dinámico con la meta guardada de un cierre confirmado. El indicador es `Positivo` cuando el resultado retenido acumulado es mayor o igual a cero y `Negativo` cuando es inferior a cero.
+El balance suma los 12 resultados mensuales, distribuciones pagadas de snapshots confirmados y obligaciones pendientes como dato de control separado. Desglosa pagos reales por categoría y no incluye planes de reposición. El ajuste histórico reconcilia el desglose dinámico con snapshots anteriores. El indicador es `Positivo` cuando el resultado retenido acumulado es mayor o igual a cero y `Negativo` cuando es inferior a cero.
 
 Las operaciones originales de ingresos y gastos se conservan para los cálculos internos. Flujo de caja no es un módulo visible, pero se exporta como hoja de trazabilidad en Excel.
 
-## Distribución individual desde Fase 4.6
+## Distribución individual vigente desde Fase 4.7
 
-Cada importe individual se calcula sobre la ganancia neta distribuible positiva:
+Cada importe individual se calcula sobre el fondo global:
 
 ```text
-asignación individual = resultado base positivo × subporcentaje individual
+fondo global = máximo(resultado base, 0) × porcentaje global
+asignación individual = fondo global × participación interna individual
 ```
 
-La suma de subporcentajes puede ser menor, pero nunca mayor, que el porcentaje global. El faltante no se reparte automáticamente. Todos los cálculos se realizan en unidades menores y los residuos de redondeo se asignan de forma determinista. Con USD 1.000 y subporcentajes 12 %, 4 %, 2 % y 2 %, los importes son exactamente USD 120, USD 40, USD 20 y USD 20.
+La suma de participaciones internas puede ser menor, pero nunca mayor, que 100 %. El faltante no se reparte automáticamente. Con USD 1.000, porcentaje global 20 % y participaciones 60 %, 20 %, 10 % y 10 %, el fondo es USD 200 y los importes son exactamente USD 120, USD 40, USD 20 y USD 20.
 
 ## Aportes de capital
 

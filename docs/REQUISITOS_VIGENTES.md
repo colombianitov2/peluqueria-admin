@@ -2,9 +2,9 @@
 
 ## Carácter canónico y precedencia
 
-Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.6 del 21 de julio de 2026.
+Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.7 del 22 de julio de 2026.
 
-La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, cobro semanal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 y 4.5 concretan las reglas vigentes de Uso del local, perfil, fechas, sillas, cuenta, historial y pagos anticipados. La excepción autorizada en Inicio es únicamente el precio sugerido por silla.
+La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, cobro semanal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 y 4.5 concretan las reglas vigentes de Uso del local, perfil, fechas, sillas, cuenta, historial y pagos anticipados. La Fase 4.7 sustituye la notificación de obligaciones, los porcentajes individuales directos, los planes de reposición, el cierre mensual manual visible y todos los botones `Limpiar formulario`.
 
 Los trabajadores son quienes usan y alquilan las sillas. Los colaboradores son exclusivamente inversionistas y nunca ocupan sillas. La interfaz, los mensajes, Excel y la documentación usan esta distinción.
 
@@ -139,7 +139,7 @@ Reglas:
 - El sobrante no se registra nuevamente como compra ni como gasto.
 - Una compra afecta el dinero disponible solamente en el mes en que realmente se pagó.
 - El conteo mensual no crea un gasto.
-- La reposición se calcula con base en lo que realmente falta, sin repetir los productos que todavía existen.
+- Los planes o sugerencias de reposición quedan obsoletos. Las compras reales continúan como movimientos y gastos; los registros históricos de planes pueden permanecer solo por compatibilidad de esquema.
 
 No incluir en productos o ventas:
 
@@ -213,11 +213,11 @@ Ingresos del mes:
 
 Salidas del mes:
 
-- servicios y obligaciones pagados o presupuestados, según corresponda;
+- pagos reales de servicios y obligaciones;
 - insumos obligatorios comprados;
 - insumos opcionales realmente comprados o consumidos y registrados;
 - compras de mercancía;
-- mantenimiento;
+- costos reales de mantenimientos realizados;
 - gastos imprevistos;
 - otros gastos.
 
@@ -241,8 +241,9 @@ Los colaboradores forman un grupo distinto de las personas que pagan por utiliza
 - Porcentaje inicial: 20 %.
 - El porcentaje es configurable en Ajustes con el nombre **Ganancia colaboradores**.
 - La distribución se integra dentro de **Colaboradores**; no existe una opción lateral independiente de nómina.
-- Cada colaborador guarda un subporcentaje expresado como puntos porcentuales de la ganancia neta distribuible. La suma no puede superar el porcentaje global, puede ser inferior y nunca se completa automáticamente.
-- Los cierres nuevos distribuyen importes exactos en unidades menores según esos subporcentajes; los cierres confirmados conservan sus snapshots históricos.
+- Cada colaborador guarda una **participación dentro del fondo** entre 0 % y 100 %. La suma de participaciones activas no puede superar 100 %, puede ser inferior y nunca se completa automáticamente.
+- El porcentaje global crea primero el fondo. La participación individual se aplica después sobre ese fondo, no directamente sobre la ganancia neta.
+- Los meses terminados con movimientos se preservan mediante snapshots internos idempotentes; no se muestran controles técnicos de cerrar, reabrir, editar o eliminar cierres.
 
 Fórmulas:
 
@@ -262,9 +263,9 @@ Si el resultado base es menor o igual a cero:
 Si el resultado base es positivo:
 
 ```text
-fondo colaboradores = resultado base × porcentaje configurado
-pago por colaborador = fondo colaboradores ÷ cantidad de colaboradores correspondientes
-resultado retenido por el local = resultado base - fondo colaboradores
+fondo colaboradores = resultado base × porcentaje global configurado
+pago por colaborador = fondo colaboradores × participación interna del colaborador
+ganancia retenida por el local = resultado base - fondo colaboradores
 ```
 
 No se inventará una fórmula circular.
@@ -309,6 +310,7 @@ La página principal muestra exclusivamente:
 - monto adeudado por cada persona;
 - cantidad faltante para alcanzar el punto de equilibrio mensual.
 - precio semanal actual, precio semanal sugerido por silla ocupada y equivalente mensual, con explicación breve.
+- campana de mantenimientos vencidos o para hoy, con acceso a Mantenimiento.
 
 No mostrar allí:
 
@@ -316,7 +318,7 @@ No mostrar allí:
 - inventario;
 - alertas de inventario;
 - ventas;
-- mantenimiento;
+- icono, insignia o panel emergente de obligaciones;
 - elementos distintos del precio sugerido expresamente autorizado.
 - nómina de colaboradores;
 - tarjetas o indicadores adicionales.
@@ -335,7 +337,7 @@ Copias y exportación:
 - máximo una copia automática diaria cuando la base cambió y retención de las 30 automáticas más recientes;
 - copia diferenciada antes de migrar un esquema existente y antes de restaurar;
 - restauración manual después de validar compatibilidad y con recuperación de la base anterior ante fallo;
-- una única exportación `.xlsx` con todas las hojas lógicas, historial, futuro conocido, eliminados y borradores; no se ofrecen exportaciones CSV en la interfaz.
+- una única exportación `.xlsx` con todas las hojas lógicas, Notas, historial, futuro conocido, eliminados y borradores; no incluye planes de reposición ni ofrece CSV en la interfaz.
 - la carpeta del `.xlsx` es configurable, persistente y nunca cambia silenciosamente si ocurre un error.
 
 La arquitectura debe contemplar:
@@ -401,7 +403,7 @@ La primera alpha es x64, sin certificado y puede activar una advertencia de Smar
 
 - Todas las páginas operativas muestran actividad no editable con periodo Hoy por defecto, semana, mes, 3 meses, 6 meses, año y rango personalizado. El cambio de día se detecta al actualizar por navegación, periodo u operación; no existe sondeo constante.
 - Las operaciones confirmadas crean su actividad en la misma transacción. Los estados actuales y selectores no dependen del filtro de actividad.
-- La recuperación de formularios es silenciosa; la interfaz solo ofrece `Limpiar formulario` cuando hay contenido no confirmado.
+- La recuperación de formularios es silenciosa y no existe ningún botón visible `Limpiar formulario`; una operación válida limpia solo sus campos, mientras un error conserva la entrada y los borradores inválidos siguen protegidos.
 - Ventas selecciona por identificador un producto de venta, usa su precio predeterminado y rechaza inventario negativo. Las compras reutilizan productos existentes y calculan su total.
 - Ingresos, gastos, imprevistos, obligaciones y mantenimiento usan acciones directas; no existe un desplegable genérico Acción.
 - Los colaboradores no ocupan sillas y su historial financiero se deriva únicamente de cierres, participaciones y pagos reales.
@@ -411,5 +413,9 @@ La primera alpha es x64, sin certificado y puede activar una advertencia de Smar
 
 ## Decisiones reemplazadas en Fase 4.6
 
-Quedan reemplazadas la moneda configurable, COP, el presupuesto mensual opcional, la nómina como sección independiente, el reparto igualitario automático y la exportación CSV múltiple. La interfaz muestra formularios antes de tablas; la selección de un registro editable activa autoguardado con debounce, mientras altas, pagos, ventas, movimientos, cierres, restauraciones y eliminaciones siguen requiriendo confirmación explícita. Inicio dispone de avisos compactos de mantenimiento y obligaciones. Ventas recalcula cantidad por precio editable en USD y nunca permite superar la existencia. Las gráficas responden realmente a hoy, semana, mes, tres meses, seis meses, año, fecha específica y año específico; un registro antiguo sin hora operativa verificable se incluye en totales pero no se asigna a una hora inventada.
+Quedan reemplazadas la moneda configurable, COP, el presupuesto mensual opcional, la nómina como sección independiente, el reparto igualitario automático y la exportación CSV múltiple. Ventas recalcula cantidad por precio editable en USD y nunca permite superar la existencia. Las gráficas responden realmente a hoy, semana, mes, tres meses, seis meses, año, fecha específica y año específico; un registro antiguo sin hora operativa verificable se incluye en totales pero no se asigna a una hora inventada.
 - El futuro módulo Manual queda como requisito pendiente y no se muestra un botón vacío.
+
+## Decisiones reemplazadas en Fase 4.7
+
+Quedan reemplazados el recibo de obligaciones de Inicio, los porcentajes individuales directos sobre ganancia neta, los planes de reposición, el cierre mensual manual visible, todos los botones `Limpiar formulario`, el formulario combinado de programación/realización de mantenimiento y la tabla única que mezclaba obligaciones con pagos. Todas las tablas usan columnas fijas no redimensionables y barras internas. Inventario se divide en `Inventario`, `Movimientos` y `Agregar`; Obligaciones separa catálogo y pagos; Mantenimiento separa programación, realización, pendientes e historial; y `Notas` es un bloc único SQLite con autoguardado, copia y exportación Excel.
