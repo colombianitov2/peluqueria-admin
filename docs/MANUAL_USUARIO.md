@@ -18,7 +18,7 @@ La cabecera del módulo muestra total de sillas, personas vigentes, sillas dispo
 
 ### Colaboradores y nómina
 
-Registre colaboradores por fechas. En Nómina, seleccione el mes, previsualice participantes y cierre. El cierre guarda una fotografía y las asignaciones muestran nombre y mes. Registre después los pagos de distribución. No se puede reabrir un cierre que ya tenga pagos; sin pagos, la reapertura invalida las asignaciones anteriores y permite crear un cierre nuevo sin duplicarlas.
+Registre colaboradores por fechas. En la misma sección **Colaboradores**, seleccione cada persona y asigne su subporcentaje; se muestran porcentaje global, asignado, faltante, fondo total y dinero pendiente. El panel de cierres, distribuciones y pagos está integrado debajo del formulario. El cierre guarda una fotografía histórica. No se puede reabrir un cierre que ya tenga pagos; sin pagos, la reapertura invalida las asignaciones anteriores y permite crear uno nuevo sin duplicarlas.
 
 ### Inventario y ventas
 
@@ -44,9 +44,11 @@ Seleccione una fila y use **Editar/Cargar** para llevar sus valores al formulari
 
 ## Ajustes
 
-Permite configurar tarifa semanal, porcentaje de colaboradores, reserva opcional, moneda y gastos extraoficiales. Las sillas se administran individualmente en Uso del local. Cambiar moneda no convierte importes previos; cambiar tarifa solo afecta cuotas futuras.
+Permite configurar tarifa semanal, porcentaje global de colaboradores, carpeta de exportación y gastos extraoficiales. La única moneda es USD y no existe presupuesto opcional. Las sillas se administran individualmente en Uso del local; cambiar tarifa solo afecta cuotas futuras.
 
-En **Datos** puede crear/restaurar copias, abrir las carpetas, exportar CSV o crear una exportación completa a Excel en el Escritorio. Reinicie después de restaurar. Los Ajustes válidos se guardan automáticamente; una entrada temporalmente inválida queda como borrador recuperable.
+En **Datos** puede crear/restaurar copias y crear una exportación completa a Excel. Cada pulsación genera un solo `.xlsx` en la carpeta configurada —Escritorio de forma predeterminada— y nunca genera CSV. Puede abrir el archivo o su carpeta al terminar. Reinicie después de restaurar. Los Ajustes válidos se guardan automáticamente; una entrada temporalmente inválida queda como borrador recuperable.
+
+En **Inicio**, la campana muestra mantenimientos para hoy o vencidos y el icono de documento muestra obligaciones para hoy o vencidas. En **Ventas**, escriba cantidad y precio unitario: el total USD se actualiza antes de registrar y la cantidad no puede superar la existencia. En **Resumen mensual**, el periodo cambia la escala de los gráficos; para fecha o año específicos use el selector superior y el botón **Consultar** situado a su derecha.
 
 En **Uso del local**, seleccione **Añadir silla** o **Añadir trabajador**. Cambiar de acción prepara la fecha local actual para evitar reutilizar una fecha anterior; un borrador recuperado conserva y muestra expresamente su propia fecha. Las tablas de trabajadores y sillas permanecen visibles independientemente del filtro de actividad. Abra un perfil con doble clic para registrar pagos anticipados, administrar la silla, retirar al trabajador o consultar **Todo el historial** del más reciente al más antiguo. Solo el historial se desplaza; la cabecera del perfil permanece fija.
 

@@ -6,10 +6,12 @@ La solución contiene cuatro proyectos de pruebas:
 
 - Domain.Tests: reglas puras de cuotas, inventario, obligaciones, mantenimiento, reportes y cierres.
 - Application.Tests: transacciones y casos de uso críticos.
-- Infrastructure.Tests: SQLite, migraciones, borradores, política de durabilidad, eliminación lógica, copias, restauración, CSV y Excel.
+- Infrastructure.Tests: SQLite, migraciones, borradores, política de durabilidad, eliminación lógica, copias, restauración y Excel único.
 - App.Tests: comandos y presentación segura de la interfaz WPF sin abrir una ventana real.
 
 En la validación local consolidada de la Fase 4.5 pasan 135 pruebas: 54 de dominio, 35 de aplicación, 16 de infraestructura y 30 de interfaz. La misma suite se ejecutó en Debug y Release, para un total de 270 ejecuciones satisfactorias.
+
+En la validación final consolidada de la Fase 4.6 pasan **159 pruebas únicas**: 56 de dominio, 37 de aplicación, 16 de infraestructura y 50 de interfaz. La suite completa pasó en Debug y Release, para 318 ejecuciones satisfactorias, con compilación limpia en ambas configuraciones.
 
 ## Cobertura funcional comprobada
 
@@ -23,11 +25,11 @@ En la validación local consolidada de la Fase 4.5 pasan 135 pruebas: 54 de domi
 - porcentaje, resultado cero, distribución exacta de centavos e inmutabilidad del cierre;
 - balance anual y eliminación lógica;
 - migración desde `InitialSettings` conservando la configuración;
-- copia/restauración y cinco exportaciones CSV sobre datos controlados.
+- copia/restauración y exportación `.xlsx` única sobre datos controlados, sin CSV.
 - confirmación exclusiva de borrado, edición sin confirmación y presentación segura de pagos históricos;
 - generación inmediata e idempotente de cuotas y recurrencias, incluido el anclaje mensual en día 31;
 - reapertura transaccional, bloqueo con pagos, invalidación de asignaciones y cierre nuevo sin duplicados;
-- snapshots confirmados en cálculo y CSV, y regreso al cálculo dinámico tras reabrir;
+- snapshots confirmados en cálculo y Excel, y regreso al cálculo dinámico tras reabrir;
 - filtros estrictos de Inicio, capacidad/sobrecupo y desglose anual con indicador;
 - nombres de producto únicos, invariantes de corrección y existencia cronológica no negativa;
 - protección de personas, productos, obligaciones, colaboradores, cierres y asignaciones con relaciones.
@@ -43,7 +45,7 @@ En la validación local consolidada de la Fase 4.5 pasan 135 pruebas: 54 de domi
 - precio sugerido por silla con gastos extraoficiales separados del balance oficial;
 - filtros de actividad Hoy, semana, mes, tres meses, seis meses, año y periodo personalizado, incluido el cambio silencioso de día;
 - auditoría transaccional, historial financiero del colaborador y migración conservadora desde una base `0.1.0-alpha.1`;
-- ausencia del módulo Flujo de caja en navegación, interfaz y Excel, y contratos visuales de acciones contextuales;
+- ausencia del módulo Flujo de caja en navegación e interfaz, con hoja de trazabilidad en Excel, y contratos visuales de acciones contextuales;
 - exportación Excel ampliada con sillas, asignaciones, gastos extraoficiales, precio sugerido, historial financiero y actividad.
 - conservación exacta de la fecha elegida al registrar una persona, reinicio de la fecha al cambiar de acción y advertencia visible al recuperar un borrador;
 - perfil independiente del filtro general de actividad, abierto en `Todo el historial`, con pagos de otra semana visibles una sola vez;
@@ -74,11 +76,17 @@ dotnet ef migrations has-pending-model-changes --project src/PeluqueriaAdmin.Inf
 - publicación autocontenida Windows x64;
 - empaquetado limpio local Velopack `0.1.0-alpha.1` con bootstrap verificado, instalador, portable, paquete completo y feeds;
 - auditoría NuGet directa/transitiva sin vulnerabilidades conocidas y modelo EF Core sin migraciones pendientes;
-- escaneo del árbol sin secretos candidatos ni binarios rastreados por Git.
+- Gitleaks 8.30.1 sobre los 26 commits y sobre el árbol de trabajo con `--redact`: cero filtraciones detectadas; además, cero binarios o datos temporales rastreados por Git;
+- migración aditiva `20260721141723_Phase46UsdExportsDistributionInventory` sin cambios de modelo pendientes;
+- migración de una copia aislada de alpha.1 con normalización COP→USD sin conversión numérica, `integrity_check=ok` y cero infracciones de claves foráneas;
+- exportación de aceptación a un único `.xlsx` con varias hojas y cero CSV en una carpeta temporal configurable;
+- empaquetado Velopack aislado `0.1.0-phase46-validation`, sin etiqueta, publicación ni instalación;
 - revisión del perfil de Uso del local en la segunda pantalla, con cabecera fija, pestaña de pago, deuda y crédito visibles e historial largo con desplazamiento propio;
 - integridad `ok` y última migración `20260719212257_Phase43MaintenanceRecurrence` sobre una copia temporal derivada de la base de revisión de alpha.1;
 - persistencia visible de un pago de USD 12, deuda restante de USD 12, próxima cuota del 22 de julio de 2026 y silla final sin asignar en datos de demostración aislados.
 - revisión Fase 4.5 en la segunda pantalla a tamaños lógicos equivalentes a 100 %, 125 % y 150 %, sin cortes ni superposiciones en la cabecera, pago e historial;
+
+La Fase 4.6 añade pruebas para USD único y normalización de bases COP sin conversión; presupuesto opcional ignorado; ejemplo exacto 20/12/4/2/2; límites de porcentaje; historial de silla con nombres; precio de venta editable y total 35×1/2/3; existencia insuficiente; ruta persistente de exportación; un solo `.xlsx` y cero CSV; controles superiores; notificaciones accesibles; y escalas de gráficos para hoy, semana, mes, 3 meses, 6 meses, año, fecha específica y año específico con reloj controlado.
 - demostración aislada de una persona ingresada el 20 de julio de 2026 con deuda cero y otra ingresada el 16 de junio con cuatro cuotas, pago del 19 de julio y deuda restante de USD 36;
 - confirmación visual de `Todo el historial`, del pago del 19 de julio mostrado una sola vez y de `Próximo pago requerido` con fecha e importe unidos;
 - comprobación de integridad SQLite `ok` antes del arranque de revisión y ejecución con prioridad de proceso baja.

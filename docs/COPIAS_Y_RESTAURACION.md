@@ -31,21 +31,9 @@ La copia usa la API de respaldo en línea de SQLite, no una copia ciega mientras
 
 No seleccione una base desconocida ni cierre Windows durante el reemplazo. Las copias no se rastrean en Git.
 
-## Exportar CSV
-
-**Exportar CSV** genera cinco archivos UTF-8 sin BOM para el año actual:
-
-- resumen mensual;
-- balance anual;
-- flujo de caja;
-- inventario actual;
-- deudas por Uso del local.
-
-Los campos se escapan según CSV y los importes se expresan con punto decimal. La exportación es una fotografía de consulta: no modifica SQLite y no requiere Excel.
-
 ## Exportación completa a Excel
 
-**Exportar toda la información a Excel** crea automáticamente en el Escritorio un libro real `.xlsx` con nombre `PeluqueriaAdmin-AAAA-MM-DD_HH-mm-ss.xlsx`. Si el nombre ya existe, añade un sufijo y nunca sobrescribe el archivo anterior.
+**Exportar toda la información a Excel** crea un único libro real `.xlsx` con nombre `Peluqueria-Administracion-AAAA-MM-DD-HHmmss.xlsx` en la carpeta configurada; de forma predeterminada usa el Escritorio. Si el nombre ya existe, añade un sufijo y nunca sobrescribe el archivo anterior. La interfaz no ofrece exportación CSV múltiple.
 
 La exportación usa una única fecha de corte y una lectura transaccional consistente. Incluye datos actuales, históricos y futuros ya conocidos, snapshots de cierres, desglose anual, inventario acumulado, eliminaciones lógicas y, en una hoja separada, borradores que aún no son operaciones registradas. Los textos peligrosos para fórmulas se escriben como texto. Primero se crea un temporal y solo se mueve al Escritorio cuando el libro está completo; ante una falla se elimina el temporal.
 
@@ -53,4 +41,4 @@ El libro no modifica SQLite, no genera movimientos, no importa datos y no requie
 
 ## Verificación realizada
 
-Las pruebas crean una base controlada dentro de resultados de prueba, generan una copia, modifican Ajustes, restauran y confirman el valor anterior. También verifican la creación y codificación de los cinco CSV. No se usaron datos reales.
+Las pruebas crean una base controlada dentro de resultados de prueba, generan una copia, modifican Ajustes, restauran y confirman el valor anterior. También verifican un solo `.xlsx`, hojas, tipos, ruta y ausencia de CSV. No se usaron datos reales.

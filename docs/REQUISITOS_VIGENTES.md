@@ -2,7 +2,7 @@
 
 ## Carácter canónico y precedencia
 
-Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.5 del 20 de julio de 2026.
+Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.6 del 21 de julio de 2026.
 
 La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, cobro semanal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 y 4.5 concretan las reglas vigentes de Uso del local, perfil, fechas, sillas, cuenta, historial y pagos anticipados. La excepción autorizada en Inicio es únicamente el precio sugerido por silla.
 
@@ -104,7 +104,7 @@ Los servicios prestados directamente por las personas a sus clientes no se regis
 
 ## 6. Inventario
 
-El inventario usa exclusivamente estas categorías: Alimento o bebida para venta, Otro producto para venta, Cortesía para clientes, Aseo, Insumo del local y Otro producto del local. No se expone el antiguo atributo técnico de unidades en interfaz, CSV, Excel ni formularios.
+El inventario usa exclusivamente estas categorías: Alimento o bebida para venta, Otro producto para venta, Cortesía para clientes, Aseo, Insumo del local y Otro producto del local. No se expone el antiguo atributo técnico de unidades en interfaz, Excel ni formularios.
 
 Los productos destinados a venta aparecen inmediatamente en Ventas, pueden buscarse por nombre sin distinguir mayúsculas y muestran existencia y precio predeterminado. Cambiar a una categoría no vendible los retira del selector; cambiar a una categoría vendible los incorpora tras guardar, sin reiniciar.
 
@@ -120,7 +120,7 @@ Se acepta cualquier pago positivo, incluso anticipado o superior a la deuda acum
 
 ## 6.2 Aportes de colaboradores
 
-Cada colaborador dispone de un perfil con aportes de capital, participaciones de cierres y distribuciones. Los aportes son inversión no operativa: no son ventas ni otros ingresos, no aumentan la ganancia neta, no generan un nuevo porcentaje y no alteran el punto de equilibrio. Se conservan mediante eliminación lógica y se incluyen en copias, CSV, Excel e historial.
+Cada colaborador dispone de un perfil con aportes de capital, participaciones de cierres y distribuciones. Los aportes son inversión no operativa: no son ventas ni otros ingresos, no aumentan la ganancia neta, no generan un nuevo porcentaje y no alteran el punto de equilibrio. Se conservan mediante eliminación lógica y se incluyen en copias, Excel e historial.
 
 Los productos personales de quienes trabajan en el local no pertenecen al inventario.
 
@@ -215,7 +215,7 @@ Salidas del mes:
 
 - servicios y obligaciones pagados o presupuestados, según corresponda;
 - insumos obligatorios comprados;
-- insumos opcionales comprados o presupuesto opcional configurado;
+- insumos opcionales realmente comprados o consumidos y registrados;
 - compras de mercancía;
 - mantenimiento;
 - gastos imprevistos;
@@ -240,7 +240,9 @@ Los colaboradores forman un grupo distinto de las personas que pagan por utiliza
 
 - Porcentaje inicial: 20 %.
 - El porcentaje es configurable en Ajustes con el nombre **Ganancia colaboradores**.
-- La sección puede llamarse **Nómina de colaboradores**, pero no se trata como nómina laboral ni aplica normas laborales.
+- La distribución se integra dentro de **Colaboradores**; no existe una opción lateral independiente de nómina.
+- Cada colaborador guarda un subporcentaje expresado como puntos porcentuales de la ganancia neta distribuible. La suma no puede superar el porcentaje global, puede ser inferior y nunca se completa automáticamente.
+- Los cierres nuevos distribuyen importes exactos en unidades menores según esos subporcentajes; los cierres confirmados conservan sus snapshots históricos.
 
 Fórmulas:
 
@@ -248,7 +250,7 @@ Fórmulas:
 resultado base =
   ingresos del local
   - gastos y obligaciones correspondientes
-  - presupuesto o gasto opcional aplicable
+  - gasto opcional real aplicable
 ```
 
 Si el resultado base es menor o igual a cero:
@@ -275,13 +277,12 @@ Configurar, como mínimo:
 
 - valor semanal general por uso del local, inicialmente USD 12;
 - porcentaje de ganancia de colaboradores, inicialmente 20 %;
-- presupuesto mensual para insumos opcionales ofrecidos a clientes;
-- moneda principal, inicialmente USD.
+- carpeta de exportación, con el Escritorio como valor predeterminado.
 - gastos extraoficiales separados, que solo intervienen en el precio sugerido por silla.
 
 No se crean ajustes individuales que contradigan la tarifa semanal general.
 
-La moneda es única para todo el local y se selecciona inicialmente entre USD y COP. No existen conversiones, tasas de cambio ni varias monedas simultáneas. Cambiar el código no convierte los importes existentes.
+La moneda única e invariable del programa es USD. Las bases antiguas configuradas en COP se normalizan a USD sin multiplicar, dividir ni convertir ningún valor numérico. El antiguo presupuesto mensual opcional queda obsoleto, se normaliza a cero y no interviene en cálculos.
 
 Los importes de Ajustes se persisten en unidades menores enteras y los porcentajes en puntos básicos. No se usa punto flotante binario ni se aceptan silenciosamente más de dos decimales.
 
@@ -334,7 +335,8 @@ Copias y exportación:
 - máximo una copia automática diaria cuando la base cambió y retención de las 30 automáticas más recientes;
 - copia diferenciada antes de migrar un esquema existente y antes de restaurar;
 - restauración manual después de validar compatibilidad y con recuperación de la base anterior ante fallo;
-- exportación CSV UTF-8 de resumen mensual, balance anual, flujo de caja, inventario y deudas por Uso del local.
+- una única exportación `.xlsx` con todas las hojas lógicas, historial, futuro conocido, eliminados y borradores; no se ofrecen exportaciones CSV en la interfaz.
+- la carpeta del `.xlsx` es configurable, persistente y nunca cambia silenciosamente si ocurre un error.
 
 La arquitectura debe contemplar:
 
@@ -387,10 +389,10 @@ La primera alpha es x64, sin certificado y puede activar una advertencia de Smar
 - Un cambio de ingreso o retiro que invalide cuotas con pagos se rechaza. Sin pagos, las cuotas incompatibles pueden invalidarse de forma lógica y transaccional.
 - Reabrir un cierre con pagos de distribución se rechaza. Sin pagos, la reapertura invalida sus asignaciones calculadas; un cierre nuevo crea una sola distribución activa cuya suma coincide exactamente con el fondo.
 - Solo las asignaciones de cierres confirmados se pueden pagar o mostrar como pendientes.
-- Un cierre confirmado es una fotografía histórica para el resumen mensual, el balance anual y los CSV. Un mes reabierto vuelve al cálculo dinámico.
+- Un cierre confirmado es una fotografía histórica para el resumen mensual, el balance anual y Excel. Un mes reabierto vuelve al cálculo dinámico.
 - Inicio muestra exclusivamente servicios e impuestos pendientes vencidos o del mes actual, deudas por Uso del local y el faltante mensual.
 - La capacidad de sillas se muestra únicamente en Uso del local, incluyendo total, personas vigentes, disponibles y sobrecupo explícito.
-- El balance anual y su CSV desglosan las categorías aprobadas y muestran un indicador explícito `Positivo` o `Negativo`.
+- El balance anual y su hoja de Excel desglosan las categorías aprobadas y muestran un indicador explícito `Positivo` o `Negativo`.
 - Las correcciones de inventario conservan las invariantes de cantidad, dinero y existencia cronológica no negativa. Los nombres activos de productos son únicos sin distinguir mayúsculas.
 - No se permite eliminar padres con historial dependiente ni registros calculados como cierres o asignaciones. Los datos históricos huérfanos heredados se muestran con una descripción segura en vez de cerrar la pantalla.
 - Los estados y categorías visibles y exportados se presentan en español.
@@ -404,6 +406,10 @@ La primera alpha es x64, sin certificado y puede activar una advertencia de Smar
 - Ingresos, gastos, imprevistos, obligaciones y mantenimiento usan acciones directas; no existe un desplegable genérico Acción.
 - Los colaboradores no ocupan sillas y su historial financiero se deriva únicamente de cierres, participaciones y pagos reales.
 - Resumen mensual añade gráficos 2D de barras, composición y evolución con los mismos cálculos que las cifras.
-- Flujo de caja se retira de navegación, pantallas, manual y hoja independiente de Excel; se conservan las operaciones fuente.
+- Flujo de caja permanece fuera de la navegación y las pantallas; Excel incluye una hoja de trazabilidad construida a partir de las operaciones fuente.
 - La exportación Excel incluye sillas, asignaciones, actividad, descripciones, gastos extraoficiales, precio sugerido e historial financiero de colaboradores.
+
+## Decisiones reemplazadas en Fase 4.6
+
+Quedan reemplazadas la moneda configurable, COP, el presupuesto mensual opcional, la nómina como sección independiente, el reparto igualitario automático y la exportación CSV múltiple. La interfaz muestra formularios antes de tablas; la selección de un registro editable activa autoguardado con debounce, mientras altas, pagos, ventas, movimientos, cierres, restauraciones y eliminaciones siguen requiriendo confirmación explícita. Inicio dispone de avisos compactos de mantenimiento y obligaciones. Ventas recalcula cantidad por precio editable en USD y nunca permite superar la existencia. Las gráficas responden realmente a hoy, semana, mes, tres meses, seis meses, año, fecha específica y año específico; un registro antiguo sin hora operativa verificable se incluye en totales pero no se asigna a una hora inventada.
 - El futuro módulo Manual queda como requisito pendiente y no se muestra un botón vacío.

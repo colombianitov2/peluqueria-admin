@@ -16,7 +16,7 @@ Se adoptó la siguiente base tecnológica para el proyecto:
 - **Canal de actualización:** GitHub Releases públicos del mismo repositorio.
 - **Repositorio publicado:** [https://github.com/colombianitov2/peluqueria-admin](https://github.com/colombianitov2/peluqueria-admin), desde el 18 de julio de 2026.
 
-La solución incorpora EF Core SQLite, migraciones, MVVM, inyección de dependencias, 15 módulos, copias, CSV, pruebas y Velopack 1.2.0. Las decisiones realmente abiertas permanecen en `docs/DECISIONES_PENDIENTES.md`.
+La solución incorpora EF Core SQLite, migraciones, MVVM, inyección de dependencias, copias, exportación única con ClosedXML, pruebas y Velopack 1.2.0. Las decisiones realmente abiertas permanecen en `docs/DECISIONES_PENDIENTES.md`.
 
 ## Comparación de alternativas
 
@@ -73,7 +73,7 @@ Infraestructura: SQLite, copias, migraciones, exportación y actualizaciones
 - **Presentación:** pantallas, navegación, validación visible y comandos. No contiene fórmulas financieras ni acceso directo a SQLite.
 - **Aplicación:** define contratos y coordina Ajustes, operaciones administrativas, transacciones, datos y actualizaciones.
 - **Dominio:** concentra deuda semanal, inventario, obligaciones, mantenimiento, punto de equilibrio, caja, cierres y distribución.
-- **Infraestructura:** implementa SQLite, transacciones, migraciones, copias, restauración y CSV. El adaptador Velopack vive en la composición WPF y satisface un contrato de Application.
+- **Infraestructura:** implementa SQLite, transacciones, migraciones, copias, restauración y un único libro `.xlsx`. El adaptador Velopack vive en la composición WPF y satisface un contrato de Application.
 
 Esta separación protege las reglas aprobadas y permite probarlas sin depender de la interfaz.
 
@@ -92,7 +92,9 @@ Reglas técnicas:
 - Los importes monetarios se almacenan con una representación exacta definida; no se usa punto flotante binario para dinero.
 - La configuración general obligatoria usa una sola fila protegida, con fechas UTC de creación y modificación.
 - El dinero se persiste como unidades menores enteras; los porcentajes se persisten como puntos básicos.
-- La moneda es un único código ISO de tres letras. Cambiarlo no convierte valores existentes.
+- La moneda de aplicación es la constante USD. Las columnas históricas de moneda y presupuesto opcional se conservan solo para migración, se normalizan a USD/cero y no participan en reglas vigentes.
+
+La migración `Phase46UsdExportsDistributionInventory` es aditiva: incorpora `Settings.ExportDirectory`, `Collaborators.ProfitShareBasisPoints` y `Products.DefaultUnitCostMinorUnits`. No reescribe importes, no elimina columnas heredadas y no altera snapshots de cierres. Los eventos de silla se escriben tanto para el trabajador como para la silla dentro de la misma transacción lógica, lo que permite perfiles coherentes sin inferir asignaciones nuevas.
 - La eliminación funcional es lógica y las consultas normales excluyen registros eliminados.
 - Cada migración se identifica por versión y se ejecuta dentro de una transacción cuando SQLite lo permita.
 - Antes de una migración importante se crea una copia verificada de la base de datos cerrada o mediante el mecanismo seguro de copia de SQLite.
