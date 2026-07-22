@@ -1,4 +1,6 @@
 using PeluqueriaAdmin.Domain.Common;
+using PeluqueriaAdmin.Domain.Finance;
+using PeluqueriaAdmin.Domain.Inventory;
 using PeluqueriaAdmin.Domain.Reports;
 using PeluqueriaAdmin.Domain.Settings;
 
@@ -27,13 +29,24 @@ public static class SuggestedChairPriceCalculator
         YearMonth month,
         DateOnly today)
     {
-        MonthlySummaryInput input = AdministrationReports.BuildMonthlyInput(data, month);
-        MonthlySummaryResult summary = MonthlySummaryCalculator.Calculate(input, Percentage.FromBasisPoints(0));
+        bool InMonth(DateOnly date) => YearMonth.From(date) == month;
+        long officialGoal = checked(
+            data.Obligations.Where(item => InMonth(item.DueDate)).Sum(item => item.ExpectedAmount.MinorUnits)
+            + data.InventoryMovements.Where(item => item.Type == InventoryMovementType.Purchase && InMonth(item.Date))
+                .Sum(item => item.CashAmount?.MinorUnits ?? 0)
+            + data.FinancialEntries.Where(item => item.Type is FinancialEntryType.Expense or FinancialEntryType.UnexpectedExpense && InMonth(item.Date))
+                .Sum(item => item.Amount.MinorUnits)
+            + data.MaintenanceRecords.Where(item => InMonth(item.ScheduledDate))
+                .Sum(item => item.ActualCost?.MinorUnits ?? item.EstimatedCost?.MinorUnits ?? 0));
         long unofficial = data.UnofficialExpenses
             .Where(item => item.AppliesOn(today))
             .Sum(item => item.MonthlyAmount.MinorUnits);
-        long nonChairIncome = checked(input.GrossSalesMinorUnits + input.OtherIncomeMinorUnits);
-        long amountToCover = Math.Max(0, checked(summary.GoalMinorUnits + unofficial - nonChairIncome));
+        long nonChairIncome = checked(
+            data.InventoryMovements.Where(item => item.Type == InventoryMovementType.Sale && InMonth(item.Date))
+                .Sum(item => item.CashAmount?.MinorUnits ?? 0)
+            + data.FinancialEntries.Where(item => item.Type == FinancialEntryType.OtherIncome && InMonth(item.Date))
+                .Sum(item => item.Amount.MinorUnits));
+        long amountToCover = Math.Max(0, checked(officialGoal + unofficial - nonChairIncome));
         int occupied = data.Chairs.Count(item => item.AssignedPersonId.HasValue
             && data.LocalUsePeople.Any(person => person.Id == item.AssignedPersonId && person.IsCurrentOn(today)));
 
@@ -52,7 +65,7 @@ public static class SuggestedChairPriceCalculator
 
         return new SuggestedChairPrice(
             occupied,
-            summary.GoalMinorUnits,
+            officialGoal,
             unofficial,
             nonChairIncome,
             amountToCover,

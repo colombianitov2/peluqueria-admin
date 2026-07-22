@@ -45,6 +45,8 @@ public sealed class Obligation : AuditableEntity
 
     public string? Description { get; private set; }
 
+    public bool IsSettled { get; private set; }
+
     public static Obligation Create(
         string name,
         ObligationType type,
@@ -90,6 +92,12 @@ public sealed class Obligation : AuditableEntity
             utcNow,
             template.Description);
 
+    public void MarkSettled(DateTime utcNow)
+    {
+        IsSettled = true;
+        MarkUpdated(utcNow);
+    }
+
     public Money GoalAmount(IEnumerable<ObligationPayment> payments)
     {
         long paid = TotalPaidMinorUnits(payments);
@@ -101,7 +109,7 @@ public sealed class Obligation : AuditableEntity
     public ObligationStatus Status(IEnumerable<ObligationPayment> payments, DateOnly today)
     {
         long paid = TotalPaidMinorUnits(payments);
-        if (paid >= ExpectedAmount.MinorUnits)
+        if (IsSettled || paid >= ExpectedAmount.MinorUnits)
         {
             return ObligationStatus.Paid;
         }

@@ -166,6 +166,7 @@ internal sealed class ObligationConfiguration : IEntityTypeConfiguration<Obligat
         AdministrationConfiguration.ConfigureAudit(builder);
         builder.Property(item => item.Name).HasMaxLength(200).IsRequired();
         builder.Property(item => item.Description).HasMaxLength(1000);
+        builder.Property(item => item.IsSettled).HasDefaultValue(false);
         AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.ExpectedAmount))
             .HasColumnName("ExpectedAmountMinorUnits");
         builder.HasIndex(item => new { item.SeriesId, item.DueDate }).IsUnique();
@@ -215,9 +216,13 @@ internal sealed class CollaboratorConfiguration : IEntityTypeConfiguration<Colla
         builder.Property(item => item.Name).HasMaxLength(200).IsRequired();
         builder.Property(item => item.Description).HasMaxLength(1000);
         builder.Property(item => item.ProfitShareBasisPoints).HasDefaultValue(0);
+        builder.Property(item => item.FundParticipationBasisPoints).HasDefaultValue(0);
         builder.ToTable(table => table.HasCheckConstraint(
             "CK_Collaborators_ProfitShareBasisPoints",
             "ProfitShareBasisPoints >= 0 AND ProfitShareBasisPoints <= 10000"));
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_Collaborators_FundParticipationBasisPoints",
+            "FundParticipationBasisPoints >= 0 AND FundParticipationBasisPoints <= 10000"));
     }
 }
 

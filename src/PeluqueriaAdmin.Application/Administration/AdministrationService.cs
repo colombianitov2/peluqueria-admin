@@ -82,6 +82,8 @@ public sealed class AdministrationService(
             await repository.SaveAsync(additions, updates, cancellationToken);
         }
 
+        AdministrationData refreshed = await repository.LoadAsync(cancellationToken);
+        await PreserveCompletedMonthsAsync(refreshed, localToday, utcNow, cancellationToken);
         return await repository.LoadAsync(cancellationToken);
     }
 
@@ -478,6 +480,29 @@ public sealed class AdministrationService(
         await repository.SaveAsync([], [collaborator], cancellationToken);
     }
 
+    public async Task UpdateCollaboratorFundParticipationAsync(
+        Guid collaboratorId,
+        Percentage participation,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        Collaborator collaborator = data.Collaborators.SingleOrDefault(item => item.Id == collaboratorId)
+            ?? throw new InvalidOperationException("El colaborador seleccionado ya no está disponible.");
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+        int totalBasisPoints = data.Collaborators
+            .Where(item => item.Id != collaboratorId && item.IsCurrentOn(today))
+            .Sum(item => item.FundParticipationBasisPoints)
+            + (collaborator.IsCurrentOn(today) ? participation.BasisPoints : 0);
+        if (totalBasisPoints > 10_000)
+        {
+            throw new InvalidOperationException(
+                "La suma de participaciones dentro del fondo de colaboradores no puede superar 100 %.");
+        }
+
+        collaborator.UpdateFundParticipation(participation, timeProvider.GetUtcNow().UtcDateTime);
+        await SaveAsync([], [collaborator], completedDraftKey: null, cancellationToken: cancellationToken);
+    }
+
     public async Task DeleteChairAsync(
         Guid chairId,
         CancellationToken cancellationToken = default)
@@ -549,6 +574,12 @@ public sealed class AdministrationService(
         string? completedDraftKey = null)
     {
         ArgumentNullException.ThrowIfNull(obligation);
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        if (data.Obligations.Any(item => string.Equals(
+            item.Name.Trim(), obligation.Name.Trim(), StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("Ya existe una obligación activa con ese nombre.");
+        }
         IReadOnlyList<Obligation> occurrences = ObligationRecurrenceGenerator.Generate(
             obligation, [obligation], throughDate, timeProvider.GetUtcNow().UtcDateTime);
         await SaveAsync(
@@ -558,6 +589,125 @@ public sealed class AdministrationService(
             cancellationToken);
     }
 
+    public async Task<ObligationPayment> RegisterObligationPaymentAsync(
+        Guid seriesId,
+        DateOnly paymentDate,
+        Money actualAmount,
+        string? description = null,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        Obligation[] series = data.Obligations
+            .Where(item => item.SeriesId == seriesId)
+            .OrderBy(item => item.DueDate)
+            .ToArray();
+        if (series.Length == 0)
+        {
+            throw new InvalidOperationException("La obligación seleccionada ya no está disponible.");
+        }
+
+        Obligation? occurrence = series.FirstOrDefault(item => !item.IsSettled
+            && data.ObligationPayments.Where(payment => payment.ObligationId == item.Id)
+                .Sum(payment => payment.Amount.MinorUnits) < item.ExpectedAmount.MinorUnits);
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        var generated = new List<Obligation>();
+        Obligation template = series[0];
+        if (occurrence is null)
+        {
+            if (template.Recurrence == RecurrenceFrequency.None)
+            {
+                throw new InvalidOperationException("La obligación seleccionada ya fue pagada.");
+            }
+            DateOnly nextDate = ObligationRecurrenceGenerator.OccurrenceDate(
+                template.DueDate, template.Recurrence, series.Length);
+            generated.AddRange(ObligationRecurrenceGenerator.Generate(template, series, nextDate, utcNow));
+            occurrence = generated.OrderBy(item => item.DueDate).First();
+        }
+
+        var payment = ObligationPayment.Create(occurrence.Id, paymentDate, actualAmount, utcNow, description);
+        occurrence.MarkSettled(utcNow);
+
+        if (template.Recurrence != RecurrenceFrequency.None)
+        {
+            Obligation[] known = series.Concat(generated).OrderBy(item => item.DueDate).ToArray();
+            if (!known.Any(item => item.DueDate > occurrence.DueDate && !item.IsSettled))
+            {
+                DateOnly nextDate = ObligationRecurrenceGenerator.OccurrenceDate(
+                    template.DueDate, template.Recurrence, known.Length);
+                generated.AddRange(ObligationRecurrenceGenerator.Generate(template, known, nextDate, utcNow));
+            }
+        }
+
+        await SaveAsync(
+            new AuditableEntity[] { payment }.Concat(generated).ToArray(),
+            [occurrence],
+            completedDraftKey: null,
+            cancellationToken: cancellationToken);
+        return payment;
+    }
+
+    public async Task UpdateObligationDefinitionAsync(
+        Guid seriesId,
+        string name,
+        ObligationType type,
+        DateOnly initialDueDate,
+        Money expectedAmount,
+        RecurrenceFrequency recurrence,
+        string? description = null,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        Obligation[] series = data.Obligations.Where(item => item.SeriesId == seriesId)
+            .OrderBy(item => item.DueDate).ToArray();
+        if (series.Length == 0) throw new InvalidOperationException("La obligación seleccionada ya no está disponible.");
+        if (data.Obligations.Any(item => item.SeriesId != seriesId
+            && string.Equals(item.Name.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("Ya existe una obligación activa con ese nombre.");
+        }
+        bool hasPayments = data.ObligationPayments.Any(payment => series.Any(item => item.Id == payment.ObligationId));
+        if (hasPayments && (series[0].DueDate != initialDueDate || series[0].Recurrence != recurrence))
+        {
+            throw new InvalidOperationException("No se puede cambiar la programación porque la obligación ya tiene pagos históricos.");
+        }
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        if (!hasPayments)
+        {
+            Obligation definition = series[0];
+            definition.Update(name, type, initialDueDate, expectedAmount, recurrence, utcNow, description);
+            foreach (Obligation obsoleteOccurrence in series.Skip(1))
+            {
+                obsoleteOccurrence.MarkDeleted(utcNow);
+            }
+
+            DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+            IReadOnlyList<Obligation> regenerated = ObligationRecurrenceGenerator.Generate(
+                definition, [definition], today, utcNow);
+            await SaveAsync(regenerated, series, completedDraftKey: null, cancellationToken: cancellationToken);
+            return;
+        }
+
+        foreach (Obligation occurrence in series)
+        {
+            occurrence.Update(name, type, occurrence.DueDate, expectedAmount, recurrence, utcNow, description);
+        }
+        await SaveAsync([], series, completedDraftKey: null, cancellationToken: cancellationToken);
+    }
+
+    public async Task DeleteObligationSeriesAsync(Guid seriesId, CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        Obligation[] series = data.Obligations.Where(item => item.SeriesId == seriesId).ToArray();
+        if (series.Length == 0) throw new InvalidOperationException("La obligación seleccionada ya no está disponible.");
+        if (data.ObligationPayments.Any(payment => series.Any(item => item.Id == payment.ObligationId)))
+        {
+            throw new InvalidOperationException("No se puede eliminar una obligación que conserva pagos históricos.");
+        }
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        foreach (Obligation occurrence in series) occurrence.MarkDeleted(utcNow);
+        await SaveAsync([], series, completedDraftKey: null, cancellationToken: cancellationToken);
+    }
+
     public Task ScheduleMaintenanceAsync(
         MaintenanceRecord maintenance,
         CancellationToken cancellationToken = default,
@@ -565,6 +715,28 @@ public sealed class AdministrationService(
     {
         ArgumentNullException.ThrowIfNull(maintenance);
         return SaveAsync([maintenance], [], completedDraftKey, cancellationToken);
+    }
+
+    public async Task UpdateMaintenanceAsync(
+        Guid maintenanceId,
+        string asset,
+        string maintenanceType,
+        DateOnly scheduledDate,
+        Money? estimatedCost,
+        string? description = null,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        MaintenanceRecord maintenance = data.MaintenanceRecords.SingleOrDefault(item => item.Id == maintenanceId)
+            ?? throw new InvalidOperationException("El mantenimiento seleccionado ya no está disponible.");
+        if (maintenance.CompletedDate.HasValue)
+        {
+            throw new InvalidOperationException("Un mantenimiento realizado se conserva como historial y no se edita.");
+        }
+        maintenance.Update(
+            asset, maintenanceType, scheduledDate, estimatedCost, null, null,
+            timeProvider.GetUtcNow().UtcDateTime, description);
+        await SaveAsync([], [maintenance], completedDraftKey: null, cancellationToken: cancellationToken);
     }
 
     public async Task CompleteMaintenanceAsync(
@@ -885,7 +1057,7 @@ public sealed class AdministrationService(
                 close,
                 data.Collaborators
                     .Where(item => participantIds.Contains(item.Id))
-                    .Select(item => (item.Id, item.ProfitShareBasisPoints)),
+                    .Select(item => (item.Id, item.FundParticipationBasisPoints)),
                 utcNow);
         await SaveAsync(
             new AuditableEntity[] { close }.Concat(participants).ToArray(),
@@ -964,6 +1136,59 @@ public sealed class AdministrationService(
             await repository.SaveCompletingDraftAsync(additions, updates, completedDraftKey, cancellationToken);
         }
         DataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async Task PreserveCompletedMonthsAsync(
+        AdministrationData data,
+        DateOnly localToday,
+        DateTime utcNow,
+        CancellationToken cancellationToken)
+    {
+        YearMonth currentMonth = YearMonth.From(localToday);
+        YearMonth[] candidates = data.WeeklyCharges.Select(item => YearMonth.From(item.PeriodEnd))
+            .Concat(data.LocalUsePayments.Select(item => YearMonth.From(item.PaymentDate)))
+            .Concat(data.InventoryMovements.Select(item => YearMonth.From(item.Date)))
+            .Concat(data.FinancialEntries.Select(item => YearMonth.From(item.Date)))
+            .Concat(data.ObligationPayments.Select(item => YearMonth.From(item.Date)))
+            .Concat(data.MaintenanceRecords.Where(item => item.CompletedDate.HasValue)
+                .Select(item => YearMonth.From(item.CompletedDate!.Value)))
+            .Where(month => month.Year < currentMonth.Year
+                || month.Year == currentMonth.Year && month.Month < currentMonth.Month)
+            .Where(month => !data.MonthlyCloses.Any(close => close.Month == month && close.IsConfirmed))
+            .Distinct()
+            .OrderBy(month => month.Year)
+            .ThenBy(month => month.Month)
+            .ToArray();
+        if (candidates.Length == 0)
+        {
+            return;
+        }
+
+        GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
+        var additions = new List<AuditableEntity>();
+        foreach (YearMonth month in candidates)
+        {
+            MonthlySummaryResult summary = MonthlySummaryCalculator.Calculate(
+                AdministrationReports.BuildMonthlyInput(data, month),
+                settings.CollaboratorProfit);
+            MonthlyClose close = MonthlyClose.Create(
+                month,
+                settings.CollaboratorProfit,
+                summary,
+                utcNow,
+                "Snapshot automático del mes finalizado");
+            IReadOnlyList<MonthlyCloseParticipant> participants =
+                CollaboratorDistributionCalculator.Distribute(
+                    close,
+                    data.Collaborators
+                        .Where(item => item.IsCurrentOn(month.LastDay))
+                        .Select(item => (item.Id, item.FundParticipationBasisPoints)),
+                    utcNow);
+            additions.Add(close);
+            additions.AddRange(participants);
+        }
+
+        await SaveAsync(additions, [], completedDraftKey: null, cancellationToken);
     }
 
     private async Task<(IReadOnlyCollection<WeeklyRate> Rates, WeeklyRate? NewRate)> EnsureRatesAsync(

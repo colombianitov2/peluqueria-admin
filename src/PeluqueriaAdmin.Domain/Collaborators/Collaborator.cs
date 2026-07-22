@@ -34,6 +34,8 @@ public sealed class Collaborator : AuditableEntity
 
     public int ProfitShareBasisPoints { get; private set; }
 
+    public int FundParticipationBasisPoints { get; private set; }
+
     public static Collaborator Create(
         string name,
         DateOnly startDate,
@@ -62,6 +64,12 @@ public sealed class Collaborator : AuditableEntity
     public void UpdateProfitShare(Percentage share, DateTime utcNow)
     {
         ProfitShareBasisPoints = share.BasisPoints;
+        MarkUpdated(utcNow);
+    }
+
+    public void UpdateFundParticipation(Percentage participation, DateTime utcNow)
+    {
+        FundParticipationBasisPoints = participation.BasisPoints;
         MarkUpdated(utcNow);
     }
 

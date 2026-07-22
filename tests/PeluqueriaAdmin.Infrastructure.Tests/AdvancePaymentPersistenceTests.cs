@@ -114,9 +114,62 @@ public sealed class AdvancePaymentPersistenceTests
         }
     }
 
+    [Fact]
+    public async Task AdvanceBalance_DecreasesOncePerAnchoredWeekAndRestartDoesNotDuplicateCharges()
+    {
+        string root = Path.Combine(AppContext.BaseDirectory, "TestData", Guid.NewGuid().ToString("N"));
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var clock = new MutableTimeProvider(new DateTimeOffset(2026, 7, 1, 12, 0, 0, TimeSpan.Zero));
+        try
+        {
+            ApplicationPaths paths = ApplicationPaths.FromRoot(root);
+            paths.EnsureDirectories();
+            var factory = new Factory(paths.DatabaseFilePath);
+            await new DatabaseInitializer(factory, paths, clock).InitializeAsync(cancellationToken);
+            var service = new AdministrationService(new EfAdministrationRepository(factory), new EfSettingsRepository(factory), clock);
+            DateOnly entry = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+            LocalUsePerson worker = LocalUsePerson.Create("Saldo controlado", entry, null, clock.GetUtcNow().UtcDateTime);
+            await service.AddLocalUsePersonAsync(worker, entry, cancellationToken);
+            await service.RegisterLocalUsePaymentAsync(worker.Id, entry, PeluqueriaAdmin.Domain.Settings.Money.FromDecimal(30m), cancellationToken);
+
+            clock.AdvanceDays(7);
+            DateOnly afterOneWeek = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+            AdministrationData weekOne = await service.GenerateScheduledRecordsAsync(afterOneWeek, cancellationToken);
+            WorkerAccountBalance first = WeeklyChargeCalculator.CalculateAccount(worker, weekOne.WeeklyCharges, weekOne.LocalUsePayments, weekOne.WeeklyRates, afterOneWeek);
+            Assert.Equal(1_800, first.Credit.MinorUnits);
+            Assert.Equal(0, first.Debt.MinorUnits);
+
+            clock.AdvanceDays(14);
+            DateOnly afterThreeWeeks = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+            AdministrationData weekThree = await service.GenerateScheduledRecordsAsync(afterThreeWeeks, cancellationToken);
+            WorkerAccountBalance partial = WeeklyChargeCalculator.CalculateAccount(worker, weekThree.WeeklyCharges, weekThree.LocalUsePayments, weekThree.WeeklyRates, afterThreeWeeks);
+            Assert.Equal(0, partial.Credit.MinorUnits);
+            Assert.Equal(600, partial.Debt.MinorUnits);
+            Assert.Equal(600, partial.NextRequiredPaymentAmount?.MinorUnits);
+
+            SqliteConnection.ClearAllPools();
+            var restarted = new AdministrationService(new EfAdministrationRepository(new Factory(paths.DatabaseFilePath)), new EfSettingsRepository(new Factory(paths.DatabaseFilePath)), clock);
+            AdministrationData afterRestart = await restarted.GenerateScheduledRecordsAsync(afterThreeWeeks, cancellationToken);
+            Assert.Equal(3, afterRestart.WeeklyCharges.Count(item => item.PersonId == worker.Id));
+            Assert.Equal(600, WeeklyChargeCalculator.CalculateDebt(afterRestart.WeeklyCharges, afterRestart.LocalUsePayments, afterThreeWeeks).MinorUnits);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
     private sealed class FixedTimeProvider(DateTimeOffset value) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => value;
+    }
+
+    private sealed class MutableTimeProvider(DateTimeOffset value) : TimeProvider
+    {
+        private DateTimeOffset current = value;
+        public override DateTimeOffset GetUtcNow() => current;
+        public void AdvanceDays(int days) => current = current.AddDays(days);
     }
 
     private sealed class Factory(string databasePath) : IDbContextFactory<PeluqueriaDbContext>

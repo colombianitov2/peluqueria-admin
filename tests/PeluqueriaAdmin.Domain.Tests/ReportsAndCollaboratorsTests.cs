@@ -14,35 +14,33 @@ public sealed class ReportsAndCollaboratorsTests
     public void MonthlySummary_IgnoresRetiredOptionalBudgetAndUsesOnlyActualCosts()
     {
         var input = new MonthlySummaryInput(
-            LocalUseIncomeMinorUnits: 50_000,
+            LocalUseEarnedIncomeMinorUnits: 50_000,
             GrossSalesMinorUnits: 30_000,
             OtherIncomeMinorUnits: 20_000,
-            ObligationGoalMinorUnits: 20_000,
-            MerchandisePurchasesMinorUnits: 10_000,
-            MandatoryExpensesMinorUnits: 5_000,
-            OptionalSuppliesActualMinorUnits: 3_000,
+            InventoryPurchasesMinorUnits: 10_000,
+            RegisteredExpensesMinorUnits: 8_000,
             UnexpectedExpensesMinorUnits: 1_000,
-            MaintenanceGoalMinorUnits: 5_000,
-            PendingApprovedPlansMinorUnits: 5_000);
+            ObligationPaymentsMinorUnits: 20_000,
+            CompletedMaintenanceMinorUnits: 5_000);
 
         MonthlySummaryResult result = MonthlySummaryCalculator.Calculate(
             input, Percentage.FromPercent(20m));
 
         Assert.Equal(100_000, result.IncomeMinorUnits);
-        Assert.Equal(49_000, result.GoalMinorUnits);
+        Assert.Equal(44_000, result.GoalMinorUnits);
         Assert.Equal(0, result.MissingMinorUnits);
-        Assert.Equal(51_000, result.BaseResultMinorUnits);
-        Assert.Equal(10_200, result.CollaboratorFundMinorUnits);
-        Assert.Equal(40_800, result.RetainedResultMinorUnits);
+        Assert.Equal(56_000, result.BaseResultMinorUnits);
+        Assert.Equal(11_200, result.CollaboratorFundMinorUnits);
+        Assert.Equal(44_800, result.RetainedResultMinorUnits);
     }
 
     [Fact]
     public void MonthlySummary_NegativeAndZeroResultsNeverCreateCollaboratorDebt()
     {
         var negativeInput = new MonthlySummaryInput(
-            1_000, 0, 0, 2_000, 0, 0, 0, 0, 0, 0, 0);
+            1_000, 0, 0, 2_000, 0, 0, 0, 0);
         var zeroInput = new MonthlySummaryInput(
-            2_000, 0, 0, 2_000, 0, 0, 0, 0, 0, 0, 0);
+            2_000, 0, 0, 2_000, 0, 0, 0, 0);
 
         MonthlySummaryResult negative = MonthlySummaryCalculator.Calculate(
             negativeInput, Percentage.FromPercent(20m));
@@ -73,13 +71,13 @@ public sealed class ReportsAndCollaboratorsTests
                 new[] { (ids[0], 1_200), (ids[1], 400), (ids[2], 200), (ids[3], 200) },
                 UtcNow);
 
-        Assert.Equal(1_001, participants.Sum(item => item.Amount.MinorUnits));
-        Assert.Equal([601L, 200L, 100L, 100L], participants.Select(item => item.Amount.MinorUnits));
+        Assert.Equal(200, participants.Sum(item => item.Amount.MinorUnits));
+        Assert.Equal([120L, 40L, 20L, 20L], participants.Select(item => item.Amount.MinorUnits));
         Assert.Equal(ids, participants.Select(item => item.CollaboratorId));
     }
 
     [Fact]
-    public void Distribution_ExactApprovedExample_20_12_4_2_2()
+    public void Distribution_ExactApprovedExample_20Global_60_20_10_10Internal()
     {
         MonthlySummaryResult summary = new(100_000, 0, 0, 100_000, 20_000, 80_000);
         MonthlyClose close = MonthlyClose.Create(
@@ -89,12 +87,36 @@ public sealed class ReportsAndCollaboratorsTests
         IReadOnlyList<MonthlyCloseParticipant> participants =
             CollaboratorDistributionCalculator.Distribute(
                 close,
-                new[] { (ids[0], 1_200), (ids[1], 400), (ids[2], 200), (ids[3], 200) },
+                new[] { (ids[0], 6_000), (ids[1], 2_000), (ids[2], 1_000), (ids[3], 1_000) },
                 UtcNow);
 
         Assert.Equal([12_000L, 4_000L, 2_000L, 2_000L],
             participants.OrderBy(item => Array.IndexOf(ids, item.CollaboratorId)).Select(item => item.Amount.MinorUnits));
         Assert.Equal(20_000, participants.Sum(item => item.Amount.MinorUnits));
+    }
+
+    [Fact]
+    public void Distribution_RejectsInternalParticipationAboveOneHundredPercent()
+    {
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            CollaboratorDistributionCalculator.CalculateMinorUnitAmounts(
+                100_000,
+                2_000,
+                [(Guid.NewGuid(), 6_000), (Guid.NewGuid(), 4_001)]));
+
+        Assert.Contains("100 %", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Distribution_UnassignedFundRemainsOutsideParticipantPayments()
+    {
+        IReadOnlyDictionary<Guid, long> result =
+            CollaboratorDistributionCalculator.CalculateMinorUnitAmounts(
+                100_000,
+                2_000,
+                [(Guid.NewGuid(), 6_000)]);
+
+        Assert.Equal(12_000, Assert.Single(result).Value);
     }
 
     [Fact]

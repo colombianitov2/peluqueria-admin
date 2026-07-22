@@ -47,9 +47,9 @@ public static class CollaboratorDistributionCalculator
             .ToArray();
 
         int totalBasisPoints = ordered.Sum(item => item.ProfitShareBasisPoints);
-        if (totalBasisPoints > globalProfitShareBasisPoints)
+        if (totalBasisPoints > 10_000)
         {
-            throw new InvalidOperationException("La suma de porcentajes individuales supera el porcentaje global configurado.");
+            throw new InvalidOperationException("La suma de participaciones dentro del fondo no puede superar 100 %.");
         }
 
         long distributableBase = Math.Max(0, distributableBaseMinorUnits);
@@ -58,16 +58,20 @@ public static class CollaboratorDistributionCalculator
             return new Dictionary<Guid, long>();
         }
 
+        long collaboratorFund = checked((long)decimal.Round(
+            distributableBase * globalProfitShareBasisPoints / 10_000m,
+            0,
+            MidpointRounding.AwayFromZero));
         long targetMinorUnits = checked((long)decimal.Round(
-            distributableBase * totalBasisPoints / 10_000m,
+            collaboratorFund * totalBasisPoints / 10_000m,
             0,
             MidpointRounding.AwayFromZero));
         var shares = ordered
             .Select(item => new
             {
                 item.CollaboratorId,
-                BaseAmount = checked(distributableBase * item.ProfitShareBasisPoints / 10_000),
-                Remainder = checked(distributableBase * item.ProfitShareBasisPoints % 10_000),
+                BaseAmount = checked(collaboratorFund * item.ProfitShareBasisPoints / 10_000),
+                Remainder = checked(collaboratorFund * item.ProfitShareBasisPoints % 10_000),
             })
             .ToArray();
         long unassignedMinorUnits = targetMinorUnits - shares.Sum(item => item.BaseAmount);

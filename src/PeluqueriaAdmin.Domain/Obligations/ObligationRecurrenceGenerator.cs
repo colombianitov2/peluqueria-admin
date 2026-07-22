@@ -22,7 +22,7 @@ public static class ObligationRecurrenceGenerator
 
         for (int occurrence = 0; ; occurrence++)
         {
-            DateOnly dueDate = AtOccurrence(template.DueDate, template.Recurrence, occurrence);
+            DateOnly dueDate = OccurrenceDate(template.DueDate, template.Recurrence, occurrence);
             if (dueDate > throughDate)
             {
                 break;
@@ -37,7 +37,7 @@ public static class ObligationRecurrenceGenerator
         return generated;
     }
 
-    private static DateOnly AtOccurrence(
+    public static DateOnly OccurrenceDate(
         DateOnly anchorDate,
         RecurrenceFrequency frequency,
         int occurrence) => frequency switch

@@ -34,6 +34,8 @@ public sealed record AnnualAdministrationReport(
     MonthlyExpenseBreakdown Expenses,
     string Indicator);
 
+public sealed record LocalUseEarning(DateOnly Date, DateTime OccurredUtc, long MinorUnits);
+
 public static class AdministrationReports
 {
     public static MonthlySummaryResult MonthlySummary(
@@ -58,33 +60,20 @@ public static class AdministrationReports
         InventoryMovement[] purchases = data.InventoryMovements
             .Where(item => item.Type == InventoryMovementType.Purchase && InMonth(item.Date))
             .ToArray();
-        long PurchaseFor(params ProductCategory[] categories) => purchases
-            .Where(item => data.Products.Any(product => product.Id == item.ProductId
-                && categories.Contains(product.Category)))
-            .Sum(item => item.CashAmount?.MinorUnits ?? 0);
-        long planCost = CalculatePlanCost(data, month);
-
         return new MonthlySummaryInput(
-            data.LocalUsePayments.Where(item => InMonth(item.PaymentDate)).Sum(item => item.Amount.MinorUnits),
+            CalculateEarnedLocalUseIncome(data, month),
             data.InventoryMovements.Where(item => item.Type == InventoryMovementType.Sale && InMonth(item.Date))
                 .Sum(item => item.CashAmount?.MinorUnits ?? 0),
             data.FinancialEntries.Where(item => item.Type == FinancialEntryType.OtherIncome && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits),
-            data.Obligations.Where(item => InMonth(item.DueDate))
-                .Sum(item => item.GoalAmount(data.ObligationPayments).MinorUnits),
-            PurchaseFor(ProductCategory.FoodOrDrinkForSale, ProductCategory.OtherProductForSale),
-            data.FinancialEntries.Where(item => item.Type == FinancialEntryType.Expense
-                    && item.Category != ExpenseCategory.OptionalSupply && InMonth(item.Date))
-                .Sum(item => item.Amount.MinorUnits)
-                + PurchaseFor(ProductCategory.Cleaning, ProductCategory.LocalSupply, ProductCategory.OtherLocalProduct),
-            data.FinancialEntries.Where(item => item.Type == FinancialEntryType.Expense
-                    && item.Category == ExpenseCategory.OptionalSupply && InMonth(item.Date))
-                .Sum(item => item.Amount.MinorUnits)
-                + PurchaseFor(ProductCategory.CustomerCourtesy),
+            purchases.Sum(item => item.CashAmount?.MinorUnits ?? 0),
+            data.FinancialEntries.Where(item => item.Type == FinancialEntryType.Expense && InMonth(item.Date))
+                .Sum(item => item.Amount.MinorUnits),
             data.FinancialEntries.Where(item => item.Type == FinancialEntryType.UnexpectedExpense && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits),
-            data.MaintenanceRecords.Sum(item => item.GoalAmountFor(month).MinorUnits),
-            planCost);
+            data.ObligationPayments.Where(item => InMonth(item.Date)).Sum(item => item.Amount.MinorUnits),
+            data.MaintenanceRecords.Where(item => item.CompletedDate.HasValue && InMonth(item.CompletedDate.Value))
+                .Sum(item => item.ActualCost?.MinorUnits ?? 0));
     }
 
     public static AnnualAdministrationReport Annual(
@@ -132,9 +121,10 @@ public static class AdministrationReports
         YearMonth month)
     {
         bool InMonth(DateOnly date) => YearMonth.From(date) == month;
-        long Obligations(ObligationType type) => data.Obligations
-            .Where(item => item.Type == type && InMonth(item.DueDate))
-            .Sum(item => item.GoalAmount(data.ObligationPayments).MinorUnits);
+        long Obligations(ObligationType type) => data.ObligationPayments
+            .Where(payment => InMonth(payment.Date)
+                && data.Obligations.Any(item => item.Id == payment.ObligationId && item.Type == type))
+            .Sum(item => item.Amount.MinorUnits);
         long Purchases(params ProductCategory[] categories) => data.InventoryMovements
             .Where(item => item.Type == InventoryMovementType.Purchase && InMonth(item.Date)
                 && data.Products.Any(product => product.Id == item.ProductId
@@ -154,26 +144,70 @@ public static class AdministrationReports
             Purchases(ProductCategory.Cleaning, ProductCategory.LocalSupply)
                 + Expenses(ExpenseCategory.MandatorySupply),
             optionalActual,
-            data.MaintenanceRecords.Sum(item => item.GoalAmountFor(month).MinorUnits),
+            data.MaintenanceRecords.Where(item => item.CompletedDate.HasValue && InMonth(item.CompletedDate.Value))
+                .Sum(item => item.ActualCost?.MinorUnits ?? 0),
             data.FinancialEntries.Where(item => item.Type == FinancialEntryType.UnexpectedExpense && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits),
             Expenses(ExpenseCategory.Other) + Purchases(ProductCategory.OtherLocalProduct),
-            CalculatePlanCost(data, month),
+            0,
             0);
     }
 
-    private static long CalculatePlanCost(AdministrationData data, YearMonth month) =>
-        data.RestockPlans.Where(item => item.Month == month).Sum(plan =>
+    public static IReadOnlyList<LocalUseEarning> EarnedLocalUseIncome(AdministrationData data)
+    {
+        var earnings = new List<LocalUseEarning>();
+        foreach (var person in data.LocalUsePeople)
         {
-            InventoryMovement[] movements = data.InventoryMovements
-                .Where(item => item.ProductId == plan.ProductId && item.Date <= month.LastDay)
+            var charges = data.WeeklyCharges
+                .Where(item => item.PersonId == person.Id)
+                .OrderBy(item => item.PeriodEnd)
+                .ThenBy(item => item.CreatedUtc)
+                .Select(item => new RemainingCharge(item.PeriodEnd, item.CreatedUtc, item.Amount.MinorUnits))
                 .ToArray();
-            decimal suggested = plan.SuggestedPurchase(InventoryCalculator.CurrentQuantity(movements));
-            return checked((long)decimal.Round(
-                InventoryCalculator.AverageUnitCost(movements).MinorUnits * suggested,
-                0,
-                MidpointRounding.AwayFromZero));
-        });
+            var payments = data.LocalUsePayments
+                .Where(item => item.PersonId == person.Id)
+                .OrderBy(item => item.PaymentDate)
+                .ThenBy(item => item.CreatedUtc)
+                .Select(item => new RemainingPayment(item.PaymentDate, item.CreatedUtc, item.Amount.MinorUnits))
+                .ToArray();
+            int chargeIndex = 0;
+            int paymentIndex = 0;
+            while (chargeIndex < charges.Length && paymentIndex < payments.Length)
+            {
+                long applied = Math.Min(charges[chargeIndex].Remaining, payments[paymentIndex].Remaining);
+                DateOnly recognitionDate = charges[chargeIndex].PeriodEnd > payments[paymentIndex].Date
+                    ? charges[chargeIndex].PeriodEnd
+                    : payments[paymentIndex].Date;
+                DateTime occurredUtc = charges[chargeIndex].PeriodEnd > payments[paymentIndex].Date
+                    ? charges[chargeIndex].CreatedUtc
+                    : payments[paymentIndex].CreatedUtc;
+                earnings.Add(new LocalUseEarning(recognitionDate, occurredUtc, applied));
+                charges[chargeIndex].Remaining -= applied;
+                payments[paymentIndex].Remaining -= applied;
+                if (charges[chargeIndex].Remaining == 0) chargeIndex++;
+                if (payments[paymentIndex].Remaining == 0) paymentIndex++;
+            }
+        }
+        return earnings;
+    }
+
+
+    private static long CalculateEarnedLocalUseIncome(AdministrationData data, YearMonth month) =>
+        EarnedLocalUseIncome(data).Where(item => YearMonth.From(item.Date) == month).Sum(item => item.MinorUnits);
+
+    private sealed class RemainingCharge(DateOnly periodEnd, DateTime createdUtc, long remaining)
+    {
+        public DateOnly PeriodEnd { get; } = periodEnd;
+        public DateTime CreatedUtc { get; } = createdUtc;
+        public long Remaining { get; set; } = remaining;
+    }
+
+    private sealed class RemainingPayment(DateOnly date, DateTime createdUtc, long remaining)
+    {
+        public DateOnly Date { get; } = date;
+        public DateTime CreatedUtc { get; } = createdUtc;
+        public long Remaining { get; set; } = remaining;
+    }
 
     private static MonthlyExpenseBreakdown Add(MonthlyExpenseBreakdown left, MonthlyExpenseBreakdown right) => new(
         left.ServicesMinorUnits + right.ServicesMinorUnits,

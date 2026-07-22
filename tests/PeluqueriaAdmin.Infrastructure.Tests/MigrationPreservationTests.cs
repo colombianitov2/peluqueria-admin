@@ -9,10 +9,12 @@ using PeluqueriaAdmin.Domain.Finance;
 using PeluqueriaAdmin.Domain.Inventory;
 using PeluqueriaAdmin.Domain.LocalUse;
 using PeluqueriaAdmin.Domain.Maintenance;
+using PeluqueriaAdmin.Domain.Notes;
 using PeluqueriaAdmin.Domain.Obligations;
 using PeluqueriaAdmin.Domain.Reports;
 using PeluqueriaAdmin.Domain.Settings;
 using PeluqueriaAdmin.Infrastructure.Administration;
+using PeluqueriaAdmin.Infrastructure.Notes;
 using PeluqueriaAdmin.Infrastructure.Persistence;
 using PeluqueriaAdmin.Infrastructure.Settings;
 
@@ -60,9 +62,9 @@ public sealed class MigrationPreservationTests
             await service.AddAsync(MaintenanceRecord.Create("Silla", "Preventivo", new DateOnly(2026, 8, 1), Money.FromDecimal(5), null, null, utc), cancellationToken);
             var collaborator = Collaborator.Create("Colaborador", new DateOnly(2026, 1, 1), null, utc);
             await service.AddAsync(collaborator, cancellationToken);
-            await service.UpdateCollaboratorProfitShareAsync(
-                collaborator.Id, Percentage.FromPercent(20m), cancellationToken);
-            var close = await service.CloseMonthAsync(new YearMonth(2026, 7), new MonthlySummaryInput(1000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Percentage.FromPercent(20), [collaborator.Id], cancellationToken);
+            await service.UpdateCollaboratorFundParticipationAsync(
+                collaborator.Id, Percentage.FromPercent(100m), cancellationToken);
+            var close = await service.CloseMonthAsync(new YearMonth(2026, 7), new MonthlySummaryInput(1000, 0, 0, 0, 0, 0, 0, 0), Percentage.FromPercent(20), [collaborator.Id], cancellationToken);
             await service.RegisterDistributionPaymentAsync(close.Participants.Single().Id, new DateOnly(2026, 7, 31), Money.FromDecimal(2), cancellationToken);
 
             await using (PeluqueriaDbContext context = factory.CreateDbContext())
@@ -189,6 +191,60 @@ public sealed class MigrationPreservationTests
             Assert.Equal(record.ScheduledDate, record.FirstScheduledDate);
             Assert.Equal(0, record.OccurrenceNumber);
             Assert.Equal("Registro Fase 4.2", record.Description);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task Phase46SchemaToPhase47_AddsNewSemanticsWithoutReinterpretingLegacyPercentage()
+    {
+        string root = Path.Combine(AppContext.BaseDirectory, "TestData", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        try
+        {
+            var factory = new TestFactory(Path.Combine(root, "phase46.db"));
+            Guid collaboratorId = Guid.NewGuid();
+            Guid obligationId = Guid.NewGuid();
+            Guid seriesId = Guid.NewGuid();
+            DateTime utc = new(2026, 7, 21, 12, 0, 0, DateTimeKind.Utc);
+            await using (PeluqueriaDbContext context = factory.CreateDbContext())
+            {
+                string phase46 = context.Database.GetMigrations()
+                    .Single(item => item.EndsWith("_Phase46UsdExportsDistributionInventory", StringComparison.Ordinal));
+                await context.GetService<IMigrator>().MigrateAsync(phase46, cancellationToken);
+                await context.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO Collaborators
+                    (Id, Name, StartDate, ExitDate, Description, ProfitShareBasisPoints, CreatedUtc, UpdatedUtc, DeletedUtc)
+                    VALUES ({collaboratorId}, {"Porcentaje heredado"}, {new DateOnly(2026, 1, 1)}, {null},
+                            {null}, {1200}, {utc.Ticks}, {utc.Ticks}, {null});
+                    """, cancellationToken);
+                await context.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO Obligations
+                    (Id, SeriesId, Name, Type, DueDate, ExpectedAmountMinorUnits, Recurrence, Description, CreatedUtc, UpdatedUtc, DeletedUtc)
+                    VALUES ({obligationId}, {seriesId}, {"Obligación heredada"}, {(int)ObligationType.Service},
+                            {new DateOnly(2026, 7, 31)}, {5000L}, {(int)RecurrenceFrequency.None}, {null},
+                            {utc.Ticks}, {utc.Ticks}, {null});
+                    """, cancellationToken);
+                await context.GetService<IMigrator>().MigrateAsync(cancellationToken: cancellationToken);
+            }
+
+            await using (PeluqueriaDbContext verified = factory.CreateDbContext())
+            {
+                Collaborator collaborator = await verified.Collaborators.SingleAsync(cancellationToken);
+                Obligation obligation = await verified.Obligations.SingleAsync(cancellationToken);
+                Assert.Equal(1_200, collaborator.ProfitShareBasisPoints);
+                Assert.Equal(0, collaborator.FundParticipationBasisPoints);
+                Assert.False(obligation.IsSettled);
+                Assert.Empty(await verified.Notes.ToListAsync(cancellationToken));
+            }
+
+            await new EfNoteRepository(factory).SaveAsync(AppNote.Create("Nota posterior a migración", utc), cancellationToken);
+            Assert.Equal("Nota posterior a migración", (await new EfNoteRepository(factory).GetAsync(cancellationToken))?.Content);
         }
         finally
         {

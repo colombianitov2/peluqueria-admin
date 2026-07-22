@@ -98,7 +98,7 @@ public sealed class DataManagementTests
                 cancellationToken);
             await administrationService.CloseMonthAsync(
                 new YearMonth(2026, 7),
-                new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0, 0, 0, 0),
+                new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0),
                 Percentage.FromPercent(20m),
                 [collaborator.Id],
                 cancellationToken);

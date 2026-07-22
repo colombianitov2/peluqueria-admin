@@ -10,6 +10,7 @@ using PeluqueriaAdmin.Domain.Finance;
 using PeluqueriaAdmin.Domain.Inventory;
 using PeluqueriaAdmin.Domain.LocalUse;
 using PeluqueriaAdmin.Domain.Maintenance;
+using PeluqueriaAdmin.Domain.Notes;
 using PeluqueriaAdmin.Domain.Obligations;
 using PeluqueriaAdmin.Domain.Reports;
 using PeluqueriaAdmin.Domain.Settings;
@@ -113,7 +114,6 @@ public sealed class ExcelExportService(
         deleted.AddRange((await db.UnofficialExpenses.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Gasto extraoficial", x.Name, x.DeletedUtc)));
         deleted.AddRange((await db.Products.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Producto", x.Name, x.DeletedUtc)));
         deleted.AddRange((await db.InventoryMovements.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Movimiento de inventario", $"{MovementName(x.Type)} · {x.QuantityDelta:0.###}", x.DeletedUtc)));
-        deleted.AddRange((await db.RestockPlans.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Plan de reposición", x.Month.ToString(), x.DeletedUtc)));
         deleted.AddRange((await db.FinancialEntries.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted(SpanishText.For(x.Type), x.Concept, x.DeletedUtc)));
         deleted.AddRange((await db.Obligations.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Obligación", x.Name, x.DeletedUtc)));
         deleted.AddRange((await db.ObligationPayments.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Pago de obligación", $"{x.Date:yyyy-MM-dd} · {x.Amount.ToDecimal():0.00}", x.DeletedUtc)));
@@ -125,12 +125,15 @@ public sealed class ExcelExportService(
         deleted.AddRange((await db.DistributionPayments.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Pago a colaborador", $"{x.Date:yyyy-MM-dd} · {x.Amount.ToDecimal():0.00}", x.DeletedUtc)));
 
         var drafts = await db.FormDrafts.AsNoTracking().OrderBy(x => x.UpdatedUtc).ToListAsync(cancellationToken);
+        AppNote? note = await db.Notes.AsNoTracking().SingleOrDefaultAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new ExportSnapshot(
             settings,
             active,
             deleted,
             drafts.Select(x => new DraftRecord(x.Module, x.FormType, x.IsEdit ? "Edición no finalizada" : "Nuevo registro no finalizado", x.PayloadJson, x.UpdatedUtc)).ToArray(),
+            note?.Content,
+            note?.UpdatedUtc,
             deletedPeople.ToDictionary(x => x.Id, x => x.Name),
             deletedCollaborators.ToDictionary(x => x.Id, x => x.Name));
     }
@@ -159,6 +162,11 @@ public sealed class ExcelExportService(
         IXLWorksheet settingsSheet = workbook.Worksheet("Ajustes");
         settingsSheet.Cell(2, 2).Style.NumberFormat.Format = MoneyFormat;
         settingsSheet.Cell(3, 2).Style.NumberFormat.Format = "0.00%";
+
+        AddTable(workbook, "Notas", ["Contenido", "Última actualización"],
+            string.IsNullOrEmpty(snapshot.NoteContent)
+                ? []
+                : [(object?[])[SafeText(snapshot.NoteContent), snapshot.NoteUpdatedUtc?.ToLocalTime()]]);
 
         SuggestedChairPrice suggested = SuggestedChairPriceCalculator.Calculate(
             data, snapshot.Settings.WeeklyUsageFee,
@@ -211,9 +219,9 @@ public sealed class ExcelExportService(
             data.LocalUsePayments.OrderBy(x => x.PaymentDate).Select(x => (object?[])
             [SafeText(PersonName(data, snapshot.DeletedPeople, x.PersonId)), Date(x.PaymentDate), x.Amount.ToDecimal(), currency, SafeText(x.Description ?? ""), "Registrado"]), moneyColumns: [3]);
 
-        AddTable(workbook, "Colaboradores", ["Nombre", "Fecha de inicio", "Fecha de retiro", "Porcentaje individual", "Descripción", "Estado"],
+        AddTable(workbook, "Colaboradores", ["Nombre", "Fecha de inicio", "Fecha de retiro", "Participación dentro del fondo", "Descripción", "Estado"],
             data.Collaborators.OrderBy(x => x.Name).Select(x => (object?[])
-            [SafeText(x.Name), Date(x.StartDate), Date(x.ExitDate), x.ProfitShareBasisPoints / 10_000m, SafeText(x.Description ?? ""), x.IsCurrentOn(today) ? "Activo" : "Retirado"]), percentColumns: [4]);
+            [SafeText(x.Name), Date(x.StartDate), Date(x.ExitDate), x.FundParticipationBasisPoints / 10_000m, SafeText(x.Description ?? ""), x.IsCurrentOn(today) ? "Activo" : "Retirado"]), percentColumns: [4]);
 
         AddTable(workbook, "Aportes colaboradores", ["Fecha", "Colaborador", "Valor", "Moneda", "Descripción", "Clasificación", "Estado"],
             data.CollaboratorContributions.OrderBy(x => x.Date).ThenBy(x => x.CreatedUtc).Select(x => (object?[])
@@ -249,14 +257,6 @@ public sealed class ExcelExportService(
         AddTable(workbook, "Movimientos de inventario", ["Producto", "Fecha", "Tipo", "Variación de cantidad", "Movimiento de caja", "Costo estimado", "Moneda", "Descripción", "Estado"],
             data.InventoryMovements.OrderBy(x => x.Date).Select(x => (object?[])
             [SafeText(ProductName(data, x.ProductId)), Date(x.Date), MovementName(x.Type), x.QuantityDelta, x.CashAmount?.ToDecimal(), x.EstimatedCost?.ToDecimal(), currency, SafeText(x.Description ?? ""), "Registrado"]), moneyColumns: [5, 6], quantityColumns: [4]);
-
-        AddTable(workbook, "Planes de reposición", ["Producto", "Mes", "Cantidad necesaria", "Cantidad actual al cierre", "Compra sugerida", "Estado"],
-            data.RestockPlans.OrderBy(x => x.Month.Year).ThenBy(x => x.Month.Month).Select(x =>
-            {
-                Product? product = data.Products.SingleOrDefault(p => p.Id == x.ProductId);
-                decimal current = InventoryCalculator.CurrentQuantity(data.InventoryMovements.Where(m => m.ProductId == x.ProductId && m.Date <= x.Month.LastDay));
-                return (object?[])[SafeText(product?.Name ?? "Producto eliminado"), Date(x.Month.FirstDay), x.NeededQuantity.Value, current, x.SuggestedPurchase(current), x.Month.LastDay < today ? "Histórico" : "Planificado"];
-            }), quantityColumns: [3, 4, 5]);
 
         AddFinancialSheet(workbook, "Otros ingresos", data, FinancialEntryType.OtherIncome, currency);
         AddFinancialSheet(workbook, "Gastos", data, FinancialEntryType.Expense, currency);
@@ -388,9 +388,9 @@ public sealed class ExcelExportService(
             AnnualAdministrationReport report = AdministrationReports.Annual(data, settings.CollaboratorProfit, year);
             MonthlyExpenseBreakdown e = report.Expenses;
             AnnualBalanceResult b = report.Balance;
-            return (object?[])[year, Minor(b.IncomeMinorUnits), Minor(b.ExpenseMinorUnits), Minor(b.DistributionMinorUnits), Minor(b.RetainedMinorUnits), Minor(b.PendingMinorUnits), Minor(b.MissingMinorUnits), Minor(e.ServicesMinorUnits), Minor(e.TaxesMinorUnits), Minor(e.OtherObligationsMinorUnits), Minor(e.MerchandiseMinorUnits), Minor(e.MandatorySuppliesMinorUnits), Minor(e.OptionalSuppliesMinorUnits), Minor(e.MaintenanceMinorUnits), Minor(e.UnexpectedMinorUnits), Minor(e.OtherExpensesMinorUnits), Minor(e.PendingPlansMinorUnits), Minor(e.HistoricalAdjustmentMinorUnits), currency, report.Indicator];
+            return (object?[])[year, Minor(b.IncomeMinorUnits), Minor(b.ExpenseMinorUnits), Minor(b.DistributionMinorUnits), Minor(b.RetainedMinorUnits), Minor(b.PendingMinorUnits), Minor(b.MissingMinorUnits), Minor(e.ServicesMinorUnits), Minor(e.TaxesMinorUnits), Minor(e.OtherObligationsMinorUnits), Minor(e.MerchandiseMinorUnits), Minor(e.MandatorySuppliesMinorUnits), Minor(e.OptionalSuppliesMinorUnits), Minor(e.MaintenanceMinorUnits), Minor(e.UnexpectedMinorUnits), Minor(e.OtherExpensesMinorUnits), Minor(e.HistoricalAdjustmentMinorUnits), currency, report.Indicator];
         });
-        AddTable(workbook, "Balance anual", ["Año", "Ingresos", "Meta y gastos", "Distribuciones pagadas", "Resultado retenido", "Pendientes", "Faltante", "Servicios", "Impuestos", "Otras obligaciones", "Mercancía", "Insumos obligatorios", "Insumos opcionales", "Mantenimiento", "Imprevistos", "Otros gastos", "Planes de reposición", "Ajuste histórico", "Moneda", "Indicador"], rows, moneyColumns: Enumerable.Range(2, 17).ToArray());
+        AddTable(workbook, "Balance anual", ["Año", "Ingresos", "Gastos reales", "Distribuciones pagadas", "Resultado retenido", "Pendientes", "Faltante", "Servicios", "Impuestos", "Otras obligaciones", "Mercancía", "Insumos obligatorios", "Insumos opcionales", "Mantenimiento", "Imprevistos", "Otros gastos", "Ajuste histórico", "Moneda", "Indicador"], rows, moneyColumns: Enumerable.Range(2, 16).ToArray());
     }
 
     private static IReadOnlyList<CashMovement> BuildCashMovements(AdministrationData data)
@@ -496,7 +496,7 @@ public sealed class ExcelExportService(
         var dates = new List<DateOnly>();
         dates.AddRange(data.LocalUsePeople.Select(x => x.EntryDate)); dates.AddRange(data.LocalUsePeople.Where(x => x.ExitDate.HasValue).Select(x => x.ExitDate!.Value));
         dates.AddRange(data.WeeklyRates.Select(x => x.EffectiveFrom)); dates.AddRange(data.WeeklyCharges.Select(x => x.PeriodStart)); dates.AddRange(data.LocalUsePayments.Select(x => x.PaymentDate));
-        dates.AddRange(data.InventoryMovements.Select(x => x.Date)); dates.AddRange(data.RestockPlans.Select(x => x.Month.FirstDay)); dates.AddRange(data.FinancialEntries.Select(x => x.Date));
+        dates.AddRange(data.InventoryMovements.Select(x => x.Date)); dates.AddRange(data.FinancialEntries.Select(x => x.Date));
         dates.AddRange(data.Obligations.Select(x => x.DueDate)); dates.AddRange(data.ObligationPayments.Select(x => x.Date)); dates.AddRange(data.MaintenanceRecords.Select(x => x.ScheduledDate));
         dates.AddRange(data.MaintenanceRecords.Where(x => x.CompletedDate.HasValue).Select(x => x.CompletedDate!.Value)); dates.AddRange(data.Collaborators.Select(x => x.StartDate));
         dates.AddRange(data.MonthlyCloses.Select(x => x.Month.FirstDay)); dates.AddRange(data.DistributionPayments.Select(x => x.Date));
@@ -555,6 +555,8 @@ public sealed class ExcelExportService(
         AdministrationData Active,
         IReadOnlyList<DeletedRecord> Deleted,
         IReadOnlyList<DraftRecord> Drafts,
+        string? NoteContent,
+        DateTime? NoteUpdatedUtc,
         IReadOnlyDictionary<Guid, string> DeletedPeople,
         IReadOnlyDictionary<Guid, string> DeletedCollaborators);
     private sealed record DeletedRecord(string Type, string Description, DateTime? DeletedUtc);

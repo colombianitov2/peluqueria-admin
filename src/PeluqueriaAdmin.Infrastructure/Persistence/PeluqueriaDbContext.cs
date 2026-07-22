@@ -6,6 +6,7 @@ using PeluqueriaAdmin.Domain.Finance;
 using PeluqueriaAdmin.Domain.Inventory;
 using PeluqueriaAdmin.Domain.LocalUse;
 using PeluqueriaAdmin.Domain.Maintenance;
+using PeluqueriaAdmin.Domain.Notes;
 using PeluqueriaAdmin.Domain.Obligations;
 using PeluqueriaAdmin.Domain.Settings;
 
@@ -55,6 +56,8 @@ public sealed class PeluqueriaDbContext(DbContextOptions<PeluqueriaDbContext> op
     public DbSet<UnofficialExpense> UnofficialExpenses => Set<UnofficialExpense>();
 
     public DbSet<CollaboratorContribution> CollaboratorContributions => Set<CollaboratorContribution>();
+
+    public DbSet<AppNote> Notes => Set<AppNote>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

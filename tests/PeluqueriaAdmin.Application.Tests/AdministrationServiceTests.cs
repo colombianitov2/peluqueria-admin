@@ -166,10 +166,10 @@ public sealed class AdministrationServiceTests
             new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
         Collaborator collaborator = Collaborator.Create("Ana", new DateOnly(2026, 1, 1), null, UtcNow);
         await service.AddAsync(collaborator, cancellationToken);
-        await service.UpdateCollaboratorProfitShareAsync(
-            collaborator.Id, Percentage.FromPercent(20m), cancellationToken);
+        await service.UpdateCollaboratorFundParticipationAsync(
+            collaborator.Id, Percentage.FromPercent(100m), cancellationToken);
         Guid collaboratorId = collaborator.Id;
-        var input = new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0, 0, 0, 0);
+        var input = new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0);
 
         var first = await service.CloseMonthAsync(
             new YearMonth(2026, 7), input, Percentage.FromPercent(20m), [collaboratorId], cancellationToken);
@@ -190,11 +190,11 @@ public sealed class AdministrationServiceTests
         Collaborator secondCollaborator = Collaborator.Create("Beto", new DateOnly(2026, 1, 1), null, UtcNow);
         await service.AddAsync(firstCollaborator, cancellationToken);
         await service.AddAsync(secondCollaborator, cancellationToken);
-        await service.UpdateCollaboratorProfitShareAsync(firstCollaborator.Id, Percentage.FromPercent(10m), cancellationToken);
-        await service.UpdateCollaboratorProfitShareAsync(secondCollaborator.Id, Percentage.FromPercent(10m), cancellationToken);
+        await service.UpdateCollaboratorFundParticipationAsync(firstCollaborator.Id, Percentage.FromPercent(50m), cancellationToken);
+        await service.UpdateCollaboratorFundParticipationAsync(secondCollaborator.Id, Percentage.FromPercent(50m), cancellationToken);
         Guid first = firstCollaborator.Id;
         Guid second = secondCollaborator.Id;
-        var input = new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0, 0, 0, 0);
+        var input = new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0);
         var original = await service.CloseMonthAsync(
             new YearMonth(2026, 7), input, Percentage.FromPercent(20m), [first, second], cancellationToken);
 
@@ -224,8 +224,8 @@ public sealed class AdministrationServiceTests
         var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
         Collaborator collaborator = Collaborator.Create("Ana", new DateOnly(2026, 1, 1), null, UtcNow);
         await service.AddAsync(collaborator, cancellationToken);
-        await service.UpdateCollaboratorProfitShareAsync(collaborator.Id, Percentage.FromPercent(20m), cancellationToken);
-        var input = new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0, 0, 0, 0);
+        await service.UpdateCollaboratorFundParticipationAsync(collaborator.Id, Percentage.FromPercent(100m), cancellationToken);
+        var input = new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0);
         var closed = await service.CloseMonthAsync(
             new YearMonth(2026, 7), input, Percentage.FromPercent(20m), [collaborator.Id], cancellationToken);
         await service.RegisterDistributionPaymentAsync(
@@ -292,10 +292,10 @@ public sealed class AdministrationServiceTests
 
         Collaborator collaborator = Collaborator.Create("Luis", new DateOnly(2026, 7, 1), null, UtcNow);
         await service.AddAsync(collaborator, cancellationToken);
-        await service.UpdateCollaboratorProfitShareAsync(collaborator.Id, Percentage.FromPercent(20m), cancellationToken);
+        await service.UpdateCollaboratorFundParticipationAsync(collaborator.Id, Percentage.FromPercent(100m), cancellationToken);
         var closed = await service.CloseMonthAsync(
             new YearMonth(2026, 7),
-            new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0, 0, 0, 0),
+            new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0),
             Percentage.FromPercent(20m),
             [collaborator.Id],
             cancellationToken);
@@ -349,7 +349,7 @@ public sealed class AdministrationServiceTests
         var repository = new FakeAdministrationRepository();
         var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
         var month = new YearMonth(2026, 7);
-        var input = new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0, 0, 0, 0);
+        var input = new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0);
         var closed = await service.CloseMonthAsync(
             month, input, Percentage.FromPercent(20m), [Guid.NewGuid()], cancellationToken);
         AdministrationData data = await service.LoadAsync(cancellationToken);
@@ -390,9 +390,9 @@ public sealed class AdministrationServiceTests
 
         Assert.Equal(["Servicio vencido", "Impuesto del mes"], home.Obligations.Select(item => item.Name));
         Assert.Equal(1, capacity.Overcapacity);
-        Assert.Equal(5_000, annual.Expenses.ServicesMinorUnits);
-        Assert.Equal(2_000, annual.Expenses.TaxesMinorUnits);
-        Assert.Equal(3_000, annual.Expenses.OtherObligationsMinorUnits);
+        Assert.Equal(0, annual.Expenses.ServicesMinorUnits);
+        Assert.Equal(0, annual.Expenses.TaxesMinorUnits);
+        Assert.Equal(0, annual.Expenses.OtherObligationsMinorUnits);
         Assert.Contains(annual.Indicator, new[] { "Positivo", "Negativo" });
     }
 
@@ -543,13 +543,13 @@ public sealed class AdministrationServiceTests
         DateOnly date = new(2026, 7, 1);
         Collaborator collaborator = Collaborator.Create("Inversionista", date, null, UtcNow);
         await service.AddAsync(collaborator, cancellationToken);
-        await service.UpdateCollaboratorProfitShareAsync(collaborator.Id, Percentage.FromPercent(20m), cancellationToken);
+        await service.UpdateCollaboratorFundParticipationAsync(collaborator.Id, Percentage.FromPercent(100m), cancellationToken);
         await service.AddCollaboratorContributionAsync(
             CollaboratorContribution.Create(collaborator.Id, date, Money.FromDecimal(100m), null, UtcNow),
             cancellationToken);
         await service.CloseMonthAsync(
             new YearMonth(2026, 7),
-            new MonthlySummaryInput(10_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+            new MonthlySummaryInput(10_000, 0, 0, 0, 0, 0, 0, 0),
             Percentage.FromPercent(20m), [collaborator.Id], cancellationToken);
 
         await service.DeleteCollaboratorAsync(collaborator.Id, cancellationToken);
@@ -754,6 +754,142 @@ public sealed class AdministrationServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterSaleAsync(
             product.Id, today, Quantity.Positive(1m), Money.FromDecimal(35m), cancellationToken: cancellationToken));
         Assert.Single(repository.Entities.OfType<InventoryMovement>(), item => item.Type == InventoryMovementType.Sale);
+    }
+
+    [Fact]
+    public async Task MonthlySummary_UsesOnlyEarnedAndRealMovements()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        DateOnly start = new(2026, 7, 1);
+        DateOnly date = new(2026, 7, 8);
+        LocalUsePerson person = LocalUsePerson.Create("Ana", start, null, UtcNow);
+        await service.AddLocalUsePersonAsync(person, date, cancellationToken);
+        await service.RegisterLocalUsePaymentAsync(person.Id, date, Money.FromDecimal(100m), cancellationToken);
+
+        Product product = Product.Create("Producto", ProductCategory.ProductForSale, "unidad", UtcNow, Money.FromDecimal(20m));
+        await service.AddProductWithInitialStockAsync(product, start, Quantity.Positive(10m), Money.FromDecimal(100m), cancellationToken: cancellationToken);
+        await service.RegisterPurchaseAsync(product.Id, date, Quantity.Positive(2m), Money.FromDecimal(5m), cancellationToken: cancellationToken);
+        await service.RegisterSaleAsync(product.Id, date, Quantity.Positive(1m), cancellationToken: cancellationToken);
+        await service.AddAsync(FinancialEntry.CreateIncome(date, "Ingreso", Money.FromDecimal(30m), UtcNow), cancellationToken);
+        await service.AddAsync(FinancialEntry.CreateExpense(date, "Gasto", ExpenseCategory.Other, Money.FromDecimal(4m), UtcNow), cancellationToken);
+        await service.AddAsync(FinancialEntry.CreateUnexpectedExpense(date, "Imprevisto", Money.FromDecimal(3m), UtcNow), cancellationToken);
+
+        Obligation obligation = Obligation.Create("Servicio", ObligationType.Service, date, Money.FromDecimal(100m), RecurrenceFrequency.None, UtcNow);
+        await service.AddObligationAsync(obligation, date, cancellationToken);
+        await service.RegisterObligationPaymentAsync(obligation.SeriesId, date, Money.FromDecimal(6m), cancellationToken: cancellationToken);
+        MaintenanceRecord maintenance = MaintenanceRecord.Schedule("Equipo", "Preventivo", date, Money.FromDecimal(50m), MaintenanceFrequency.Once, null, null, UtcNow);
+        await service.ScheduleMaintenanceAsync(maintenance, cancellationToken);
+        await service.CompleteMaintenanceAsync(maintenance.Id, date, Money.FromDecimal(7m), cancellationToken: cancellationToken);
+
+        Collaborator collaborator = Collaborator.Create("Capitalista", start, null, UtcNow);
+        await service.AddAsync(collaborator, cancellationToken);
+        await service.AddCollaboratorContributionAsync(CollaboratorContribution.Create(collaborator.Id, date, Money.FromDecimal(1_000m), null, UtcNow), cancellationToken);
+        await service.AddUnofficialExpenseAsync(UnofficialExpense.Create("Extraoficial", Money.FromDecimal(999m), start, null, UtcNow), cancellationToken);
+        await service.AddAsync(MonthlyRestockPlan.Create(product.Id, new YearMonth(2026, 7), Quantity.NonNegative(999m), UtcNow), cancellationToken);
+
+        MonthlySummaryResult summary = AdministrationReports.MonthlySummary(
+            await service.LoadAsync(cancellationToken), Percentage.FromPercent(20m), new YearMonth(2026, 7));
+
+        Assert.Equal(6_200, summary.IncomeMinorUnits);
+        Assert.Equal(3_000, summary.GoalMinorUnits);
+        Assert.Equal(3_200, summary.BaseResultMinorUnits);
+        Assert.Equal(640, summary.CollaboratorFundMinorUnits);
+        Assert.Equal(2_560, summary.RetainedResultMinorUnits);
+    }
+
+    [Fact]
+    public async Task FundParticipation_CannotExceedOneHundredPercentAcrossActiveCollaborators()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        Collaborator first = Collaborator.Create("A", new DateOnly(2026, 1, 1), null, UtcNow);
+        Collaborator second = Collaborator.Create("B", new DateOnly(2026, 1, 1), null, UtcNow);
+        await service.AddAsync(first, cancellationToken);
+        await service.AddAsync(second, cancellationToken);
+        await service.UpdateCollaboratorFundParticipationAsync(first.Id, Percentage.FromPercent(60m), cancellationToken);
+
+        InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateCollaboratorFundParticipationAsync(second.Id, Percentage.FromPercent(41m), cancellationToken));
+
+        Assert.Contains("100 %", error.Message, StringComparison.Ordinal);
+        Assert.Equal(0, second.FundParticipationBasisPoints);
+    }
+
+    [Fact]
+    public async Task RecurringObligation_UsesOneDefinitionWithMultiplePaymentsAndNoDateDrift()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        Obligation definition = Obligation.Create("Internet", ObligationType.Service,
+            new DateOnly(2026, 1, 31), Money.FromDecimal(50m), RecurrenceFrequency.Monthly, UtcNow);
+        await service.AddObligationAsync(definition, definition.DueDate, cancellationToken);
+
+        await service.RegisterObligationPaymentAsync(definition.SeriesId, new DateOnly(2026, 1, 31), Money.FromDecimal(48m), cancellationToken: cancellationToken);
+        await service.RegisterObligationPaymentAsync(definition.SeriesId, new DateOnly(2026, 2, 28), Money.FromDecimal(52m), cancellationToken: cancellationToken);
+        AdministrationData data = await service.LoadAsync(cancellationToken);
+
+        Assert.Equal(2, data.ObligationPayments.Count);
+        Assert.Single(data.Obligations.Select(item => item.SeriesId).Distinct());
+        Assert.Equal(
+            [new DateOnly(2026, 1, 31), new DateOnly(2026, 2, 28), new DateOnly(2026, 3, 31)],
+            data.Obligations.Select(item => item.DueDate).Order());
+        Assert.Equal(2, data.Obligations.Count(item => item.IsSettled));
+    }
+
+    [Fact]
+    public async Task UpdateUnpaidRecurringObligation_RebuildsOccurrencesFromNewAnchorWithoutDrift()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        Obligation definition = Obligation.Create("Internet", ObligationType.Service,
+            new DateOnly(2026, 1, 31), Money.FromDecimal(50m), RecurrenceFrequency.Monthly, UtcNow);
+        await service.AddObligationAsync(definition, new DateOnly(2026, 7, 18), cancellationToken);
+
+        await service.UpdateObligationDefinitionAsync(
+            definition.SeriesId,
+            "Internet comercial",
+            ObligationType.Service,
+            new DateOnly(2026, 3, 15),
+            Money.FromDecimal(55m),
+            RecurrenceFrequency.Annual,
+            cancellationToken: cancellationToken);
+        AdministrationData data = await service.LoadAsync(cancellationToken);
+
+        Obligation occurrence = Assert.Single(data.Obligations);
+        Assert.Equal(new DateOnly(2026, 3, 15), occurrence.DueDate);
+        Assert.Equal(RecurrenceFrequency.Annual, occurrence.Recurrence);
+        Assert.Equal("Internet comercial", occurrence.Name);
+        Assert.Equal(5_500, occurrence.ExpectedAmount.MinorUnits);
+    }
+
+    [Fact]
+    public async Task CompletedMonth_IsSnapshottedInternallyOnceWithoutVisibleManualClose()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var settings = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var julyService = CreateService(repository, settings);
+        Collaborator collaborator = Collaborator.Create("A", new DateOnly(2026, 7, 1), null, UtcNow);
+        await julyService.AddAsync(collaborator, cancellationToken);
+        await julyService.UpdateCollaboratorFundParticipationAsync(collaborator.Id, Percentage.FromPercent(100m), cancellationToken);
+        await julyService.AddAsync(FinancialEntry.CreateIncome(
+            new DateOnly(2026, 7, 31), "Ingreso de julio", Money.FromDecimal(100m), UtcNow), cancellationToken);
+        var augustService = new AdministrationService(repository, settings,
+            new FixedTimeProvider(new DateTimeOffset(2026, 8, 1, 12, 0, 0, TimeSpan.Zero)));
+
+        await augustService.GenerateScheduledRecordsAsync(new DateOnly(2026, 8, 1), cancellationToken);
+        await augustService.GenerateScheduledRecordsAsync(new DateOnly(2026, 8, 1), cancellationToken);
+        AdministrationData data = await augustService.LoadAsync(cancellationToken);
+
+        MonthlyClose close = Assert.Single(data.MonthlyCloses, item => item.Month == new YearMonth(2026, 7));
+        Assert.True(close.IsConfirmed);
+        Assert.Equal("Snapshot automático del mes finalizado", close.Description);
+        Assert.Single(data.MonthlyCloseParticipants);
     }
 
     private static AdministrationService CreateService(

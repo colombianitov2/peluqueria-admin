@@ -11,12 +11,14 @@ using PeluqueriaAdmin.Domain.Finance;
 using PeluqueriaAdmin.Domain.Inventory;
 using PeluqueriaAdmin.Domain.LocalUse;
 using PeluqueriaAdmin.Domain.Maintenance;
+using PeluqueriaAdmin.Domain.Notes;
 using PeluqueriaAdmin.Domain.Obligations;
 using PeluqueriaAdmin.Domain.Reports;
 using PeluqueriaAdmin.Domain.Settings;
 using PeluqueriaAdmin.Infrastructure.Administration;
 using PeluqueriaAdmin.Infrastructure.Drafts;
 using PeluqueriaAdmin.Infrastructure.Exporting;
+using PeluqueriaAdmin.Infrastructure.Notes;
 using PeluqueriaAdmin.Infrastructure.Persistence;
 using PeluqueriaAdmin.Infrastructure.Settings;
 using PeluqueriaAdmin.Infrastructure.Storage;
@@ -51,10 +53,10 @@ public sealed class ExcelExportTests
             using var workbook = new XLWorkbook(first.FilePath);
             string[] requiredSheets =
             [
-                "Resumen general", "Ajustes", "Uso del local", "Cuotas semanales",
+                "Resumen general", "Ajustes", "Notas", "Uso del local", "Cuotas semanales",
                 "Precio sugerido por silla", "Sillas", "Asignaciones actuales",
                 "Pagos por uso del local", "Historial trabajadores", "Colaboradores", "Aportes colaboradores", "Historial colaboradores", "Ventas", "Productos",
-                "Inventario actual", "Movimientos de inventario", "Planes de reposición",
+                "Inventario actual", "Movimientos de inventario",
                 "Otros ingresos", "Gastos", "Imprevistos", "Gastos extraoficiales", "Obligaciones",
                 "Pagos de obligaciones", "Mantenimiento", "Cierres mensuales",
                 "Distribuciones a colaboradores", "Pagos a colaboradores",
@@ -62,6 +64,7 @@ public sealed class ExcelExportTests
                 "Borradores sin finalizar",
             ];
             Assert.All(requiredSheets, sheet => Assert.True(workbook.TryGetWorksheet(sheet, out _), sheet));
+            Assert.False(workbook.TryGetWorksheet("Planes de reposición", out _));
             Assert.All(workbook.Worksheets, sheet => Assert.True(sheet.AutoFilter.IsEnabled || sheet.Tables.Any(), sheet.Name));
             Assert.All(workbook.Worksheets, sheet => Assert.True(sheet.SheetView.SplitRow >= 1, sheet.Name));
 
@@ -91,6 +94,8 @@ public sealed class ExcelExportTests
             Assert.Contains("Trabajador eliminado con historial", workbook.Worksheet("Pagos por uso del local").Column(1).CellsUsed().Select(x => x.GetString()));
             Assert.Contains("no finalizado", workbook.Worksheet("Borradores sin finalizar").Cell(2, 3).GetString(), StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("+borrador", workbook.Worksheet("Otros ingresos").Column(2).CellsUsed().Select(x => x.GetString()));
+            Assert.Equal("Texto persistente de prueba", workbook.Worksheet("Notas").Cell(2, 1).GetString());
+            Assert.Equal("Participación dentro del fondo", workbook.Worksheet("Colaboradores").Cell(1, 4).GetString());
 
             AdministrationData data = await new EfAdministrationRepository(factory).LoadAsync(cancellationToken);
             GeneralSettings generalSettings = await new EfSettingsRepository(factory).GetAsync(cancellationToken);
@@ -189,6 +194,7 @@ public sealed class ExcelExportTests
         await service.DeleteAsync(deletedContribution, cancellationToken);
         await service.AddUnofficialExpenseAsync(UnlistedExpense(), cancellationToken);
         await new EfFormDraftStore(factory).UpsertAsync(FormDraft.Create("Otros ingresos:nuevo", "Otros ingresos", "Registrar ingreso", "{\"concepto\":\"+borrador\"}", null, false, utc), cancellationToken);
+        await new EfNoteRepository(factory).SaveAsync(AppNote.Create("Texto persistente de prueba", utc), cancellationToken);
         return factory;
 
         UnofficialExpense UnlistedExpense() => UnofficialExpense.Create(
