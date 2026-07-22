@@ -42,10 +42,12 @@ public sealed class ExcelExportTests
             ExcelExportResult first = await service.ExportAsync(cancellationToken);
             ExcelExportResult second = await service.ExportAsync(cancellationToken);
 
-            Assert.EndsWith("PeluqueriaAdmin-2026-07-18_21-45-30.xlsx", first.FilePath, StringComparison.Ordinal);
-            Assert.EndsWith("PeluqueriaAdmin-2026-07-18_21-45-30-2.xlsx", second.FilePath, StringComparison.Ordinal);
+            Assert.EndsWith("Peluqueria-Administracion-2026-07-18-214530.xlsx", first.FilePath, StringComparison.Ordinal);
+            Assert.EndsWith("Peluqueria-Administracion-2026-07-18-214530-2.xlsx", second.FilePath, StringComparison.Ordinal);
             Assert.Equal(".xlsx", Path.GetExtension(first.FilePath));
             Assert.True(File.Exists(first.FilePath));
+            Assert.Equal(2, Directory.EnumerateFiles(desktop, "*.xlsx", SearchOption.TopDirectoryOnly).Count());
+            Assert.Empty(Directory.EnumerateFiles(desktop, "*.csv", SearchOption.TopDirectoryOnly));
             using var workbook = new XLWorkbook(first.FilePath);
             string[] requiredSheets =
             [
@@ -56,7 +58,7 @@ public sealed class ExcelExportTests
                 "Otros ingresos", "Gastos", "Imprevistos", "Gastos extraoficiales", "Obligaciones",
                 "Pagos de obligaciones", "Mantenimiento", "Cierres mensuales",
                 "Distribuciones a colaboradores", "Pagos a colaboradores",
-                "Resúmenes mensuales", "Balance anual", "Actividad e historial", "Historial fin. colaboradores", "Historial eliminado",
+                "Resúmenes mensuales", "Balance anual", "Flujo de caja", "Actividad e historial", "Historial fin. colaboradores", "Historial eliminado",
                 "Borradores sin finalizar",
             ];
             Assert.All(requiredSheets, sheet => Assert.True(workbook.TryGetWorksheet(sheet, out _), sheet));
@@ -70,7 +72,7 @@ public sealed class ExcelExportTests
             Assert.Equal(XLDataType.DateTime, settings.Cell(6, 2).DataType);
             Assert.Contains("yy", settings.Cell(6, 2).Style.NumberFormat.Format, StringComparison.OrdinalIgnoreCase);
             Assert.Equal(2026, settings.Cell(6, 2).GetDateTime().Year);
-            Assert.False(workbook.TryGetWorksheet("Flujo de caja", out _));
+            Assert.True(workbook.TryGetWorksheet("Flujo de caja", out _));
 
             IXLWorksheet products = workbook.Worksheet("Productos");
             Assert.Equal("=SUM(1,1)", products.Cell(2, 1).GetString());
@@ -106,14 +108,14 @@ public sealed class ExcelExportTests
 
             var july = new YearMonth(2026, 7);
             MonthlySummaryResult expectedMonth = AdministrationReports.MonthlySummary(
-                data, generalSettings.OptionalSuppliesMonthlyBudget, generalSettings.CollaboratorProfit, july);
+                data, generalSettings.CollaboratorProfit, july);
             IXLRow monthlyRow = workbook.Worksheet("Resúmenes mensuales").RowsUsed()
                 .Single(row => row.Cell(1).DataType == XLDataType.DateTime && row.Cell(1).GetDateTime().Date == july.FirstDay.ToDateTime(TimeOnly.MinValue));
             Assert.Equal(expectedMonth.IncomeMinorUnits / 100m, monthlyRow.Cell(2).GetValue<decimal>());
             Assert.Equal(expectedMonth.GoalMinorUnits / 100m, monthlyRow.Cell(3).GetValue<decimal>());
 
             AnnualBalanceResult expectedAnnual = AdministrationReports.Annual(
-                data, generalSettings.OptionalSuppliesMonthlyBudget, generalSettings.CollaboratorProfit, 2026).Balance;
+                data, generalSettings.CollaboratorProfit, 2026).Balance;
             IXLRow annualRow = workbook.Worksheet("Balance anual").RowsUsed().Single(row => row.Cell(1).TryGetValue(out int year) && year == 2026);
             Assert.Equal(expectedAnnual.IncomeMinorUnits / 100m, annualRow.Cell(2).GetValue<decimal>());
             Assert.Equal(expectedAnnual.ExpenseMinorUnits / 100m, annualRow.Cell(3).GetValue<decimal>());

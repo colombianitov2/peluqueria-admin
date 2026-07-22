@@ -16,12 +16,14 @@ public sealed class Product : AuditableEntity
         string unitOfMeasure,
         DateTime utcNow,
         Money? defaultSalePrice = null,
-        string? description = null) : base(id, utcNow)
+        string? description = null,
+        Money? defaultUnitCost = null) : base(id, utcNow)
     {
         Name = NormalizeRequiredText(name, nameof(name));
         Category = category;
         UnitOfMeasure = NormalizeRequiredText(unitOfMeasure, nameof(unitOfMeasure));
         DefaultSalePrice = ValidateSalePrice(category, defaultSalePrice);
+        DefaultUnitCost = ValidateUnitCost(defaultUnitCost);
         Description = NormalizeOptionalText(description);
     }
 
@@ -33,6 +35,8 @@ public sealed class Product : AuditableEntity
 
     public Money? DefaultSalePrice { get; private set; }
 
+    public Money? DefaultUnitCost { get; private set; }
+
     public string? Description { get; private set; }
 
     public bool IsForSale => Category is ProductCategory.FoodOrDrinkForSale or ProductCategory.OtherProductForSale;
@@ -43,8 +47,9 @@ public sealed class Product : AuditableEntity
         string unitOfMeasure,
         DateTime utcNow,
         Money? defaultSalePrice = null,
-        string? description = null) => new(
-            Guid.NewGuid(), name, category, unitOfMeasure, utcNow, defaultSalePrice, description);
+        string? description = null,
+        Money? defaultUnitCost = null) => new(
+            Guid.NewGuid(), name, category, unitOfMeasure, utcNow, defaultSalePrice, description, defaultUnitCost);
 
     public void Update(
         string name,
@@ -52,12 +57,14 @@ public sealed class Product : AuditableEntity
         string unitOfMeasure,
         DateTime utcNow,
         Money? defaultSalePrice = null,
-        string? description = null)
+        string? description = null,
+        Money? defaultUnitCost = null)
     {
         Name = NormalizeRequiredText(name, nameof(name));
         Category = category;
         UnitOfMeasure = NormalizeRequiredText(unitOfMeasure, nameof(unitOfMeasure));
         DefaultSalePrice = ValidateSalePrice(category, defaultSalePrice);
+        DefaultUnitCost = ValidateUnitCost(defaultUnitCost);
         Description = NormalizeOptionalText(description);
         MarkUpdated(utcNow);
     }
@@ -71,5 +78,15 @@ public sealed class Product : AuditableEntity
         }
 
         return forSale ? price : null;
+    }
+
+    private static Money? ValidateUnitCost(Money? cost)
+    {
+        if (cost.HasValue && cost.Value.MinorUnits <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(cost), "El costo configurado debe ser mayor que cero.");
+        }
+
+        return cost;
     }
 }

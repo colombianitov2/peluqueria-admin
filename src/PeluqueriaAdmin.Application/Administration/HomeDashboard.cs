@@ -21,7 +21,6 @@ public static class HomeDashboardCalculator
 {
     public static HomeDashboard Calculate(
         AdministrationData data,
-        Money optionalSuppliesBudget,
         Percentage collaboratorPercentage,
         DateOnly today)
     {
@@ -44,7 +43,6 @@ public static class HomeDashboardCalculator
             .ToArray();
         MonthlySummaryResult summary = AdministrationReports.MonthlySummary(
             data,
-            optionalSuppliesBudget,
             collaboratorPercentage,
             YearMonth.From(today));
         return new HomeDashboard(obligations, debts, summary.MissingMinorUnits);

@@ -57,8 +57,10 @@ public sealed partial class InventoryViewModel(
                     product.Name,
                     SpanishText.For(product.Category),
                     InventoryCalculator.CurrentQuantity(movements).ToString("0.###", CultureInfo.CurrentCulture),
-                    $"{settings.CurrencyCode} {InventoryCalculator.AverageUnitCost(movements).ToDecimal():N2}",
-                    product.DefaultSalePrice.HasValue ? $"{settings.CurrencyCode} {product.DefaultSalePrice.Value.ToDecimal():N2}" : string.Empty,
+                    product.DefaultUnitCost.HasValue
+                        ? $"{ApplicationCurrency.Code} {product.DefaultUnitCost.Value.ToDecimal():N2}"
+                        : string.Empty,
+                    product.DefaultSalePrice.HasValue ? $"{ApplicationCurrency.Code} {product.DefaultSalePrice.Value.ToDecimal():N2}" : string.Empty,
                     product.Description ?? string.Empty,
                     product.UpdatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)));
             }
@@ -77,8 +79,8 @@ public sealed partial class InventoryViewModel(
                     product?.Name ?? "Producto eliminado",
                     movement.QuantityDelta > 0m ? movement.QuantityDelta.ToString("0.###", CultureInfo.CurrentCulture) : string.Empty,
                     movement.QuantityDelta < 0m ? Math.Abs(movement.QuantityDelta).ToString("0.###", CultureInfo.CurrentCulture) : string.Empty,
-                    FormatUnitCost(movement, settings.CurrencyCode),
-                    FormatTotalValue(movement, settings.CurrencyCode),
+                    FormatUnitCost(movement, ApplicationCurrency.Code),
+                    FormatTotalValue(movement, ApplicationCurrency.Code),
                     movement.Description ?? string.Empty));
             }
 
@@ -144,6 +146,7 @@ public sealed partial class InventoryViewModel(
         SelectedMovementRow = null;
         SelectedPlanRow = null;
         SelectEditorEntity(value?.Product);
+        if (value is not null) Editor.LoadSelectedCommand.Execute(null);
     }
     partial void OnSelectedMovementRowChanged(InventoryMovementRow? value)
     {

@@ -35,15 +35,26 @@ public sealed class ExcelExportService(
         DateOnly today = DateOnly.FromDateTime(cutoffLocal);
         ExportSnapshot snapshot = await ReadSnapshotAsync(cancellationToken);
         string version = ReadVersion();
-        string desktop = desktopPath.GetDesktopPath();
-        if (string.IsNullOrWhiteSpace(desktop))
+        string destination = string.IsNullOrWhiteSpace(snapshot.Settings.ExportDirectory)
+            ? desktopPath.GetDesktopPath()
+            : snapshot.Settings.ExportDirectory;
+        if (string.IsNullOrWhiteSpace(destination))
         {
-            throw new InvalidOperationException("Windows no informó una ruta válida para el Escritorio.");
+            throw new InvalidOperationException("No hay una carpeta de exportación configurada.");
         }
 
-        Directory.CreateDirectory(desktop);
-        string finalPath = UniquePath(desktop, $"PeluqueriaAdmin-{cutoffLocal:yyyy-MM-dd_HH-mm-ss}.xlsx");
-        string temporaryPath = Path.Combine(desktop, $".{Path.GetFileName(finalPath)}.{Guid.NewGuid():N}.tmp.xlsx");
+        destination = Path.GetFullPath(destination);
+        try
+        {
+            Directory.CreateDirectory(destination);
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or ArgumentException)
+        {
+            throw new InvalidOperationException($"No se puede crear la carpeta de exportación: {destination}", exception);
+        }
+
+        string finalPath = UniquePath(destination, $"Peluqueria-Administracion-{cutoffLocal:yyyy-MM-dd-HHmmss}.xlsx");
+        string temporaryPath = Path.Combine(destination, $".{Path.GetFileName(finalPath)}.{Guid.NewGuid():N}.tmp.xlsx");
 
         try
         {
@@ -61,7 +72,7 @@ public sealed class ExcelExportService(
             throw;
         }
 
-        return new ExcelExportResult(finalPath, cutoffLocal, version, snapshot.Settings.CurrencyCode.Value);
+        return new ExcelExportResult(finalPath, cutoffLocal, version, ApplicationCurrency.Code);
     }
 
     private async Task<ExportSnapshot> ReadSnapshotAsync(CancellationToken cancellationToken)
@@ -133,7 +144,7 @@ public sealed class ExcelExportService(
         workbook.Properties.Author = "Peluquería Admin";
 
         AdministrationData data = snapshot.Active;
-        string currency = snapshot.Settings.CurrencyCode.Value;
+        string currency = ApplicationCurrency.Code;
         (DateOnly? from, DateOnly? to) = CoveredPeriod(data);
 
         AddSummary(workbook, snapshot, cutoff, today, version, currency, from, to);
@@ -141,17 +152,16 @@ public sealed class ExcelExportService(
         [
             ["Valor semanal general por uso del local", snapshot.Settings.WeeklyUsageFee.ToDecimal(), currency],
             ["Ganancia de colaboradores", snapshot.Settings.CollaboratorProfit.BasisPoints / 10000m, "Porcentaje"],
-            ["Presupuesto mensual de insumos opcionales", snapshot.Settings.OptionalSuppliesMonthlyBudget.ToDecimal(), currency],
-            ["Moneda configurada", SafeText(currency), "Código ISO"],
+            ["Moneda única", SafeText(currency), "Código ISO"],
+            ["Carpeta de exportación", SafeText(snapshot.Settings.ExportDirectory), "Ruta local"],
             ["Última actualización", snapshot.Settings.UpdatedUtc.ToLocalTime(), "Fecha y hora local"],
         ]);
         IXLWorksheet settingsSheet = workbook.Worksheet("Ajustes");
         settingsSheet.Cell(2, 2).Style.NumberFormat.Format = MoneyFormat;
         settingsSheet.Cell(3, 2).Style.NumberFormat.Format = "0.00%";
-        settingsSheet.Cell(4, 2).Style.NumberFormat.Format = MoneyFormat;
 
         SuggestedChairPrice suggested = SuggestedChairPriceCalculator.Calculate(
-            data, snapshot.Settings.OptionalSuppliesMonthlyBudget, snapshot.Settings.WeeklyUsageFee,
+            data, snapshot.Settings.WeeklyUsageFee,
             YearMonth.From(today), today);
         AddTable(workbook, "Precio sugerido por silla", ["Concepto", "Valor", "Moneda", "Explicación"],
         [
@@ -201,9 +211,9 @@ public sealed class ExcelExportService(
             data.LocalUsePayments.OrderBy(x => x.PaymentDate).Select(x => (object?[])
             [SafeText(PersonName(data, snapshot.DeletedPeople, x.PersonId)), Date(x.PaymentDate), x.Amount.ToDecimal(), currency, SafeText(x.Description ?? ""), "Registrado"]), moneyColumns: [3]);
 
-        AddTable(workbook, "Colaboradores", ["Nombre", "Fecha de inicio", "Fecha de retiro", "Descripción", "Estado"],
+        AddTable(workbook, "Colaboradores", ["Nombre", "Fecha de inicio", "Fecha de retiro", "Porcentaje individual", "Descripción", "Estado"],
             data.Collaborators.OrderBy(x => x.Name).Select(x => (object?[])
-            [SafeText(x.Name), Date(x.StartDate), Date(x.ExitDate), SafeText(x.Description ?? ""), x.IsCurrentOn(today) ? "Activo" : "Retirado"]));
+            [SafeText(x.Name), Date(x.StartDate), Date(x.ExitDate), x.ProfitShareBasisPoints / 10_000m, SafeText(x.Description ?? ""), x.IsCurrentOn(today) ? "Activo" : "Retirado"]), percentColumns: [4]);
 
         AddTable(workbook, "Aportes colaboradores", ["Fecha", "Colaborador", "Valor", "Moneda", "Descripción", "Clasificación", "Estado"],
             data.CollaboratorContributions.OrderBy(x => x.Date).ThenBy(x => x.CreatedUtc).Select(x => (object?[])
@@ -223,9 +233,9 @@ public sealed class ExcelExportService(
             data.InventoryMovements.Where(x => x.Type == InventoryMovementType.Sale).OrderBy(x => x.Date).Select(x => (object?[])
             [SafeText(ProductName(data, x.ProductId)), Date(x.Date), Math.Abs(x.QuantityDelta), x.CashAmount?.ToDecimal(), x.EstimatedCost?.ToDecimal(), currency, SafeText(x.Description ?? ""), "Registrada"]), moneyColumns: [4, 5], quantityColumns: [3]);
 
-        AddTable(workbook, "Productos", ["Nombre", "Categoría", "Precio predeterminado de venta", "Moneda", "Descripción", "Disponible para venta", "Estado"],
+        AddTable(workbook, "Productos", ["Nombre", "Categoría", "Costo configurado", "Precio predeterminado de venta", "Moneda", "Descripción", "Disponible para venta", "Estado"],
             data.Products.OrderBy(x => x.Name).Select(x => (object?[])
-            [SafeText(x.Name), SpanishText.For(x.Category), x.DefaultSalePrice?.ToDecimal(), currency, SafeText(x.Description ?? ""), x.IsForSale ? "Sí" : "No", "Activo"]), moneyColumns: [3]);
+            [SafeText(x.Name), SpanishText.For(x.Category), x.DefaultUnitCost?.ToDecimal(), x.DefaultSalePrice?.ToDecimal(), currency, SafeText(x.Description ?? ""), x.IsForSale ? "Sí" : "No", "Activo"]), moneyColumns: [3, 4]);
 
         AddTable(workbook, "Inventario actual", ["Producto", "Categoría", "Cantidad actual", "Costo unitario promedio", "Valor estimado", "Moneda"],
             data.Products.OrderBy(x => x.Name).Select(product =>
@@ -303,6 +313,10 @@ public sealed class ExcelExportService(
         AddMonthlySummaries(workbook, data, snapshot.Settings, currency, from, to);
         AddAnnualBalances(workbook, data, snapshot.Settings, currency, from, to);
 
+        AddTable(workbook, "Flujo de caja", ["Fecha", "Origen", "Concepto", "Entrada o salida", "Moneda"],
+            BuildCashMovements(data).OrderBy(x => x.Date).Select(x => (object?[])
+            [Date(x.Date), SafeText(x.Category), SafeText(x.Concept), Minor(x.SignedMinorUnits), currency]), moneyColumns: [4]);
+
         AddTable(workbook, "Actividad e historial", ["Fecha", "Fecha y hora exacta", "Módulo", "Acción", "Resumen", "Descripción"],
             data.ActivityRecords.OrderBy(x => x.OccurredUtc).Select(x => (object?[])
             [Date(x.ActivityDate), x.OccurredUtc.ToLocalTime(), SafeText(x.Module), SafeText(x.Action), SafeText(x.Summary), SafeText(x.Description ?? "")]));
@@ -310,11 +324,8 @@ public sealed class ExcelExportService(
         AddTable(workbook, "Historial eliminado", ["Tipo de registro", "Descripción", "Fecha de eliminación", "Estado"],
             snapshot.Deleted.OrderBy(x => x.DeletedUtc).Select(x => (object?[])[x.Type, SafeText(x.Description), x.DeletedUtc?.ToLocalTime(), "Eliminado lógicamente"]));
 
-        if (snapshot.Drafts.Count > 0)
-        {
-            AddTable(workbook, "Borradores sin finalizar", ["Módulo", "Formulario", "Clasificación", "Contenido técnico del borrador", "Última modificación"],
-                snapshot.Drafts.Select(x => (object?[])[SafeText(x.Module), SafeText(x.FormType), x.Classification, SafeText(x.Payload), x.UpdatedUtc.ToLocalTime()]));
-        }
+        AddTable(workbook, "Borradores sin finalizar", ["Módulo", "Formulario", "Clasificación", "Contenido técnico del borrador", "Última modificación"],
+            snapshot.Drafts.Select(x => (object?[])[SafeText(x.Module), SafeText(x.FormType), x.Classification, SafeText(x.Payload), x.UpdatedUtc.ToLocalTime()]));
 
         return workbook;
     }
@@ -362,7 +373,7 @@ public sealed class ExcelExportService(
 
         var months = MonthsBetween(from.Value, to.Value).Select(month =>
         {
-            MonthlySummaryResult result = AdministrationReports.MonthlySummary(data, settings.OptionalSuppliesMonthlyBudget, settings.CollaboratorProfit, month);
+            MonthlySummaryResult result = AdministrationReports.MonthlySummary(data, settings.CollaboratorProfit, month);
             bool snapshot = data.MonthlyCloses.Any(x => x.Month == month && x.IsConfirmed);
             return (object?[])[Date(month.FirstDay), Minor(result.IncomeMinorUnits), Minor(result.GoalMinorUnits), Minor(result.MissingMinorUnits), Minor(result.BaseResultMinorUnits), Minor(result.CollaboratorFundMinorUnits), Minor(result.RetainedResultMinorUnits), currency, snapshot ? "Snapshot de cierre confirmado" : "Cálculo actual"];
         });
@@ -374,7 +385,7 @@ public sealed class ExcelExportService(
         IEnumerable<int> years = from.HasValue && to.HasValue ? Enumerable.Range(from.Value.Year, to.Value.Year - from.Value.Year + 1) : [];
         var rows = years.Select(year =>
         {
-            AnnualAdministrationReport report = AdministrationReports.Annual(data, settings.OptionalSuppliesMonthlyBudget, settings.CollaboratorProfit, year);
+            AnnualAdministrationReport report = AdministrationReports.Annual(data, settings.CollaboratorProfit, year);
             MonthlyExpenseBreakdown e = report.Expenses;
             AnnualBalanceResult b = report.Balance;
             return (object?[])[year, Minor(b.IncomeMinorUnits), Minor(b.ExpenseMinorUnits), Minor(b.DistributionMinorUnits), Minor(b.RetainedMinorUnits), Minor(b.PendingMinorUnits), Minor(b.MissingMinorUnits), Minor(e.ServicesMinorUnits), Minor(e.TaxesMinorUnits), Minor(e.OtherObligationsMinorUnits), Minor(e.MerchandiseMinorUnits), Minor(e.MandatorySuppliesMinorUnits), Minor(e.OptionalSuppliesMinorUnits), Minor(e.MaintenanceMinorUnits), Minor(e.UnexpectedMinorUnits), Minor(e.OtherExpensesMinorUnits), Minor(e.PendingPlansMinorUnits), Minor(e.HistoricalAdjustmentMinorUnits), currency, report.Indicator];

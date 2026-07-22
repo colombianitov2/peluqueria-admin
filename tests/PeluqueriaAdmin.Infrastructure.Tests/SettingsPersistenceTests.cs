@@ -68,9 +68,9 @@ public sealed class SettingsPersistenceTests
             GeneralSettings reloaded = await reloadedRepository.GetAsync(cancellationToken);
             Assert.Equal(1_575, reloaded.WeeklyUsageFee.MinorUnits);
             Assert.Equal(2_550, reloaded.CollaboratorProfit.BasisPoints);
-            Assert.Equal(12_000, reloaded.OptionalSuppliesMonthlyBudget.MinorUnits);
+            Assert.Equal(0, reloaded.OptionalSuppliesMonthlyBudget.MinorUnits);
             Assert.Equal(8, reloaded.TotalChairs);
-            Assert.Equal("COP", reloaded.CurrencyCode.Value);
+            Assert.Equal("USD", reloaded.CurrencyCode.Value);
             Assert.Equal(updatedUtc, reloaded.UpdatedUtc);
             Assert.Equal(DateTimeKind.Utc, reloaded.CreatedUtc.Kind);
             Assert.Equal(DateTimeKind.Utc, reloaded.UpdatedUtc.Kind);
@@ -133,8 +133,12 @@ public sealed class SettingsPersistenceTests
                     .Single(name => name.EndsWith("_InitialSettings", StringComparison.Ordinal));
                 IMigrator migrator = initialContext.GetService<IMigrator>();
                 await migrator.MigrateAsync(initialMigration, cancellationToken);
-                initialContext.Settings.Add(GeneralSettings.CreateDefault(utcNow));
-                await initialContext.SaveChangesAsync(cancellationToken);
+                await initialContext.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO Settings
+                    (Id, WeeklyUsageFeeMinorUnits, CollaboratorProfitBasisPoints,
+                     OptionalSuppliesMonthlyBudgetMinorUnits, TotalChairs, CurrencyCode, CreatedUtc, UpdatedUtc)
+                    VALUES (1, {1200L}, {2000}, {0L}, {0}, {"USD"}, {utcNow.Ticks}, {utcNow.Ticks});
+                    """, cancellationToken);
             }
 
             var initializer = new DatabaseInitializer(

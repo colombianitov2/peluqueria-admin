@@ -11,7 +11,7 @@ public sealed class ReportsAndCollaboratorsTests
     private static readonly DateTime UtcNow = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public void MonthlySummary_CalculatesPositiveResultAndOptionalReserveWithoutDuplication()
+    public void MonthlySummary_IgnoresRetiredOptionalBudgetAndUsesOnlyActualCosts()
     {
         var input = new MonthlySummaryInput(
             LocalUseIncomeMinorUnits: 50_000,
@@ -21,7 +21,6 @@ public sealed class ReportsAndCollaboratorsTests
             MerchandisePurchasesMinorUnits: 10_000,
             MandatoryExpensesMinorUnits: 5_000,
             OptionalSuppliesActualMinorUnits: 3_000,
-            OptionalSuppliesBudgetMinorUnits: 4_000,
             UnexpectedExpensesMinorUnits: 1_000,
             MaintenanceGoalMinorUnits: 5_000,
             PendingApprovedPlansMinorUnits: 5_000);
@@ -30,11 +29,11 @@ public sealed class ReportsAndCollaboratorsTests
             input, Percentage.FromPercent(20m));
 
         Assert.Equal(100_000, result.IncomeMinorUnits);
-        Assert.Equal(50_000, result.GoalMinorUnits);
+        Assert.Equal(49_000, result.GoalMinorUnits);
         Assert.Equal(0, result.MissingMinorUnits);
-        Assert.Equal(50_000, result.BaseResultMinorUnits);
-        Assert.Equal(10_000, result.CollaboratorFundMinorUnits);
-        Assert.Equal(40_000, result.RetainedResultMinorUnits);
+        Assert.Equal(51_000, result.BaseResultMinorUnits);
+        Assert.Equal(10_200, result.CollaboratorFundMinorUnits);
+        Assert.Equal(40_800, result.RetainedResultMinorUnits);
     }
 
     [Fact]
@@ -58,21 +57,44 @@ public sealed class ReportsAndCollaboratorsTests
     }
 
     [Fact]
-    public void Distribution_AssignsRemainderDeterministicallyAndExactly()
+    public void Distribution_UsesIndividualPercentagesInExactMinorUnits()
     {
         MonthlySummaryResult summary = new(10_000, 4_995, 0, 5_005, 1_001, 4_004);
         MonthlyClose close = MonthlyClose.Create(
             new YearMonth(2026, 7), Percentage.FromPercent(20m), summary, UtcNow);
-        Guid[] ids = [Guid.Parse("00000000-0000-0000-0000-000000000003"),
-            Guid.Parse("00000000-0000-0000-0000-000000000001"),
-            Guid.Parse("00000000-0000-0000-0000-000000000002")];
+        Guid[] ids = [Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            Guid.Parse("00000000-0000-0000-0000-000000000002"),
+            Guid.Parse("00000000-0000-0000-0000-000000000003"),
+            Guid.Parse("00000000-0000-0000-0000-000000000004")];
 
         IReadOnlyList<MonthlyCloseParticipant> participants =
-            CollaboratorDistributionCalculator.Distribute(close, ids, UtcNow);
+            CollaboratorDistributionCalculator.Distribute(
+                close,
+                new[] { (ids[0], 1_200), (ids[1], 400), (ids[2], 200), (ids[3], 200) },
+                UtcNow);
 
         Assert.Equal(1_001, participants.Sum(item => item.Amount.MinorUnits));
-        Assert.Equal([334L, 334L, 333L], participants.Select(item => item.Amount.MinorUnits));
-        Assert.Equal(ids.OrderBy(id => id), participants.Select(item => item.CollaboratorId));
+        Assert.Equal([601L, 200L, 100L, 100L], participants.Select(item => item.Amount.MinorUnits));
+        Assert.Equal(ids, participants.Select(item => item.CollaboratorId));
+    }
+
+    [Fact]
+    public void Distribution_ExactApprovedExample_20_12_4_2_2()
+    {
+        MonthlySummaryResult summary = new(100_000, 0, 0, 100_000, 20_000, 80_000);
+        MonthlyClose close = MonthlyClose.Create(
+            new YearMonth(2026, 7), Percentage.FromPercent(20m), summary, UtcNow);
+        Guid[] ids = [Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()];
+
+        IReadOnlyList<MonthlyCloseParticipant> participants =
+            CollaboratorDistributionCalculator.Distribute(
+                close,
+                new[] { (ids[0], 1_200), (ids[1], 400), (ids[2], 200), (ids[3], 200) },
+                UtcNow);
+
+        Assert.Equal([12_000L, 4_000L, 2_000L, 2_000L],
+            participants.OrderBy(item => Array.IndexOf(ids, item.CollaboratorId)).Select(item => item.Amount.MinorUnits));
+        Assert.Equal(20_000, participants.Sum(item => item.Amount.MinorUnits));
     }
 
     [Fact]

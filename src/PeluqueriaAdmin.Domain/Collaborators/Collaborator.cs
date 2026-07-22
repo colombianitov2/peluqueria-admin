@@ -1,4 +1,5 @@
 using PeluqueriaAdmin.Domain.Common;
+using PeluqueriaAdmin.Domain.Settings;
 
 namespace PeluqueriaAdmin.Domain.Collaborators;
 
@@ -31,6 +32,8 @@ public sealed class Collaborator : AuditableEntity
 
     public string? Description { get; private set; }
 
+    public int ProfitShareBasisPoints { get; private set; }
+
     public static Collaborator Create(
         string name,
         DateOnly startDate,
@@ -53,6 +56,12 @@ public sealed class Collaborator : AuditableEntity
         StartDate = startDate;
         ExitDate = exitDate;
         Description = NormalizeOptionalText(description);
+        MarkUpdated(utcNow);
+    }
+
+    public void UpdateProfitShare(Percentage share, DateTime utcNow)
+    {
+        ProfitShareBasisPoints = share.BasisPoints;
         MarkUpdated(utcNow);
     }
 

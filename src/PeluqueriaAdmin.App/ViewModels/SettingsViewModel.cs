@@ -26,13 +26,16 @@ public sealed partial class SettingsViewModel(
     IUpdateService updateService,
     IFormDraftStore formDraftStore,
     TimeProvider timeProvider,
-    AdministrationService administrationService) : ObservableObject
+    AdministrationService administrationService,
+    IUserDesktopPath userDesktopPath) : ObservableObject
 {
     private const string SettingsDraftKey = "Ajustes:Edicion:settings";
     private string? lastExcelPath;
     private readonly SemaphoreSlim autosaveLock = new(1, 1);
     private CancellationTokenSource? autosaveCancellation;
+    private CancellationTokenSource? unofficialEditCancellation;
     private bool trackingEnabled;
+    private bool loadingUnofficialExpense;
     [ObservableProperty]
     private string weeklyUsageFee = string.Empty;
 
@@ -40,10 +43,7 @@ public sealed partial class SettingsViewModel(
     private string collaboratorProfitPercent = string.Empty;
 
     [ObservableProperty]
-    private string optionalSuppliesMonthlyBudget = string.Empty;
-
-    [ObservableProperty]
-    private string currencyCode = string.Empty;
+    private string exportDirectory = string.Empty;
 
     [ObservableProperty]
     private string unofficialExpenseName = string.Empty;
@@ -93,8 +93,6 @@ public sealed partial class SettingsViewModel(
 
     public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
 
-    public ObservableCollection<string> CurrencyOptions { get; } = ["USD", "COP"];
-
     public ObservableCollection<string> ActivityPeriodOptions { get; } =
         ["Hoy", "Esta semana", "Este mes", "Últimos 3 meses", "Últimos 6 meses", "Este año", "Rango personalizado"];
 
@@ -120,6 +118,10 @@ public sealed partial class SettingsViewModel(
                 }
             }
             trackingEnabled = true;
+            if (string.IsNullOrWhiteSpace(UnofficialExpenseEffectiveFrom))
+            {
+                UnofficialExpenseEffectiveFrom = LocalTodayText();
+            }
             await LoadUnofficialExpensesAsync(cancellationToken);
             IsError = false;
         }
@@ -215,15 +217,6 @@ public sealed partial class SettingsViewModel(
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]
-    private async Task ExportDataAsync()
-    {
-        await RunDataOperationAsync(
-            dataManagement.ExportAsync,
-            files => $"Se exportaron {files.Count} archivos CSV en:{Environment.NewLine}{dataManagement.ExportsDirectory}",
-            "No fue posible exportar los datos.");
-    }
-
-    [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task ExportAllToExcelAsync()
     {
         IsBusy = true;
@@ -239,7 +232,8 @@ public sealed partial class SettingsViewModel(
         }
         catch (Exception exception)
         {
-            SetDataError("No fue posible exportar la información a Excel. No se dejó un archivo parcial.", exception);
+            StatusMessage = $"No fue posible exportar la información a Excel. No se dejó un archivo parcial. {exception.Message}";
+            IsError = true;
         }
         finally
         {
@@ -257,7 +251,7 @@ public sealed partial class SettingsViewModel(
     private void OpenBackups() => OpenDirectory(dataManagement.BackupsDirectory);
 
     [RelayCommand]
-    private void OpenExports() => OpenDirectory(dataManagement.ExportsDirectory);
+    private void ResetExportDirectory() => ExportDirectory = userDesktopPath.GetDesktopPath();
 
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task CheckForUpdatesAsync()
@@ -315,8 +309,10 @@ public sealed partial class SettingsViewModel(
     public async Task FlushPendingAsync()
     {
         autosaveCancellation?.Cancel();
+        unofficialEditCancellation?.Cancel();
         await autosaveLock.WaitAsync();
         autosaveLock.Release();
+        await PersistUnofficialExpenseEditAsync();
     }
 
     private void TrackSettingsChange()
@@ -384,15 +380,13 @@ public sealed partial class SettingsViewModel(
 
     partial void OnWeeklyUsageFeeChanged(string value) => TrackSettingsChange();
     partial void OnCollaboratorProfitPercentChanged(string value) => TrackSettingsChange();
-    partial void OnOptionalSuppliesMonthlyBudgetChanged(string value) => TrackSettingsChange();
-    partial void OnCurrencyCodeChanged(string value) => TrackSettingsChange();
+    partial void OnExportDirectoryChanged(string value) => TrackSettingsChange();
 
     partial void OnIsBusyChanged(bool value)
     {
         SaveCommand.NotifyCanExecuteChanged();
         CreateBackupCommand.NotifyCanExecuteChanged();
         RestoreBackupCommand.NotifyCanExecuteChanged();
-        ExportDataCommand.NotifyCanExecuteChanged();
         ExportAllToExcelCommand.NotifyCanExecuteChanged();
         OpenExcelFileCommand.NotifyCanExecuteChanged();
         OpenExcelFolderCommand.NotifyCanExecuteChanged();
@@ -407,22 +401,19 @@ public sealed partial class SettingsViewModel(
     private SettingsDraft CurrentDraft() => new(
         WeeklyUsageFee,
         CollaboratorProfitPercent,
-        OptionalSuppliesMonthlyBudget,
-        CurrencyCode);
+        ExportDirectory);
 
     private void ApplyDraft(SettingsDraft draft)
     {
         WeeklyUsageFee = draft.WeeklyUsageFee;
         CollaboratorProfitPercent = draft.CollaboratorProfitPercent;
-        OptionalSuppliesMonthlyBudget = draft.OptionalSuppliesMonthlyBudget;
-        CurrencyCode = draft.CurrencyCode;
+        ExportDirectory = draft.ExportDirectory;
     }
 
     private sealed record SettingsDraft(
         string WeeklyUsageFee,
         string CollaboratorProfitPercent,
-        string OptionalSuppliesMonthlyBudget,
-        string CurrencyCode);
+        string ExportDirectory);
 
     [RelayCommand]
     private async Task AddUnofficialExpenseAsync()
@@ -444,30 +435,6 @@ public sealed partial class SettingsViewModel(
         catch (Exception exception)
         {
             SetDataError("No fue posible agregar el gasto extraoficial.", exception);
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanDeleteUnofficialExpense))]
-    private async Task UpdateUnofficialExpenseAsync()
-    {
-        if (SelectedUnofficialExpense?.Entity is not UnofficialExpense expense) return;
-        try
-        {
-            expense.Update(
-                UnofficialExpenseName,
-                Money.FromDecimal(ParseUnofficialAmount()),
-                ParseUnofficialDate(),
-                UnofficialExpenseDescription,
-                timeProvider.GetUtcNow().UtcDateTime);
-            await administrationService.UpdateAsync(expense);
-            ClearUnofficialExpenseForm();
-            await LoadUnofficialExpensesAsync();
-            StatusMessage = "Gasto extraoficial actualizado correctamente.";
-            IsError = false;
-        }
-        catch (Exception exception)
-        {
-            SetDataError("No fue posible actualizar el gasto extraoficial.", exception);
         }
     }
 
@@ -495,14 +462,20 @@ public sealed partial class SettingsViewModel(
 
     partial void OnSelectedUnofficialExpenseChanged(OperationRow? value)
     {
-        UpdateUnofficialExpenseCommand.NotifyCanExecuteChanged();
         DeleteUnofficialExpenseCommand.NotifyCanExecuteChanged();
         if (value?.Entity is not UnofficialExpense expense) return;
+        loadingUnofficialExpense = true;
         UnofficialExpenseName = expense.Name;
         UnofficialExpenseAmount = expense.MonthlyAmount.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture);
         UnofficialExpenseEffectiveFrom = expense.EffectiveFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         UnofficialExpenseDescription = expense.Description ?? string.Empty;
+        loadingUnofficialExpense = false;
     }
+
+    partial void OnUnofficialExpenseNameChanged(string value) => ScheduleUnofficialExpenseEdit();
+    partial void OnUnofficialExpenseAmountChanged(string value) => ScheduleUnofficialExpenseEdit();
+    partial void OnUnofficialExpenseEffectiveFromChanged(string value) => ScheduleUnofficialExpenseEdit();
+    partial void OnUnofficialExpenseDescriptionChanged(string value) => ScheduleUnofficialExpenseEdit();
 
     partial void OnSelectedUnofficialPeriodChanged(string value)
     {
@@ -552,7 +525,7 @@ public sealed partial class SettingsViewModel(
                 item.Name,
                 item.Description ?? string.Empty,
                 string.Empty,
-                $"{CurrencyCode} {item.MonthlyAmount.ToDecimal():N2}",
+                $"{ApplicationCurrency.Code} {item.MonthlyAmount.ToDecimal():N2}",
                 "Extraoficial",
                 item));
         }
@@ -600,12 +573,75 @@ public sealed partial class SettingsViewModel(
 
     private void ClearUnofficialExpenseForm()
     {
+        loadingUnofficialExpense = true;
         SelectedUnofficialExpense = null;
         UnofficialExpenseName = string.Empty;
         UnofficialExpenseAmount = string.Empty;
-        UnofficialExpenseEffectiveFrom = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        UnofficialExpenseEffectiveFrom = LocalTodayText();
         UnofficialExpenseDescription = string.Empty;
         ConfirmUnofficialExpenseDelete = false;
+        loadingUnofficialExpense = false;
+    }
+
+    private void ScheduleUnofficialExpenseEdit()
+    {
+        if (loadingUnofficialExpense || SelectedUnofficialExpense?.Entity is not UnofficialExpense)
+        {
+            return;
+        }
+
+        unofficialEditCancellation?.Cancel();
+        unofficialEditCancellation = new CancellationTokenSource();
+        _ = PersistUnofficialExpenseEditAfterDelayAsync(unofficialEditCancellation.Token);
+    }
+
+    private async Task PersistUnofficialExpenseEditAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(650, cancellationToken);
+            await PersistUnofficialExpenseEditAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task PersistUnofficialExpenseEditAsync(CancellationToken cancellationToken = default)
+    {
+        if (loadingUnofficialExpense || SelectedUnofficialExpense?.Entity is not UnofficialExpense expense)
+        {
+            return;
+        }
+
+        try
+        {
+            string name = UnofficialExpenseName.Trim();
+            if (string.IsNullOrWhiteSpace(name)
+                || !TryParseDecimal(UnofficialExpenseAmount, out decimal amount)
+                || amount < 0
+                || !DateOnly.TryParseExact(UnofficialExpenseEffectiveFrom, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly date))
+            {
+                StatusMessage = "Edición pendiente: completa valores válidos para autoguardar.";
+                IsError = false;
+                return;
+            }
+
+            expense.Update(name, Money.FromDecimal(amount), date, UnofficialExpenseDescription, timeProvider.GetUtcNow().UtcDateTime);
+            await administrationService.UpdateAsync(expense, cancellationToken);
+            Guid id = expense.Id;
+            await LoadUnofficialExpensesAsync(cancellationToken);
+            loadingUnofficialExpense = true;
+            SelectedUnofficialExpense = UnofficialExpenses.SingleOrDefault(item => item.Entity?.Id == id);
+            loadingUnofficialExpense = false;
+            StatusMessage = "Gasto extraoficial guardado automáticamente.";
+            IsError = false;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            StatusMessage = exception.Message;
+            IsError = true;
+        }
     }
 
     private async Task RunDataOperationAsync<T>(
@@ -712,15 +748,21 @@ public sealed partial class SettingsViewModel(
             errors.Add("La ganancia de colaboradores debe ser un número válido.");
         }
 
-        bool budgetIsValid = TryParseDecimal(OptionalSuppliesMonthlyBudget, out decimal budget);
-        if (!budgetIsValid)
+        string exportPath = ExportDirectory.Trim();
+        if (string.IsNullOrWhiteSpace(exportPath))
         {
-            errors.Add("El presupuesto mensual debe ser un número válido.");
+            errors.Add("Selecciona una carpeta de exportación.");
         }
-
-        if (CurrencyCode is not ("USD" or "COP"))
+        else
         {
-            errors.Add("Selecciona USD o COP como moneda.");
+            try
+            {
+                exportPath = Path.GetFullPath(exportPath);
+            }
+            catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                errors.Add("La carpeta de exportación no es válida.");
+            }
         }
 
         if (errors.Count > 0)
@@ -730,7 +772,7 @@ public sealed partial class SettingsViewModel(
             return false;
         }
 
-        request = new SaveSettingsRequest(weeklyFee, profit, budget, CurrencyCode);
+        request = new SaveSettingsRequest(weeklyFee, profit, exportPath);
         validationMessage = string.Empty;
         return true;
     }
@@ -750,7 +792,11 @@ public sealed partial class SettingsViewModel(
     {
         WeeklyUsageFee = settings.WeeklyUsageFee.ToString("0.00", CultureInfo.CurrentCulture);
         CollaboratorProfitPercent = settings.CollaboratorProfitPercent.ToString("0.00", CultureInfo.CurrentCulture);
-        OptionalSuppliesMonthlyBudget = settings.OptionalSuppliesMonthlyBudget.ToString("0.00", CultureInfo.CurrentCulture);
-        CurrencyCode = settings.CurrencyCode;
+        ExportDirectory = string.IsNullOrWhiteSpace(settings.ExportDirectory)
+            ? userDesktopPath.GetDesktopPath()
+            : settings.ExportDirectory;
     }
+
+    private string LocalTodayText() => DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime)
+        .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 }

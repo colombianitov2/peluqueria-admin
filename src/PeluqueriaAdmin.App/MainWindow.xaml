@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:PeluqueriaAdmin.App.Views"
         xmlns:viewModels="clr-namespace:PeluqueriaAdmin.App.ViewModels"
-        Title="Peluquería Admin"
+        Title=""
         Width="1220"
         Height="760"
         MinWidth="860"
@@ -42,13 +42,6 @@
             Padding="14,20"
             Background="#172033">
       <DockPanel>
-        <TextBlock DockPanel.Dock="Top"
-                   Margin="8,0,8,22"
-                   Foreground="White"
-                   FontSize="18"
-                   FontWeight="SemiBold"
-                   Text="Peluquería Admin"
-                   TextWrapping="Wrap" />
         <ListBox ItemsSource="{Binding NavigationItems}"
                  SelectedItem="{Binding SelectedNavigationItem, Mode=TwoWay}"
                  Background="Transparent"

@@ -164,7 +164,11 @@ public sealed class AdministrationServiceTests
         var service = CreateService(
             repository,
             new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
-        Guid collaboratorId = Guid.NewGuid();
+        Collaborator collaborator = Collaborator.Create("Ana", new DateOnly(2026, 1, 1), null, UtcNow);
+        await service.AddAsync(collaborator, cancellationToken);
+        await service.UpdateCollaboratorProfitShareAsync(
+            collaborator.Id, Percentage.FromPercent(20m), cancellationToken);
+        Guid collaboratorId = collaborator.Id;
         var input = new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0, 0, 0, 0);
 
         var first = await service.CloseMonthAsync(
@@ -182,8 +186,14 @@ public sealed class AdministrationServiceTests
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
         var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
-        Guid first = Guid.Parse("00000000-0000-0000-0000-000000000001");
-        Guid second = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        Collaborator firstCollaborator = Collaborator.Create("Ana", new DateOnly(2026, 1, 1), null, UtcNow);
+        Collaborator secondCollaborator = Collaborator.Create("Beto", new DateOnly(2026, 1, 1), null, UtcNow);
+        await service.AddAsync(firstCollaborator, cancellationToken);
+        await service.AddAsync(secondCollaborator, cancellationToken);
+        await service.UpdateCollaboratorProfitShareAsync(firstCollaborator.Id, Percentage.FromPercent(10m), cancellationToken);
+        await service.UpdateCollaboratorProfitShareAsync(secondCollaborator.Id, Percentage.FromPercent(10m), cancellationToken);
+        Guid first = firstCollaborator.Id;
+        Guid second = secondCollaborator.Id;
         var input = new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0, 0, 0, 0);
         var original = await service.CloseMonthAsync(
             new YearMonth(2026, 7), input, Percentage.FromPercent(20m), [first, second], cancellationToken);
@@ -212,9 +222,12 @@ public sealed class AdministrationServiceTests
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
         var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        Collaborator collaborator = Collaborator.Create("Ana", new DateOnly(2026, 1, 1), null, UtcNow);
+        await service.AddAsync(collaborator, cancellationToken);
+        await service.UpdateCollaboratorProfitShareAsync(collaborator.Id, Percentage.FromPercent(20m), cancellationToken);
         var input = new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0, 0, 0, 0);
         var closed = await service.CloseMonthAsync(
-            new YearMonth(2026, 7), input, Percentage.FromPercent(20m), [Guid.NewGuid()], cancellationToken);
+            new YearMonth(2026, 7), input, Percentage.FromPercent(20m), [collaborator.Id], cancellationToken);
         await service.RegisterDistributionPaymentAsync(
             closed.Participants[0].Id, new DateOnly(2026, 7, 31), Money.FromDecimal(10m), cancellationToken);
 
@@ -279,6 +292,7 @@ public sealed class AdministrationServiceTests
 
         Collaborator collaborator = Collaborator.Create("Luis", new DateOnly(2026, 7, 1), null, UtcNow);
         await service.AddAsync(collaborator, cancellationToken);
+        await service.UpdateCollaboratorProfitShareAsync(collaborator.Id, Percentage.FromPercent(20m), cancellationToken);
         var closed = await service.CloseMonthAsync(
             new YearMonth(2026, 7),
             new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0, 0, 0, 0),
@@ -341,10 +355,10 @@ public sealed class AdministrationServiceTests
         AdministrationData data = await service.LoadAsync(cancellationToken);
 
         MonthlySummaryResult snapshot = AdministrationReports.MonthlySummary(
-            data, Money.FromDecimal(999m), Percentage.FromPercent(50m), month);
+            data, Percentage.FromPercent(50m), month);
         await service.ReopenMonthAsync(closed.Close.Id, cancellationToken);
         MonthlySummaryResult dynamic = AdministrationReports.MonthlySummary(
-            await service.LoadAsync(cancellationToken), Money.FromDecimal(0m), Percentage.FromPercent(50m), month);
+            await service.LoadAsync(cancellationToken), Percentage.FromPercent(50m), month);
 
         Assert.Equal(1_000, snapshot.CollaboratorFundMinorUnits);
         Assert.Equal(0, dynamic.CollaboratorFundMinorUnits);
@@ -369,10 +383,10 @@ public sealed class AdministrationServiceTests
         AdministrationData data = await service.LoadAsync(cancellationToken);
 
         HomeDashboard home = HomeDashboardCalculator.Calculate(
-            data, Money.FromDecimal(0m), Percentage.FromPercent(20m), new DateOnly(2026, 7, 18));
+            data, Percentage.FromPercent(20m), new DateOnly(2026, 7, 18));
         ChairCapacity capacity = HomeDashboardCalculator.Capacity(data, 0, new DateOnly(2026, 7, 18));
         AnnualAdministrationReport annual = AdministrationReports.Annual(
-            data, Money.FromDecimal(0m), Percentage.FromPercent(20m), 2026);
+            data, Percentage.FromPercent(20m), 2026);
 
         Assert.Equal(["Servicio vencido", "Impuesto del mes"], home.Obligations.Select(item => item.Name));
         Assert.Equal(1, capacity.Overcapacity);
@@ -436,14 +450,14 @@ public sealed class AdministrationServiceTests
         await service.AssignChairAsync(worker.Id, second.Id, today, cancellationToken);
         Assert.Null(first.AssignedPersonId);
         Assert.Equal(worker.Id, second.AssignedPersonId);
-        Assert.Equal(initialEvents + 1, repository.Entities
+        Assert.Equal(initialEvents + 3, repository.Entities
             .OfType<PeluqueriaAdmin.Domain.Activity.ActivityRecord>()
             .Count());
 
         await service.AssignChairAsync(worker.Id, null, today, cancellationToken);
         Assert.Null(first.AssignedPersonId);
         Assert.Null(second.AssignedPersonId);
-        Assert.Equal(initialEvents + 2, repository.Entities
+        Assert.Equal(initialEvents + 5, repository.Entities
             .OfType<PeluqueriaAdmin.Domain.Activity.ActivityRecord>()
             .Count());
         Assert.True(repository.LastSaveWasSingleTransaction);
@@ -529,6 +543,7 @@ public sealed class AdministrationServiceTests
         DateOnly date = new(2026, 7, 1);
         Collaborator collaborator = Collaborator.Create("Inversionista", date, null, UtcNow);
         await service.AddAsync(collaborator, cancellationToken);
+        await service.UpdateCollaboratorProfitShareAsync(collaborator.Id, Percentage.FromPercent(20m), cancellationToken);
         await service.AddCollaboratorContributionAsync(
             CollaboratorContribution.Create(collaborator.Id, date, Money.FromDecimal(100m), null, UtcNow),
             cancellationToken);
@@ -635,7 +650,7 @@ public sealed class AdministrationServiceTests
             "Gasto conocido", Money.FromDecimal(100m), today, null, UtcNow), cancellationToken);
 
         SuggestedChairPrice result = SuggestedChairPriceCalculator.Calculate(
-            await service.LoadAsync(cancellationToken), Money.FromDecimal(0m), Money.FromDecimal(12m),
+            await service.LoadAsync(cancellationToken), Money.FromDecimal(12m),
             new YearMonth(2026, 7), today);
 
         Assert.Equal(1, result.OccupiedChairs);
@@ -666,7 +681,7 @@ public sealed class AdministrationServiceTests
 
         AdministrationData data = await service.LoadAsync(cancellationToken);
         MonthlySummaryResult summary = AdministrationReports.MonthlySummary(
-            data, Money.FromDecimal(0m), Percentage.FromPercent(20m), new YearMonth(2026, 7));
+            data, Percentage.FromPercent(20m), new YearMonth(2026, 7));
 
         Assert.Single(data.CollaboratorContributions);
         Assert.Equal(100_000, data.CollaboratorContributions[0].Amount.MinorUnits);
@@ -691,6 +706,54 @@ public sealed class AdministrationServiceTests
         Assert.Single(repository.Entities.OfType<WeeklyRate>());
         Assert.Equal(1_500, repository.Entities.OfType<WeeklyRate>().Single().Amount.MinorUnits);
         Assert.Equal(2_500, settingsRepository.Settings.CollaboratorProfit.BasisPoints);
+    }
+
+    [Fact]
+    public async Task ChairHistory_IsStoredForChairWithWorkerNamesWithoutDuplicates()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        DateOnly today = new(2026, 7, 18);
+        Chair first = Chair.Create("Silla Uno", today, null, UtcNow);
+        Chair second = Chair.Create("Silla Dos", today, null, UtcNow);
+        LocalUsePerson worker = LocalUsePerson.Create("María", today, null, UtcNow);
+        await service.AddChairAsync(first, cancellationToken);
+        await service.AddChairAsync(second, cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(worker, first.Id, today, cancellationToken);
+        await service.AssignChairAsync(worker.Id, second.Id, today, cancellationToken);
+        await service.AssignChairAsync(worker.Id, null, today, cancellationToken);
+
+        var chairEvents = repository.Entities
+            .OfType<PeluqueriaAdmin.Domain.Activity.ActivityRecord>()
+            .Where(item => item.EntityId == first.Id || item.EntityId == second.Id)
+            .ToArray();
+
+        Assert.Equal(4, chairEvents.Length);
+        Assert.All(chairEvents, item => Assert.Contains("María", item.Summary, StringComparison.Ordinal));
+        Assert.Contains(chairEvents, item => item.Summary.Contains("Silla Uno", StringComparison.Ordinal));
+        Assert.Contains(chairEvents, item => item.Summary.Contains("Silla Dos", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Sale_UsesEditedUnitPriceAndRejectsQuantityAboveStock()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        DateOnly today = new(2026, 7, 18);
+        Product product = Product.Create(
+            "Tratamiento", ProductCategory.ProductForSale, "unidad", UtcNow, Money.FromDecimal(30m));
+        await service.AddProductWithInitialStockAsync(
+            product, today, Quantity.Positive(3m), Money.FromDecimal(10m), cancellationToken: cancellationToken);
+
+        InventoryMovement sale = await service.RegisterSaleAsync(
+            product.Id, today, Quantity.Positive(3m), Money.FromDecimal(35m), cancellationToken: cancellationToken);
+
+        Assert.Equal(10_500, sale.CashAmount?.MinorUnits);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterSaleAsync(
+            product.Id, today, Quantity.Positive(1m), Money.FromDecimal(35m), cancellationToken: cancellationToken));
+        Assert.Single(repository.Entities.OfType<InventoryMovement>(), item => item.Type == InventoryMovementType.Sale);
     }
 
     private static AdministrationService CreateService(

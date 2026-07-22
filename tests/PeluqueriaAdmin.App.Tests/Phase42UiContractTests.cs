@@ -4,9 +4,6 @@ namespace PeluqueriaAdmin.App.Tests;
 
 public sealed class Phase42UiContractTests
 {
-    private static readonly string RepositoryRoot = Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-
     [Fact]
     public void LocalUse_UsesDedicatedTwoActionScreenAndProfilesWithVirtualizedHistory()
     {
@@ -124,12 +121,12 @@ public sealed class Phase42UiContractTests
             "docs/MODELO_DATOS.md",
             "docs/MANUAL_USUARIO.md",
         ];
-        string visible = string.Join('\n', files.Select(file => File.ReadAllText(Path.Combine(RepositoryRoot, file))));
+        string visible = string.Join('\n', files.Select(file => File.ReadAllText(Path.Combine(RepositoryFiles.Root, file))));
 
         Assert.DoesNotContain("peluquero", visible, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Unidad de medida", visible, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Read(params string[] parts) =>
-        File.ReadAllText(Path.Combine([RepositoryRoot, .. parts]));
+        RepositoryFiles.Read(parts);
 }

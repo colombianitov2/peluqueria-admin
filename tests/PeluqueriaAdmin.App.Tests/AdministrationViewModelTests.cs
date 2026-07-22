@@ -22,6 +22,25 @@ public sealed class AdministrationViewModelTests
     private static readonly DateTime UtcNow = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
+    public async Task AnnualBalance_InitializesTheVisibleQueryAndDataToTheCurrentYear()
+    {
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
+        var viewModel = new AdministrationViewModel(
+            new AdministrationService(repository, settingsRepository, timeProvider),
+            new GetSettingsUseCase(settingsRepository),
+            new FakeFormDraftStore(),
+            timeProvider);
+
+        await viewModel.SelectModuleAsync(AdministrationViewModel.AnnualBalanceModule);
+
+        Assert.Equal("2026", viewModel.SpecificYearText);
+        Assert.Equal("2026-01-01", viewModel.DateText);
+        Assert.False(viewModel.HasRecoveredDraft);
+    }
+
+    [Fact]
     public async Task NewRecordDraft_IsPersistedAndRecoveredByANewViewModel()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
@@ -137,6 +156,7 @@ public sealed class AdministrationViewModelTests
 
         OperationRow payment = Assert.Single(viewModel.Rows);
         Assert.Equal("Obligación eliminada", payment.Principal);
+        Assert.StartsWith("USD ", payment.Amount, StringComparison.Ordinal);
         Assert.False(viewModel.IsError);
     }
 
@@ -194,7 +214,7 @@ public sealed class AdministrationViewModelTests
     }
 
     [Fact]
-    public async Task MonthlyCharts_UseTheSameMonthlySummaryValuesAndHaveSpanishSeries()
+    public async Task MonthlyCharts_UseSelectedPeriodAndHaveSpanishSeries()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
@@ -207,6 +227,7 @@ public sealed class AdministrationViewModelTests
             service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
 
         await viewModel.SelectModuleAsync(AdministrationViewModel.MonthlySummaryModule);
+        viewModel.SelectedPeriod = "Este mes";
         viewModel.DateText = "2026-07-01";
         await viewModel.RefreshCommand.ExecuteAsync(null);
 
@@ -214,8 +235,37 @@ public sealed class AdministrationViewModelTests
         Assert.Equal(100d, bars.Items[0].Value);
         Assert.NotEmpty(viewModel.ExpenseCompositionChart.Series);
         LineSeries line = Assert.IsType<LineSeries>(Assert.Single(viewModel.ResultEvolutionChart.Series));
-        Assert.Equal(12, line.Points.Count);
+        Assert.Equal(31, line.Points.Count);
         Assert.Equal("Resultado retenido", line.Title);
+    }
+
+    [Theory]
+    [InlineData("Hoy", 24)]
+    [InlineData("Esta semana", 7)]
+    [InlineData("Este mes", 31)]
+    [InlineData("Últimos 3 meses", 3)]
+    [InlineData("Últimos 6 meses", 6)]
+    [InlineData("Este año", 12)]
+    [InlineData("Fecha específica", 24)]
+    [InlineData("Año específico", 12)]
+    public async Task MonthlyCharts_AdaptHorizontalScaleWithControlledClock(string period, int expectedPoints)
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
+        var service = new AdministrationService(repository, settingsRepository, timeProvider);
+        var viewModel = new AdministrationViewModel(
+            service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
+        await viewModel.SelectModuleAsync(AdministrationViewModel.MonthlySummaryModule);
+        viewModel.SpecificDate = new DateTime(2026, 7, 2);
+        viewModel.SpecificYearText = "2025";
+        viewModel.SelectedPeriod = period;
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        LineSeries line = Assert.IsType<LineSeries>(Assert.Single(viewModel.ResultEvolutionChart.Series));
+        Assert.Equal(expectedPoints, line.Points.Count);
     }
 
     [Fact]

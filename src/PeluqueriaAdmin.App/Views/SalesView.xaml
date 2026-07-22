@@ -40,7 +40,7 @@
               </StackPanel>
               <StackPanel Width="160" Margin="0,0,14,12"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding SaleDate}" /></StackPanel>
               <StackPanel Width="150" Margin="0,0,14,12"><TextBlock Style="{StaticResource FieldLabel}" Text="Cantidad" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding QuantityText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
-              <StackPanel Width="245" Margin="0,0,14,12"><TextBlock Style="{StaticResource FieldLabel}" Text="Precio de venta por unidad o paquete" /><TextBox Style="{StaticResource FieldBox}" IsReadOnly="True" Text="{Binding UnitPriceText}" /></StackPanel>
+              <StackPanel Width="245" Margin="0,0,14,12"><TextBlock Style="{StaticResource FieldLabel}" Text="Precio de venta por unidad o paquete (USD)" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding UnitPriceText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
               <StackPanel Width="310" Margin="0,0,14,12"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción opcional" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding DescriptionText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
             </WrapPanel>
             <WrapPanel><TextBlock Margin="0,8,18,0" FontWeight="SemiBold" Text="{Binding SelectedAvailability}" /><TextBlock Margin="0,8,18,0" FontWeight="SemiBold" Text="{Binding CalculatedTotal}" /><Button Style="{StaticResource ActionButton}" Command="{Binding RegisterSaleCommand}" Content="Registrar venta" /></WrapPanel>

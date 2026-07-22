@@ -26,8 +26,14 @@
   </UserControl.Resources>
 
   <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <StackPanel Margin="26">
-      <DockPanel Margin="0,0,0,14" LastChildFill="True">
+    <Grid Margin="26">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+      <DockPanel Grid.Row="0" Margin="0,0,0,14" LastChildFill="True">
         <StackPanel DockPanel.Dock="Right" Margin="18,0,0,0" MinWidth="190">
           <TextBlock HorizontalAlignment="Right" Style="{StaticResource FieldLabel}" Text="Periodo a mostrar" />
           <ComboBox Style="{StaticResource FieldBox}"
@@ -46,7 +52,19 @@
         </StackPanel>
       </DockPanel>
 
-      <WrapPanel Margin="0,0,0,14"
+      <WrapPanel Grid.Row="1" Margin="0,0,0,12" HorizontalAlignment="Right">
+        <WrapPanel Visibility="{Binding ShowSpecificDateQuery, Converter={StaticResource BooleanToVisibilityConverter}}">
+          <DatePicker Width="155" Margin="0,0,8,0" SelectedDate="{Binding SpecificDate}" />
+          <Button Style="{StaticResource ActionButton}" Command="{Binding ConsultPeriodCommand}" Content="Consultar" />
+        </WrapPanel>
+        <WrapPanel Visibility="{Binding ShowSpecificYearQuery, Converter={StaticResource BooleanToVisibilityConverter}}">
+          <TextBox Width="110" Margin="0,0,8,8" Style="{StaticResource FieldBox}" Text="{Binding SpecificYearText, UpdateSourceTrigger=PropertyChanged}" />
+          <Button Style="{StaticResource ActionButton}" Command="{Binding ConsultPeriodCommand}" Content="Consultar" />
+        </WrapPanel>
+      </WrapPanel>
+      <TextBlock Grid.Row="2" Margin="0,0,0,8" Foreground="#64748B" Text="{Binding HistoricalRecordsWithoutTime}" TextWrapping="Wrap" />
+
+      <WrapPanel Grid.Row="3" Margin="0,0,0,14"
                  Visibility="{Binding ShowLocalUseSummary, Converter={StaticResource BooleanToVisibilityConverter}}">
         <Border Width="190" Margin="0,0,12,0" Padding="16" Background="#EFF6FF" CornerRadius="7">
           <StackPanel><TextBlock Foreground="#475569" Text="Total de sillas" /><TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding TotalChairs}" /></StackPanel>
@@ -59,27 +77,27 @@
         </Border>
       </WrapPanel>
 
-      <Separator Margin="0,0,0,12"
+      <Separator Grid.Row="4" Margin="0,0,0,12"
                  Visibility="{Binding ShowLocalUseSummary, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
-      <StackPanel Margin="0,0,0,16"
+      <StackPanel Grid.Row="5" Margin="0,0,0,16"
                   Visibility="{Binding ShowCharts, Converter={StaticResource BooleanToVisibilityConverter}}">
-        <TextBlock Margin="0,0,0,8" FontSize="16" FontWeight="SemiBold" Text="Gráficos del resumen mensual" />
+        <TextBlock Margin="0,0,0,8" FontSize="16" FontWeight="SemiBold" Text="Gráficos del periodo seleccionado" />
         <UniformGrid Columns="2" Rows="2">
-          <GroupBox Margin="0,0,8,8" Header="Ingresos frente a meta mensual">
+          <GroupBox Margin="0,0,8,8" Header="Ingresos y egresos del periodo">
             <oxy:PlotView Height="260" Model="{Binding IncomeGoalChart}" />
           </GroupBox>
           <GroupBox Margin="8,0,0,8" Header="Composición de gastos por categoría">
             <oxy:PlotView Height="260" Model="{Binding ExpenseCompositionChart}" />
           </GroupBox>
-          <GroupBox Grid.ColumnSpan="2" Margin="0,8,0,0" Header="Evolución del resultado retenido en los últimos 12 meses">
+          <GroupBox Grid.ColumnSpan="2" Margin="0,8,0,0" Header="Evolución del resultado del periodo">
             <oxy:PlotView Height="280" Model="{Binding ResultEvolutionChart}" />
           </GroupBox>
         </UniformGrid>
       </StackPanel>
 
-      <TextBlock Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Registros" Visibility="{Binding ShowGeneralRecordsTable, Converter={StaticResource BooleanToVisibilityConverter}}" />
-      <Border Height="220" Margin="0,0,0,14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7" Visibility="{Binding ShowGeneralRecordsTable, Converter={StaticResource BooleanToVisibilityConverter}}">
+      <TextBlock Grid.Row="7" Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Registros" Visibility="{Binding ShowGeneralRecordsTable, Converter={StaticResource BooleanToVisibilityConverter}}" />
+      <Border Grid.Row="8" Height="300" Margin="0,0,0,14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7" Visibility="{Binding ShowGeneralRecordsTable, Converter={StaticResource BooleanToVisibilityConverter}}">
         <DataGrid AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
                   HeadersVisibility="Column" IsReadOnly="True" BorderThickness="0"
                   ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}">
@@ -130,14 +148,14 @@
         </DataGrid>
       </Border>
 
-      <TextBlock Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Registros del periodo" Visibility="{Binding ShowSimpleFinancialTable, Converter={StaticResource BooleanToVisibilityConverter}}" />
-      <Border Height="220" Margin="0,0,0,14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7" Visibility="{Binding ShowSimpleFinancialTable, Converter={StaticResource BooleanToVisibilityConverter}}">
+      <TextBlock Grid.Row="9" Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Registros del periodo" Visibility="{Binding ShowSimpleFinancialTable, Converter={StaticResource BooleanToVisibilityConverter}}" />
+      <Border Grid.Row="10" Height="300" Margin="0,0,0,14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7" Visibility="{Binding ShowSimpleFinancialTable, Converter={StaticResource BooleanToVisibilityConverter}}">
         <DataGrid AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" BorderThickness="0" ItemsSource="{Binding SimpleFinancialRows}" SelectedItem="{Binding SelectedSimpleFinancialRow}">
           <DataGrid.Columns><DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="2*" Binding="{Binding Concept}" Header="Nombre" /><DataGridTextColumn Width="140" Binding="{Binding Amount}" Header="Valor" /><DataGridTextColumn Width="3*" Binding="{Binding Description}" Header="Descripción" /></DataGrid.Columns>
         </DataGrid>
       </Border>
 
-      <StackPanel Margin="0,0,0,14"
+      <StackPanel Grid.Row="11" Margin="0,0,0,14"
                   Visibility="{Binding ShowCollaboratorHistory, Converter={StaticResource BooleanToVisibilityConverter}}">
         <TextBlock Margin="0,0,0,6" FontSize="16" FontWeight="SemiBold" Text="Historial financiero del colaborador seleccionado" />
         <Border Height="170" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
@@ -154,7 +172,7 @@
         </Border>
       </StackPanel>
 
-      <Border Padding="18" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7"
+      <Border Grid.Row="6" Margin="0,0,0,14" Padding="18" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7"
               Visibility="{Binding IsFormVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
         <StackPanel>
           <DockPanel Margin="0,0,0,12">
@@ -269,6 +287,6 @@
           </TextBlock>
         </StackPanel>
       </Border>
-    </StackPanel>
+    </Grid>
   </ScrollViewer>
 </UserControl>

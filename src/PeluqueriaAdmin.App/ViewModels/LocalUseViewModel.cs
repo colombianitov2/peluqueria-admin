@@ -8,6 +8,7 @@ using PeluqueriaAdmin.Application.Activity;
 using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.Drafts;
 using PeluqueriaAdmin.Application.Settings;
+using PeluqueriaAdmin.Domain.Activity;
 using PeluqueriaAdmin.Domain.Drafts;
 using PeluqueriaAdmin.Domain.LocalUse;
 using PeluqueriaAdmin.Domain.Settings;
@@ -95,6 +96,7 @@ public sealed partial class LocalUseViewModel(
     [ObservableProperty] private string chairEditName = string.Empty;
     [ObservableProperty] private DateTime? chairEditCreationDate;
     [ObservableProperty] private string chairEditDescription = string.Empty;
+    [ObservableProperty] private string chairAssignedWorkerSummary = "Trabajador asignado: Vacía";
     [ObservableProperty] private bool confirmChairDelete;
     [ObservableProperty] private string statusMessage = string.Empty;
     [ObservableProperty] private bool isError;
@@ -131,7 +133,7 @@ public sealed partial class LocalUseViewModel(
                     worker.Name,
                     worker.EntryDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                     chair?.Name ?? "Sin silla",
-                    $"{settings.CurrencyCode} {debt.ToDecimal():N2}",
+                    $"{ApplicationCurrency.Code} {debt.ToDecimal():N2}",
                     worker.IsCurrentOn(today) ? "Vigente" : "Retirado"));
             }
 
@@ -523,21 +525,21 @@ public sealed partial class LocalUseViewModel(
             data.LocalUsePayments.Where(item => item.PersonId == workerId),
             data.WeeklyRates,
             today);
-        ProfileDebt = FormatMoney(settings.CurrencyCode, balance.Debt);
-        ProfileCredit = FormatMoney(settings.CurrencyCode, balance.Credit);
+        ProfileDebt = FormatMoney(ApplicationCurrency.Code, balance.Debt);
+        ProfileCredit = FormatMoney(ApplicationCurrency.Code, balance.Credit);
         ProfileNextCharge = FormatDate(balance.NextChargeDate, worker.ExitDate.HasValue ? "No aplica (retirado)" : "Sin cuota proyectada");
-        ProfileNextChargeAmount = FormatMoney(settings.CurrencyCode, balance.NextChargeAmount);
+        ProfileNextChargeAmount = FormatMoney(ApplicationCurrency.Code, balance.NextChargeAmount);
         ProfileNextRequiredPayment = FormatDate(
             balance.NextRequiredPaymentDate,
             worker.ExitDate.HasValue ? "No aplica (retirado)" : "Cubierto con saldo a favor");
         if (balance.NextRequiredPaymentDate.HasValue && balance.NextRequiredPaymentAmount.HasValue)
         {
-            ProfileNextRequiredPayment = $"{ProfileNextRequiredPayment} · {FormatMoney(settings.CurrencyCode, balance.NextRequiredPaymentAmount)}";
+            ProfileNextRequiredPayment = $"{ProfileNextRequiredPayment} · {FormatMoney(ApplicationCurrency.Code, balance.NextRequiredPaymentAmount)}";
         }
         ProfileCoveredThrough = FormatDate(balance.CoveredThroughDate, "Sin cobertura completa registrada");
         ProfileWeeklyRates = string.Join(" · ", data.WeeklyRates
             .OrderBy(item => item.EffectiveFrom)
-            .Select(item => $"Desde {item.EffectiveFrom:yyyy-MM-dd}: {settings.CurrencyCode} {item.Amount.ToDecimal():N2}"));
+            .Select(item => $"Desde {item.EffectiveFrom:yyyy-MM-dd}: {ApplicationCurrency.Code} {item.Amount.ToDecimal():N2}"));
 
         Guid? preservedChairId = WorkerProfileSelectedChair?.Id;
         WorkerProfileChairOptions.Clear();
@@ -575,7 +577,7 @@ public sealed partial class LocalUseViewModel(
                 charge.PeriodEnd,
                 "Cuota semanal generada",
                 $"Periodo {charge.PeriodStart:yyyy-MM-dd} a {charge.PeriodEnd:yyyy-MM-dd}; pago habitual {charge.DueDate:yyyy-MM-dd} (sábado)",
-                $"{settings.CurrencyCode} {charge.Amount.ToDecimal():N2}",
+                $"{ApplicationCurrency.Code} {charge.Amount.ToDecimal():N2}",
                 "Pendiente o pagada según saldo",
                 charge)));
         }
@@ -586,7 +588,7 @@ public sealed partial class LocalUseViewModel(
                 payment.PaymentDate,
                 "Pago registrado",
                 payment.Description,
-                $"{settings.CurrencyCode} {payment.Amount.ToDecimal():N2}",
+                $"{ApplicationCurrency.Code} {payment.Amount.ToDecimal():N2}",
                 payment.PaymentDate.DayOfWeek == DayOfWeek.Saturday ? "Pago habitual" : "Pago en otra fecha",
                 payment)));
         }
@@ -618,16 +620,22 @@ public sealed partial class LocalUseViewModel(
         Guid chairId = SelectedChairRow.Chair.Id;
         ChairHistoryRows.Clear();
         Chair chair = SelectedChairRow.Chair;
+        LocalUsePerson? assignedWorker = chair.AssignedPersonId.HasValue
+            ? data.LocalUsePeople.SingleOrDefault(item => item.Id == chair.AssignedPersonId.Value)
+            : null;
+        ChairAssignedWorkerSummary = $"Trabajador asignado: {assignedWorker?.Name ?? "Vacía"}";
         if (range.Contains(chair.CreationDate))
         {
             ChairHistoryRows.Add(History(
                 chair.CreationDate, "Creación de silla", chair.Description, string.Empty, "Registrada", chair));
         }
 
-        foreach (var activity in data.ActivityRecords
+        ActivityRecord[] directActivities = data.ActivityRecords
             .Where(item => item.EntityId == chairId && item.Action != "Alta" && range.Contains(item.ActivityDate))
             .OrderBy(item => item.ActivityDate)
-            .ThenBy(item => item.OccurredUtc))
+            .ThenBy(item => item.OccurredUtc)
+            .ToArray();
+        foreach (ActivityRecord activity in directActivities)
         {
             ChairHistoryRows.Add(History(
                 activity.ActivityDate, activity.Action, activity.Summary, string.Empty,

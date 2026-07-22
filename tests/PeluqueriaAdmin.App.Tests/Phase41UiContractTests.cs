@@ -4,9 +4,6 @@ namespace PeluqueriaAdmin.App.Tests;
 
 public sealed class Phase41UiContractTests
 {
-    private static readonly string RepositoryRoot = Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-
     [Fact]
     public void VisibleUi_HasNoCashFlowOrTechnicalDraftRecoveryLanguage()
     {
@@ -33,16 +30,17 @@ public sealed class Phase41UiContractTests
     }
 
     [Fact]
-    public void Settings_ExposeOnlyUsdAndCopAndWarnThatValuesAreNotConverted()
+    public void Settings_ExposeUsdAsTheOnlyCurrencyAndNoOptionalBudget()
     {
         string view = Read("src", "PeluqueriaAdmin.App", "Views", "SettingsView.xaml");
         string viewModel = Read("src", "PeluqueriaAdmin.App", "ViewModels", "SettingsViewModel.cs");
 
-        Assert.Contains("[\"USD\", \"COP\"]", viewModel, StringComparison.Ordinal);
-        Assert.Contains("no convierte", view, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"COP\"", viewModel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("CurrencyOptions", viewModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("Presupuesto mensual", view, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("TotalChairs", view, StringComparison.Ordinal);
     }
 
     private static string Read(params string[] parts) =>
-        File.ReadAllText(Path.Combine([RepositoryRoot, .. parts]));
+        RepositoryFiles.Read(parts);
 }

@@ -17,6 +17,8 @@ public sealed class AdministrationService(
     ISettingsRepository settingsRepository,
     TimeProvider timeProvider)
 {
+    public event EventHandler? DataChanged;
+
     public Task<AdministrationData> LoadAsync(CancellationToken cancellationToken = default) =>
         repository.LoadAsync(cancellationToken);
 
@@ -143,16 +145,24 @@ public sealed class AdministrationService(
             await EnsureRatesAsync(data, cancellationToken);
         IReadOnlyList<WeeklyCharge> charges = WeeklyChargeCalculator.Generate(
             person, [], rates, throughDate, utcNow);
-        ActivityRecord assignment = ActivityRecord.Create(
+        ActivityRecord workerAssignment = ActivityRecord.Create(
             person.EntryDate,
             "Uso del local",
             "Asignación de silla",
             $"{person.Name} → {chair.Name}",
             person.Id,
-            chair.Description,
+            $"{person.Name} fue asignado a {chair.Name}.",
+            utcNow);
+        ActivityRecord chairAssignment = ActivityRecord.Create(
+            person.EntryDate,
+            "Uso del local",
+            "Asignación de silla",
+            $"{chair.Name} recibió a {person.Name}",
+            chair.Id,
+            $"Trabajador: {person.Name}. Silla: {chair.Name}.",
             utcNow);
         await SaveAsync(
-            new AuditableEntity[] { person, assignment }
+            new AuditableEntity[] { person, workerAssignment, chairAssignment }
                 .Concat(newRate is null ? [] : [newRate])
                 .Concat(charges)
                 .ToArray(),
@@ -241,10 +251,38 @@ public sealed class AdministrationService(
             : "Cambio de silla";
         string summary = target is null
             ? $"{person.Name} dejó {current!.Name}"
-            : $"{person.Name} → {target.Name}";
-        ActivityRecord activity = ActivityRecord.Create(
-            today, "Uso del local", action, summary, person.Id, null, utcNow);
-        await repository.SaveAsync([activity], updates, cancellationToken);
+            : current is null
+                ? $"{person.Name} → {target.Name}"
+                : $"{person.Name} dejó {current.Name} y pasó a {target.Name}";
+        var activities = new List<AuditableEntity>
+        {
+            ActivityRecord.Create(
+                today, "Uso del local", action, summary, person.Id,
+                $"Trabajador: {person.Name}.", utcNow),
+        };
+        if (current is not null)
+        {
+            activities.Add(ActivityRecord.Create(
+                today, "Uso del local", action,
+                target is null
+                    ? $"{current.Name} quedó vacía; {person.Name} la dejó"
+                    : $"{current.Name} quedó vacía; {person.Name} pasó a {target.Name}",
+                current.Id,
+                $"Trabajador: {person.Name}. Silla: {current.Name}.",
+                utcNow));
+        }
+        if (target is not null)
+        {
+            activities.Add(ActivityRecord.Create(
+                today, "Uso del local", action,
+                current is null
+                    ? $"{target.Name} recibió a {person.Name}"
+                    : $"{target.Name} recibió a {person.Name}, procedente de {current!.Name}",
+                target.Id,
+                $"Trabajador: {person.Name}. Silla: {target.Name}.",
+                utcNow));
+        }
+        await repository.SaveAsync(activities, updates, cancellationToken);
     }
 
     public async Task UpdateLocalUsePersonAsync(
@@ -341,6 +379,16 @@ public sealed class AdministrationService(
         AuditableEntity[] added = (newRate is null ? Array.Empty<AuditableEntity>() : [newRate])
             .Concat(additions)
             .Append(activity)
+            .Concat(chair is null
+                ? []
+                : [ActivityRecord.Create(
+                    exitDate,
+                    "Uso del local",
+                    "Retiro de silla",
+                    $"{chair.Name} quedó vacía; {person.Name} se retiró",
+                    chair.Id,
+                    $"Trabajador: {person.Name}. Silla: {chair.Name}.",
+                    utcNow)])
             .ToArray();
         AuditableEntity[] updated = new AuditableEntity[] { person }
             .Concat(invalid)
@@ -372,8 +420,18 @@ public sealed class AdministrationService(
             person.Id,
             "El historial de cuotas y pagos se conserva; la silla quedó disponible.",
             utcNow);
+        AuditableEntity[] activities = chair is null
+            ? [activity]
+            : [activity, ActivityRecord.Create(
+                DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+                "Uso del local",
+                "Retiro de silla",
+                $"{chair.Name} quedó vacía; {person.Name} fue eliminado",
+                chair.Id,
+                $"Trabajador: {person.Name}. Silla: {chair.Name}.",
+                utcNow)];
         await repository.SaveAsync(
-            [activity],
+            activities,
             new AuditableEntity[] { person }.Concat(chair is null ? [] : [chair]).ToArray(),
             cancellationToken);
     }
@@ -398,6 +456,28 @@ public sealed class AdministrationService(
         await repository.SaveAsync([activity], [collaborator], cancellationToken);
     }
 
+    public async Task UpdateCollaboratorProfitShareAsync(
+        Guid collaboratorId,
+        Percentage share,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        Collaborator collaborator = data.Collaborators.SingleOrDefault(item => item.Id == collaboratorId)
+            ?? throw new InvalidOperationException("El colaborador seleccionado ya no está disponible.");
+        GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
+        int totalBasisPoints = data.Collaborators
+            .Where(item => item.Id != collaboratorId)
+            .Sum(item => item.ProfitShareBasisPoints) + share.BasisPoints;
+        if (totalBasisPoints > settings.CollaboratorProfit.BasisPoints)
+        {
+            throw new InvalidOperationException(
+                "La suma de porcentajes individuales no puede superar el porcentaje global configurado.");
+        }
+
+        collaborator.UpdateProfitShare(share, timeProvider.GetUtcNow().UtcDateTime);
+        await repository.SaveAsync([], [collaborator], cancellationToken);
+    }
+
     public async Task DeleteChairAsync(
         Guid chairId,
         CancellationToken cancellationToken = default)
@@ -407,6 +487,9 @@ public sealed class AdministrationService(
             ?? throw new InvalidOperationException("La silla seleccionada ya no está disponible.");
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
         Guid? formerPersonId = chair.AssignedPersonId;
+        string? formerPersonName = formerPersonId.HasValue
+            ? data.LocalUsePeople.SingleOrDefault(item => item.Id == formerPersonId.Value)?.Name
+            : null;
         if (formerPersonId.HasValue)
         {
             chair.Unassign(utcNow);
@@ -417,10 +500,12 @@ public sealed class AdministrationService(
             DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
             "Uso del local",
             "Eliminación lógica de silla",
-            chair.Name,
+            formerPersonName is null
+                ? chair.Name
+                : $"{chair.Name} fue liberada de {formerPersonName} y eliminada",
             chair.Id,
             formerPersonId.HasValue
-                ? "La silla ocupada fue desasignada antes de eliminarse; el trabajador permanece sin silla."
+                ? $"La silla ocupada fue desasignada antes de eliminarse; {formerPersonName ?? "el trabajador"} permanece sin silla."
                 : "La silla vacía fue eliminada lógicamente.",
             utcNow);
         await repository.SaveAsync([activity], [chair], cancellationToken);
@@ -519,7 +604,7 @@ public sealed class AdministrationService(
             throw new InvalidOperationException("Un mantenimiento realizado se conserva como historial y no se elimina.");
         }
         maintenance.MarkDeleted(timeProvider.GetUtcNow().UtcDateTime);
-        await repository.SaveAsync([], [maintenance], cancellationToken);
+        await SaveAsync([], [maintenance], completedDraftKey: null, cancellationToken: cancellationToken);
     }
 
     public async Task AddProductAsync(
@@ -541,13 +626,16 @@ public sealed class AdministrationService(
         CancellationToken cancellationToken = default,
         string? completedDraftKey = null,
         Money? defaultSalePrice = null,
-        string? description = null)
+        string? description = null,
+        Money? defaultUnitCost = null)
     {
         AdministrationData data = await repository.LoadAsync(cancellationToken);
         Product product = data.Products.SingleOrDefault(item => item.Id == productId)
             ?? throw new InvalidOperationException("El producto seleccionado ya no está disponible.");
         EnsureUniqueProductName(data, name, productId);
-        product.Update(name, category, unitOfMeasure, timeProvider.GetUtcNow().UtcDateTime, defaultSalePrice, description);
+        product.Update(
+            name, category, unitOfMeasure, timeProvider.GetUtcNow().UtcDateTime,
+            defaultSalePrice, description, defaultUnitCost);
         await SaveAsync([], [product], completedDraftKey, cancellationToken);
     }
 
@@ -589,7 +677,7 @@ public sealed class AdministrationService(
         }
 
         entity.MarkDeleted(timeProvider.GetUtcNow().UtcDateTime);
-        await repository.SaveAsync([], [entity], cancellationToken);
+        await SaveAsync([], [entity], completedDraftKey: null, cancellationToken: cancellationToken);
     }
 
     public async Task<LocalUsePayment> RegisterLocalUsePaymentAsync(
@@ -632,6 +720,32 @@ public sealed class AdministrationService(
             throw new InvalidOperationException("El producto no está configurado para venta con un precio predeterminado.");
         }
 
+        return await RegisterSaleAsync(
+            productId, date, quantity, product.DefaultSalePrice.Value, description,
+            cancellationToken, completedDraftKey);
+    }
+
+    public async Task<InventoryMovement> RegisterSaleAsync(
+        Guid productId,
+        DateOnly date,
+        Quantity quantity,
+        Money unitPrice,
+        string? description = null,
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        Product product = data.Products.SingleOrDefault(item => item.Id == productId)
+            ?? throw new InvalidOperationException("El producto seleccionado ya no está disponible.");
+        if (!product.IsForSale)
+        {
+            throw new InvalidOperationException("El producto seleccionado no está configurado para venta.");
+        }
+        if (unitPrice.MinorUnits <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(unitPrice), "El precio de venta debe ser mayor que cero.");
+        }
+
         InventoryMovement[] movements = data.InventoryMovements
             .Where(item => item.ProductId == productId && item.Date <= date)
             .ToArray();
@@ -640,7 +754,7 @@ public sealed class AdministrationService(
             productId,
             date,
             quantity,
-            product.DefaultSalePrice.Value,
+            unitPrice,
             InventoryCalculator.AverageUnitCost(movements),
             available,
             timeProvider.GetUtcNow().UtcDateTime,
@@ -767,7 +881,12 @@ public sealed class AdministrationService(
         MonthlySummaryResult summary = MonthlySummaryCalculator.Calculate(input, percentage);
         MonthlyClose close = MonthlyClose.Create(month, percentage, summary, utcNow, description);
         IReadOnlyList<MonthlyCloseParticipant> participants =
-            CollaboratorDistributionCalculator.Distribute(close, participantIds, utcNow);
+            CollaboratorDistributionCalculator.Distribute(
+                close,
+                data.Collaborators
+                    .Where(item => participantIds.Contains(item.Id))
+                    .Select(item => (item.Id, item.ProfitShareBasisPoints)),
+                utcNow);
         await SaveAsync(
             new AuditableEntity[] { close }.Concat(participants).ToArray(),
             [],
@@ -830,13 +949,22 @@ public sealed class AdministrationService(
         return payment;
     }
 
-    private Task SaveAsync(
+    private async Task SaveAsync(
         IReadOnlyCollection<AuditableEntity> additions,
         IReadOnlyCollection<AuditableEntity> updates,
         string? completedDraftKey,
-        CancellationToken cancellationToken) => string.IsNullOrWhiteSpace(completedDraftKey)
-        ? repository.SaveAsync(additions, updates, cancellationToken)
-        : repository.SaveCompletingDraftAsync(additions, updates, completedDraftKey, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(completedDraftKey))
+        {
+            await repository.SaveAsync(additions, updates, cancellationToken);
+        }
+        else
+        {
+            await repository.SaveCompletingDraftAsync(additions, updates, completedDraftKey, cancellationToken);
+        }
+        DataChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     private async Task<(IReadOnlyCollection<WeeklyRate> Rates, WeeklyRate? NewRate)> EnsureRatesAsync(
         AdministrationData data,

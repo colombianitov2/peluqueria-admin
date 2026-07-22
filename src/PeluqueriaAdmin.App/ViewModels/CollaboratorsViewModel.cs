@@ -8,12 +8,15 @@ using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.Drafts;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Domain.Collaborators;
+using PeluqueriaAdmin.Domain.Common;
 using PeluqueriaAdmin.Domain.Drafts;
+using PeluqueriaAdmin.Domain.Reports;
 using PeluqueriaAdmin.Domain.Settings;
 
 namespace PeluqueriaAdmin.App.ViewModels;
 
 public sealed partial class CollaboratorsViewModel(
+    AdministrationViewModel payrollEditor,
     AdministrationService service,
     GetSettingsUseCase getSettings,
     IFormDraftStore formDraftStore,
@@ -23,8 +26,12 @@ public sealed partial class CollaboratorsViewModel(
     private const string AddDraftKey = "Colaboradores:Fase42:nuevo";
     private CancellationTokenSource? draftCancellation;
     private CancellationTokenSource? editCancellation;
+    private CancellationTokenSource? distributionEditCancellation;
     private bool suppressChanges;
+    private bool suppressDistributionChanges;
     private Guid? profileCollaboratorId;
+
+    public AdministrationViewModel PayrollEditor { get; } = payrollEditor;
 
     public ObservableCollection<string> PeriodOptions { get; } =
         ["Hoy", "Esta semana", "Este mes", "Últimos 3 meses", "Últimos 6 meses", "Este año", "Rango personalizado"];
@@ -46,6 +53,13 @@ public sealed partial class CollaboratorsViewModel(
     [ObservableProperty] private DateTime? newExitDate;
     [ObservableProperty] private string newDescription = string.Empty;
     [ObservableProperty] private CollaboratorRow? selectedCollaboratorRow;
+    [ObservableProperty] private string selectedProfitShareText = string.Empty;
+    [ObservableProperty] private string globalProfitShare = string.Empty;
+    [ObservableProperty] private string assignedProfitShare = string.Empty;
+    [ObservableProperty] private string missingProfitShare = string.Empty;
+    [ObservableProperty] private string totalProfitFund = string.Empty;
+    [ObservableProperty] private string assignedProfitAmount = string.Empty;
+    [ObservableProperty] private string pendingProfitAmount = string.Empty;
     [ObservableProperty] private bool isProfileOpen;
     [ObservableProperty] private string profileName = string.Empty;
     [ObservableProperty] private DateTime? profileStartDate;
@@ -64,6 +78,7 @@ public sealed partial class CollaboratorsViewModel(
 
     public async Task LoadAsync()
     {
+        await PayrollEditor.SelectModuleAsync(AdministrationViewModel.PayrollModule);
         await RefreshAsync();
         await RestoreAddDraftAsync();
     }
@@ -78,18 +93,50 @@ public sealed partial class CollaboratorsViewModel(
             AdministrationData data = await service.GenerateScheduledRecordsAsync(today);
             SettingsDto settings = await getSettings.ExecuteAsync();
             ActivityDateRange range = CurrentRange(today);
+            MonthlySummaryResult currentSummary = AdministrationReports.MonthlySummary(
+                data,
+                Percentage.FromPercent(settings.CollaboratorProfitPercent),
+                YearMonth.From(today));
+            long distributableBase = Math.Max(0, currentSummary.BaseResultMinorUnits);
+            IReadOnlyDictionary<Guid, long> previewAmounts = CollaboratorDistributionCalculator.CalculateMinorUnitAmounts(
+                distributableBase,
+                checked((int)(settings.CollaboratorProfitPercent * 100m)),
+                data.Collaborators.Select(item => (item.Id, item.ProfitShareBasisPoints)));
+            Guid? preservedCollaboratorId = SelectedCollaboratorRow?.Collaborator.Id;
 
             Collaborators.Clear();
             foreach (Collaborator collaborator in data.Collaborators.OrderBy(item => item.Name))
             {
+                long assignedMinorUnits = previewAmounts.GetValueOrDefault(collaborator.Id);
                 Collaborators.Add(new CollaboratorRow(
                     collaborator,
                     collaborator.Name,
                     collaborator.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                     collaborator.ExitDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
                     collaborator.IsCurrentOn(today) ? "Vigente" : "Retirado",
-                    collaborator.Description ?? string.Empty));
+                    collaborator.Description ?? string.Empty,
+                    $"{collaborator.ProfitShareBasisPoints / 100m:N2} %",
+                    $"{ApplicationCurrency.Code} {Money.FromMinorUnits(assignedMinorUnits).ToDecimal():N2}"));
             }
+
+            int assignedBasisPoints = data.Collaborators.Sum(item => item.ProfitShareBasisPoints);
+            long assignedTotalMinorUnits = previewAmounts.Values.Sum();
+            GlobalProfitShare = $"Porcentaje global: {settings.CollaboratorProfitPercent:N2} %";
+            AssignedProfitShare = $"Asignado: {assignedBasisPoints / 100m:N2} %";
+            MissingProfitShare = $"Pendiente: {Math.Max(0m, settings.CollaboratorProfitPercent - assignedBasisPoints / 100m):N2} %";
+            TotalProfitFund = $"Fondo total: {ApplicationCurrency.Code} {Money.FromMinorUnits(currentSummary.CollaboratorFundMinorUnits).ToDecimal():N2}";
+            AssignedProfitAmount = $"Valor asignado: {ApplicationCurrency.Code} {Money.FromMinorUnits(assignedTotalMinorUnits).ToDecimal():N2}";
+            PendingProfitAmount = $"Dinero pendiente: {ApplicationCurrency.Code} {Money.FromMinorUnits(Math.Max(0, currentSummary.CollaboratorFundMinorUnits - assignedTotalMinorUnits)).ToDecimal():N2}";
+
+            suppressDistributionChanges = true;
+            SelectedCollaboratorRow = preservedCollaboratorId.HasValue
+                ? Collaborators.SingleOrDefault(item => item.Collaborator.Id == preservedCollaboratorId.Value)
+                : null;
+            SelectedProfitShareText = SelectedCollaboratorRow is null
+                ? string.Empty
+                : (SelectedCollaboratorRow.Collaborator.ProfitShareBasisPoints / 100m)
+                    .ToString("0.##", CultureInfo.CurrentCulture);
+            suppressDistributionChanges = false;
 
             if (IsProfileOpen && profileCollaboratorId.HasValue)
             {
@@ -306,8 +353,11 @@ public sealed partial class CollaboratorsViewModel(
     {
         draftCancellation?.Cancel();
         editCancellation?.Cancel();
+        distributionEditCancellation?.Cancel();
         await PersistDraftsAsync();
         await PersistProfileEditAsync();
+        await PersistProfitShareAsync();
+        await PayrollEditor.FlushPendingAsync();
     }
 
     private void LoadProfileHistory(AdministrationData data, SettingsDto settings, ActivityDateRange range)
@@ -334,7 +384,7 @@ public sealed partial class CollaboratorsViewModel(
             Contributions.Add(new ContributionRow(
                 contribution,
                 contribution.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                $"{settings.CurrencyCode} {contribution.Amount.ToDecimal():N2}",
+                $"{ApplicationCurrency.Code} {contribution.Amount.ToDecimal():N2}",
                 contribution.Description ?? string.Empty,
                 "Capital / inversión"));
         }
@@ -353,7 +403,7 @@ public sealed partial class CollaboratorsViewModel(
                 contribution.Date,
                 "Aporte de capital",
                 contribution.Description,
-                $"{settings.CurrencyCode} {contribution.Amount.ToDecimal():N2}",
+                $"{ApplicationCurrency.Code} {contribution.Amount.ToDecimal():N2}",
                 "No operativo",
                 contribution)));
         }
@@ -366,7 +416,7 @@ public sealed partial class CollaboratorsViewModel(
                 close.Month.LastDay,
                 "Participación calculada",
                 $"Cierre {close.Month}",
-                $"{settings.CurrencyCode} {participant.Amount.ToDecimal():N2}",
+                $"{ApplicationCurrency.Code} {participant.Amount.ToDecimal():N2}",
                 "Calculada",
                 participant)));
             foreach (DistributionPayment payment in data.DistributionPayments
@@ -376,7 +426,7 @@ public sealed partial class CollaboratorsViewModel(
                     payment.Date,
                     "Pago de distribución",
                     payment.Description,
-                    $"{settings.CurrencyCode} {payment.Amount.ToDecimal():N2}",
+                    $"{ApplicationCurrency.Code} {payment.Amount.ToDecimal():N2}",
                     "Pagado",
                     payment)));
             }
@@ -579,6 +629,63 @@ public sealed partial class CollaboratorsViewModel(
     partial void OnProfileStartDateChanged(DateTime? value) => ScheduleProfileEdit();
     partial void OnProfileExitDateChanged(DateTime? value) => ScheduleProfileEdit();
     partial void OnProfileDescriptionChanged(string value) => ScheduleProfileEdit();
+    partial void OnSelectedCollaboratorRowChanged(CollaboratorRow? value)
+    {
+        if (suppressDistributionChanges) return;
+        suppressDistributionChanges = true;
+        SelectedProfitShareText = value is null
+            ? string.Empty
+            : (value.Collaborator.ProfitShareBasisPoints / 100m).ToString("0.##", CultureInfo.CurrentCulture);
+        suppressDistributionChanges = false;
+    }
+
+    partial void OnSelectedProfitShareTextChanged(string value)
+    {
+        if (suppressDistributionChanges || SelectedCollaboratorRow is null) return;
+        distributionEditCancellation?.Cancel();
+        distributionEditCancellation = new CancellationTokenSource();
+        _ = PersistProfitShareAfterDelayAsync(distributionEditCancellation.Token);
+    }
+
+    private async Task PersistProfitShareAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(650, cancellationToken);
+            await PersistProfitShareAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task PersistProfitShareAsync(CancellationToken cancellationToken = default)
+    {
+        CollaboratorRow? selected = SelectedCollaboratorRow;
+        if (selected is null || !TryParsePercentage(SelectedProfitShareText, out decimal percent)) return;
+        try
+        {
+            await service.UpdateCollaboratorProfitShareAsync(
+                selected.Collaborator.Id,
+                Percentage.FromPercent(percent),
+                cancellationToken);
+            await RefreshAsync();
+            StatusMessage = "Guardado";
+            IsError = false;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            StatusMessage = exception.Message;
+            IsError = true;
+        }
+    }
+
+    private static bool TryParsePercentage(string value, out decimal percent)
+    {
+        bool parsed = decimal.TryParse(value, NumberStyles.Number, CultureInfo.CurrentCulture, out percent)
+            || decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out percent);
+        return parsed && percent is >= 0m and <= 100m;
+    }
 
     private DateOnly Today() => DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
 

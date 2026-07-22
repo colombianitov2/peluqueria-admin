@@ -34,12 +34,12 @@ public sealed class MigrationPreservationTests
             {
                 string alpha1 = context.Database.GetMigrations().Single(x => x.EndsWith("_CompleteAdministration", StringComparison.Ordinal));
                 await context.GetService<IMigrator>().MigrateAsync(alpha1, cancellationToken);
-                GeneralSettings settings = GeneralSettings.CreateDefault(utc);
-                settings.Update(
-                    Money.FromDecimal(12m), Percentage.FromPercent(20m), Money.FromDecimal(0m),
-                    2, CurrencyCode.From("USD"), utc);
-                context.Settings.Add(settings);
-                await context.SaveChangesAsync(cancellationToken);
+                await context.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO Settings
+                    (Id, WeeklyUsageFeeMinorUnits, CollaboratorProfitBasisPoints,
+                     OptionalSuppliesMonthlyBudgetMinorUnits, TotalChairs, CurrencyCode, CreatedUtc, UpdatedUtc)
+                    VALUES (1, {1200L}, {2000}, {0L}, {2}, {"USD"}, {utc.Ticks}, {utc.Ticks});
+                    """, cancellationToken);
                 await context.GetService<IMigrator>().MigrateAsync(cancellationToken: cancellationToken);
                 Assert.Equal(2, await context.Chairs.CountAsync(cancellationToken));
             }
@@ -60,6 +60,8 @@ public sealed class MigrationPreservationTests
             await service.AddAsync(MaintenanceRecord.Create("Silla", "Preventivo", new DateOnly(2026, 8, 1), Money.FromDecimal(5), null, null, utc), cancellationToken);
             var collaborator = Collaborator.Create("Colaborador", new DateOnly(2026, 1, 1), null, utc);
             await service.AddAsync(collaborator, cancellationToken);
+            await service.UpdateCollaboratorProfitShareAsync(
+                collaborator.Id, Percentage.FromPercent(20m), cancellationToken);
             var close = await service.CloseMonthAsync(new YearMonth(2026, 7), new MonthlySummaryInput(1000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Percentage.FromPercent(20), [collaborator.Id], cancellationToken);
             await service.RegisterDistributionPaymentAsync(close.Participants.Single().Id, new DateOnly(2026, 7, 31), Money.FromDecimal(2), cancellationToken);
 
@@ -117,14 +119,21 @@ public sealed class MigrationPreservationTests
                     context.Settings.Add(GeneralSettings.CreateDefault(utc));
                 }
 
-                Collaborator collaborator = Collaborator.Create(
-                    "Inversionista conservado", new DateOnly(2026, 1, 1), null, utc);
-                collaboratorId = collaborator.Id;
-                context.Collaborators.Add(collaborator);
-                context.Products.Add(Product.Create(
-                    "Producto conservado", ProductCategory.FoodOrDrinkForSale, "unidad", utc,
-                    Money.FromDecimal(4.50m)));
-                await context.SaveChangesAsync(cancellationToken);
+                collaboratorId = Guid.NewGuid();
+                Guid productId = Guid.NewGuid();
+                await context.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO Collaborators
+                    (Id, Name, StartDate, ExitDate, Description, CreatedUtc, UpdatedUtc, DeletedUtc)
+                    VALUES ({collaboratorId}, {"Inversionista conservado"}, {new DateOnly(2026, 1, 1)},
+                            {null}, {null}, {utc.Ticks}, {utc.Ticks}, {null});
+                    """, cancellationToken);
+                await context.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO Products
+                    (Id, Name, Category, UnitOfMeasure, DefaultSalePriceMinorUnits, Description,
+                     CreatedUtc, UpdatedUtc, DeletedUtc)
+                    VALUES ({productId}, {"Producto conservado"}, {(int)ProductCategory.FoodOrDrinkForSale},
+                            {"unidad"}, {450L}, {null}, {utc.Ticks}, {utc.Ticks}, {null});
+                    """, cancellationToken);
                 await context.GetService<IMigrator>().MigrateAsync(cancellationToken: cancellationToken);
             }
 

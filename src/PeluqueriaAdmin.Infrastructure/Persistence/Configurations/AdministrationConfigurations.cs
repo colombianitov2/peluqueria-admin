@@ -105,6 +105,8 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(item => item.UnitOfMeasure).HasMaxLength(50).IsRequired();
         AdministrationConfiguration.ConfigureNullableMoney(builder.Property(item => item.DefaultSalePrice))
             .HasColumnName("DefaultSalePriceMinorUnits");
+        AdministrationConfiguration.ConfigureNullableMoney(builder.Property(item => item.DefaultUnitCost))
+            .HasColumnName("DefaultUnitCostMinorUnits");
         builder.Property(item => item.Description).HasMaxLength(1000);
         builder.Ignore(item => item.IsForSale);
     }
@@ -212,6 +214,10 @@ internal sealed class CollaboratorConfiguration : IEntityTypeConfiguration<Colla
         AdministrationConfiguration.ConfigureAudit(builder);
         builder.Property(item => item.Name).HasMaxLength(200).IsRequired();
         builder.Property(item => item.Description).HasMaxLength(1000);
+        builder.Property(item => item.ProfitShareBasisPoints).HasDefaultValue(0);
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_Collaborators_ProfitShareBasisPoints",
+            "ProfitShareBasisPoints >= 0 AND ProfitShareBasisPoints <= 10000"));
     }
 }
 

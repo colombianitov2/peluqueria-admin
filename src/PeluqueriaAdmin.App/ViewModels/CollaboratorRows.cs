@@ -8,7 +8,9 @@ public sealed record CollaboratorRow(
     string StartDate,
     string ExitDate,
     string State,
-    string Description);
+    string Description,
+    string ProfitShare,
+    string AssignedAmount);
 
 public sealed record ContributionRow(
     CollaboratorContribution Contribution,

@@ -54,15 +54,5 @@ public sealed class Phase43UiContractTests
     }
 
     private static string Read(params string[] parts) =>
-        File.ReadAllText(Path.Combine([RepositoryRoot(), .. parts]));
-
-    private static string RepositoryRoot()
-    {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "PeluqueriaAdmin.sln")))
-        {
-            directory = directory.Parent;
-        }
-        return directory?.FullName ?? throw new InvalidOperationException("No se encontró la raíz del repositorio.");
-    }
+        RepositoryFiles.Read(parts);
 }

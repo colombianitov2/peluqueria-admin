@@ -44,7 +44,7 @@ public sealed partial class AdministrationViewModel(
     public const string UnexpectedModule = "Imprevistos";
     public const string ObligationsModule = "Obligaciones";
     public const string MaintenanceModule = "Mantenimiento";
-    public const string PayrollModule = "Nómina de colaboradores";
+    public const string PayrollModule = "Distribuciones de colaboradores";
     public const string MonthlySummaryModule = "Resumen mensual";
     public const string AnnualBalanceModule = "Balance anual";
 
@@ -107,6 +107,16 @@ public sealed partial class AdministrationViewModel(
 
     [ObservableProperty]
     private bool showCustomPeriod;
+
+    [ObservableProperty] private bool showSpecificDateQuery;
+
+    [ObservableProperty] private bool showSpecificYearQuery;
+
+    [ObservableProperty] private DateTime? specificDate = timeProvider.GetLocalNow().DateTime.Date;
+
+    [ObservableProperty] private string specificYearText = timeProvider.GetLocalNow().Year.ToString(CultureInfo.InvariantCulture);
+
+    [ObservableProperty] private string historicalRecordsWithoutTime = string.Empty;
 
     [ObservableProperty]
     private bool showLocalUseSummary;
@@ -259,7 +269,27 @@ public sealed partial class AdministrationViewModel(
     public bool ShowGeneralRecordsTable => !ShowSimpleFinancialTable;
 
     public ObservableCollection<string> PeriodOptions { get; } =
-        ["Hoy", "Esta semana", "Este mes", "Últimos 3 meses", "Últimos 6 meses", "Este año", "Rango personalizado"];
+        ["Hoy", "Esta semana", "Este mes", "Últimos 3 meses", "Últimos 6 meses", "Este año", "Fecha específica", "Año específico", "Rango personalizado"];
+
+    [RelayCommand]
+    private async Task ConsultPeriodAsync()
+    {
+        if (ShowSpecificDateQuery)
+        {
+            if (!SpecificDate.HasValue) throw new ArgumentException("Selecciona la fecha a consultar.");
+            DateText = DateOnly.FromDateTime(SpecificDate.Value).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+        else if (ShowSpecificYearQuery)
+        {
+            if (!int.TryParse(SpecificYearText, NumberStyles.None, CultureInfo.InvariantCulture, out int year)
+                || year is < 1 or > 9999)
+            {
+                throw new ArgumentException("Escribe un año válido.");
+            }
+            DateText = new DateOnly(year, 1, 1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+        await RefreshAsync();
+    }
 
     public PlotModel IncomeGoalChart { get; } = new() { Title = "Ingresos frente a meta mensual" };
 
@@ -274,9 +304,18 @@ public sealed partial class AdministrationViewModel(
         Title = module;
         ConfigureModule();
         ClearForm();
+        if (module == AnnualBalanceModule)
+        {
+            int currentYear = timeProvider.GetLocalNow().Year;
+            SpecificYearText = currentYear.ToString(CultureInfo.InvariantCulture);
+            DateText = new DateOnly(currentYear, 1, 1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
         suppressFormTracking = false;
         await RefreshAsync();
-        await RestoreDraftAsync();
+        if (module is not (MonthlySummaryModule or AnnualBalanceModule))
+        {
+            await RestoreDraftAsync();
+        }
     }
 
     [RelayCommand]
@@ -379,7 +418,7 @@ public sealed partial class AdministrationViewModel(
                 entry.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 entry.Concept,
                 entry.Category.HasValue ? SpanishText.For(entry.Category.Value) : SpanishText.For(entry.Type),
-                $"{settings.CurrencyCode} {entry.Amount.ToDecimal():N2}",
+                $"{ApplicationCurrency.Code} {entry.Amount.ToDecimal():N2}",
                 entry.Description ?? string.Empty));
         }
         OnPropertyChanged(nameof(ShowSimpleFinancialTable));
@@ -671,7 +710,8 @@ public sealed partial class AdministrationViewModel(
                     "unidad",
                     utcNow,
                     ParseOptionalMoney(SecondaryAmountText),
-                    OptionalDescriptionText);
+                    OptionalDescriptionText,
+                    ParseMoney(AmountText));
                 await service.AddProductWithInitialStockAsync(
                     product,
                     date,
@@ -905,7 +945,8 @@ public sealed partial class AdministrationViewModel(
                     "unidad",
                     completedDraftKey: completedDraftKey,
                     defaultSalePrice: ParseOptionalMoney(SecondaryAmountText),
-                    description: OptionalDescriptionText);
+                    description: OptionalDescriptionText,
+                    defaultUnitCost: ParseOptionalMoney(AmountText));
                 break;
             case InventoryMovement movement:
                 movement.Correct(
@@ -1032,7 +1073,7 @@ public sealed partial class AdministrationViewModel(
         ObligationsModule => BuildObligationRows(data),
         MaintenanceModule => data.MaintenanceRecords.Select(item => Row(
             item.ScheduledDate, item.Asset, item.MaintenanceType, string.Empty,
-            FormatMoney(item.ActualCost ?? item.EstimatedCost, settings.CurrencyCode),
+            FormatMoney(item.ActualCost ?? item.EstimatedCost, ApplicationCurrency.Code),
             item.NeedsAttention(DateOnly.FromDateTime(DateTime.Today)) ? "Pendiente" : "Programado o realizado", item)),
         PayrollModule => BuildPayrollRows(data, settings),
         MonthlySummaryModule => BuildMonthlySummaryRows(data, settings),
@@ -1061,7 +1102,7 @@ public sealed partial class AdministrationViewModel(
             string chair = data.Chairs.SingleOrDefault(item => item.AssignedPersonId == person.Id)?.Name ?? "Sin silla";
             yield return Row(
                 person.EntryDate, person.Name, $"Trabajador · {chair}", string.Empty,
-                FormatMoney(debt, settings.CurrencyCode), debt.MinorUnits > 0 ? "Con deuda" : "Al día", person);
+                FormatMoney(debt, ApplicationCurrency.Code), debt.MinorUnits > 0 ? "Con deuda" : "Al día", person);
         }
 
         foreach (LocalUsePayment payment in data.LocalUsePayments)
@@ -1069,7 +1110,7 @@ public sealed partial class AdministrationViewModel(
             string name = data.LocalUsePeople.SingleOrDefault(item => item.Id == payment.PersonId)?.Name ?? "Persona eliminada";
             yield return Row(
                 payment.PaymentDate, name, "Pago recibido", string.Empty,
-                FormatMoney(payment.Amount, settings.CurrencyCode), "Registrado", payment);
+                FormatMoney(payment.Amount, ApplicationCurrency.Code), "Registrado", payment);
         }
     }
 
@@ -1082,7 +1123,9 @@ public sealed partial class AdministrationViewModel(
             yield return Row(
                 null, product.Name, ProductCategoryName(product.Category),
                 current.ToString("0.###", CultureInfo.CurrentCulture),
-                product.DefaultSalePrice?.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture) ?? string.Empty,
+                product.DefaultSalePrice.HasValue
+                    ? FormatMoney(product.DefaultSalePrice.Value, ApplicationCurrency.Code)
+                    : string.Empty,
                 "Existencia actual", product);
         }
 
@@ -1109,7 +1152,7 @@ public sealed partial class AdministrationViewModel(
             data.Products.SingleOrDefault(product => product.Id == item.ProductId)?.Name ?? "Producto eliminado",
             MovementTypeName(item.Type),
             item.QuantityDelta.ToString("0.###", CultureInfo.CurrentCulture),
-            item.CashAmount.HasValue ? item.CashAmount.Value.ToDecimal().ToString("0.00") : string.Empty,
+            item.CashAmount.HasValue ? FormatMoney(item.CashAmount.Value, ApplicationCurrency.Code) : string.Empty,
             "Registrado",
             item));
 
@@ -1119,7 +1162,7 @@ public sealed partial class AdministrationViewModel(
         .Where(item => item.Type == type)
         .Select(item => Row(
             item.Date, item.Concept, item.Category.HasValue ? SpanishText.For(item.Category.Value) : SpanishText.For(type), string.Empty,
-            item.Amount.ToDecimal().ToString("0.00"), "Registrado", item));
+            FormatMoney(item.Amount, ApplicationCurrency.Code), "Registrado", item));
 
     private static IEnumerable<OperationRow> BuildObligationRows(AdministrationData data)
     {
@@ -1131,7 +1174,7 @@ public sealed partial class AdministrationViewModel(
                 .ToArray();
             yield return Row(
                 item.DueDate, item.Name, $"{SpanishText.For(item.Type)} · {SpanishText.For(item.Recurrence)}", string.Empty,
-                item.GoalAmount(payments).ToDecimal().ToString("0.00"), SpanishText.For(item.Status(payments, today)), item);
+                FormatMoney(item.GoalAmount(payments), ApplicationCurrency.Code), SpanishText.For(item.Status(payments, today)), item);
         }
 
         foreach (ObligationPayment payment in data.ObligationPayments)
@@ -1140,7 +1183,7 @@ public sealed partial class AdministrationViewModel(
                 ?? "Obligación eliminada";
             yield return Row(
                 payment.Date, name, "Pago de obligación", string.Empty,
-                payment.Amount.ToDecimal().ToString("0.00"), "Registrado", payment);
+                FormatMoney(payment.Amount, ApplicationCurrency.Code), "Registrado", payment);
         }
     }
 
@@ -1150,7 +1193,7 @@ public sealed partial class AdministrationViewModel(
         {
             yield return Row(
                 close.Month.FirstDay, "Cierre mensual", $"Fondo · {close.CollaboratorPercentageBasisPoints / 100m:0.##}%",
-                string.Empty, FormatMinorUnits(close.FundMinorUnits, settings.CurrencyCode),
+                string.Empty, FormatMinorUnits(close.FundMinorUnits, ApplicationCurrency.Code),
                 close.IsConfirmed ? "Confirmado" : "Reabierto", close);
         }
 
@@ -1166,8 +1209,8 @@ public sealed partial class AdministrationViewModel(
             long paid = data.DistributionPayments.Where(item => item.ParticipantId == participant.Id).Sum(item => item.Amount.MinorUnits);
             yield return Row(
                 close.Month.FirstDay, name, $"Asignación · {close.Month}", string.Empty,
-                FormatMinorUnits(participant.Amount.MinorUnits, settings.CurrencyCode),
-                paid >= participant.Amount.MinorUnits ? "Pagado" : $"Pendiente {FormatMinorUnits(participant.Amount.MinorUnits - paid, settings.CurrencyCode)}",
+                FormatMinorUnits(participant.Amount.MinorUnits, ApplicationCurrency.Code),
+                paid >= participant.Amount.MinorUnits ? "Pagado" : $"Pendiente {FormatMinorUnits(participant.Amount.MinorUnits - paid, ApplicationCurrency.Code)}",
                 participant);
         }
 
@@ -1187,7 +1230,7 @@ public sealed partial class AdministrationViewModel(
                 .SingleOrDefault(item => item.Id == participant.CollaboratorId)?.Name ?? "Colaborador eliminado";
             yield return Row(
                 payment.Date, collaborator, $"Pago de distribución · {close.Month}", string.Empty,
-                FormatMoney(payment.Amount, settings.CurrencyCode), "Registrado", payment);
+                FormatMoney(payment.Amount, ApplicationCurrency.Code), "Registrado", payment);
         }
     }
 
@@ -1196,40 +1239,48 @@ public sealed partial class AdministrationViewModel(
         YearMonth month = YearMonth.From(ParseDate(DateText, "mes a consultar"));
         MonthlySummaryResult result = AdministrationReports.MonthlySummary(
             data,
-            Money.FromDecimal(settings.OptionalSuppliesMonthlyBudget),
             Percentage.FromPercent(settings.CollaboratorProfitPercent),
             month);
         return
         [
-            SummaryRow(month, "Ingresos", result.IncomeMinorUnits, settings.CurrencyCode),
-            SummaryRow(month, "Meta mensual", result.GoalMinorUnits, settings.CurrencyCode),
-            SummaryRow(month, "Faltante", result.MissingMinorUnits, settings.CurrencyCode),
-            SummaryRow(month, "Resultado base", result.BaseResultMinorUnits, settings.CurrencyCode),
-            SummaryRow(month, "Fondo colaboradores", result.CollaboratorFundMinorUnits, settings.CurrencyCode),
-            SummaryRow(month, "Resultado retenido", result.RetainedResultMinorUnits, settings.CurrencyCode),
+            SummaryRow(month, "Ingresos", result.IncomeMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "Meta mensual", result.GoalMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "Faltante", result.MissingMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "Resultado base", result.BaseResultMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "Fondo colaboradores", result.CollaboratorFundMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "Resultado retenido", result.RetainedResultMinorUnits, ApplicationCurrency.Code),
         ];
     }
 
     private void BuildMonthlyCharts(AdministrationData data, SettingsDto settings)
     {
-        YearMonth month = YearMonth.From(ParseDate(DateText, "mes a consultar"));
-        Money optionalBudget = Money.FromDecimal(settings.OptionalSuppliesMonthlyBudget);
-        Percentage percentage = Percentage.FromPercent(settings.CollaboratorProfitPercent);
-        MonthlySummaryResult result = AdministrationReports.MonthlySummary(data, optionalBudget, percentage, month);
-        MonthlyExpenseBreakdown expenses = AdministrationReports.MonthlyExpenses(data, optionalBudget, month);
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+        IReadOnlyList<ChartCashPoint> cashPoints = BuildChartCashPoints(data);
+        ChartBuckets buckets = BuildChartBuckets(today);
+        ChartCashPoint[] periodPoints = cashPoints
+            .Where(item => item.Date >= buckets.From && item.Date <= buckets.Through)
+            .ToArray();
+        long incomeMinorUnits = periodPoints.Where(item => item.SignedMinorUnits > 0).Sum(item => item.SignedMinorUnits);
+        long expenseMinorUnits = -periodPoints.Where(item => item.SignedMinorUnits < 0).Sum(item => item.SignedMinorUnits);
+        int unknownTimes = buckets.Hourly
+            ? periodPoints.Count(item => LocalDate(item.CreatedUtc) != item.Date)
+            : 0;
+        HistoricalRecordsWithoutTime = unknownTimes == 0
+            ? string.Empty
+            : $"{unknownTimes} registro(s) histórico(s) están incluidos en el total, pero no se ubicaron en una hora porque no conservan una hora operativa verificable.";
 
         IncomeGoalChart.Series.Clear();
         IncomeGoalChart.Axes.Clear();
         var categoryAxis = new CategoryAxis { Position = AxisPosition.Left };
         categoryAxis.Labels.Add("Ingresos");
-        categoryAxis.Labels.Add("Meta mensual");
+        categoryAxis.Labels.Add("Egresos del periodo");
         IncomeGoalChart.Axes.Add(categoryAxis);
-        double incomeGoalMaximum = Math.Max(Math.Abs(result.IncomeMinorUnits / 100d), Math.Abs(result.GoalMinorUnits / 100d));
+        double incomeGoalMaximum = Math.Max(Math.Abs(incomeMinorUnits / 100d), Math.Abs(expenseMinorUnits / 100d));
         IncomeGoalChart.Axes.Add(new LinearAxis
         {
             Position = AxisPosition.Bottom,
             Minimum = 0,
-            Title = settings.CurrencyCode,
+            Title = ApplicationCurrency.Code,
             LabelFormatter = FormatChartAxisValue,
             MajorStep = ChartMajorStep(incomeGoalMaximum),
             MaximumPadding = 0.08,
@@ -1239,8 +1290,8 @@ public sealed partial class AdministrationViewModel(
             FillColor = OxyColor.FromRgb(46, 91, 255),
             TrackerFormatString = "{0}\n{1}: {2}\n{3}: {4:N0}",
         };
-        columns.Items.Add(new BarItem(result.IncomeMinorUnits / 100d));
-        columns.Items.Add(new BarItem(result.GoalMinorUnits / 100d));
+        columns.Items.Add(new BarItem(incomeMinorUnits / 100d));
+        columns.Items.Add(new BarItem(expenseMinorUnits / 100d));
         IncomeGoalChart.Series.Add(columns);
         IncomeGoalChart.InvalidatePlot(true);
 
@@ -1253,14 +1304,25 @@ public sealed partial class AdministrationViewModel(
             OutsideLabelFormat = "{1}: {0:N0}",
             Diameter = 0.62,
         };
-        AddSlice(pie, "Servicios", expenses.ServicesMinorUnits, OxyColor.FromRgb(37, 99, 235));
-        AddSlice(pie, "Impuestos", expenses.TaxesMinorUnits, OxyColor.FromRgb(124, 58, 237));
-        AddSlice(pie, "Otras obligaciones", expenses.OtherObligationsMinorUnits, OxyColor.FromRgb(14, 116, 144));
-        AddSlice(pie, "Mercancía", expenses.MerchandiseMinorUnits, OxyColor.FromRgb(5, 150, 105));
-        AddSlice(pie, "Insumos", expenses.MandatorySuppliesMinorUnits + expenses.OptionalSuppliesMinorUnits, OxyColor.FromRgb(101, 163, 13));
-        AddSlice(pie, "Mantenimiento", expenses.MaintenanceMinorUnits, OxyColor.FromRgb(217, 119, 6));
-        AddSlice(pie, "Imprevistos", expenses.UnexpectedMinorUnits, OxyColor.FromRgb(220, 38, 38));
-        AddSlice(pie, "Otros", expenses.OtherExpensesMinorUnits + expenses.PendingPlansMinorUnits, OxyColor.FromRgb(71, 85, 105));
+        OxyColor[] colors =
+        [
+            OxyColor.FromRgb(37, 99, 235), OxyColor.FromRgb(124, 58, 237),
+            OxyColor.FromRgb(14, 116, 144), OxyColor.FromRgb(5, 150, 105),
+            OxyColor.FromRgb(217, 119, 6), OxyColor.FromRgb(220, 38, 38),
+            OxyColor.FromRgb(71, 85, 105),
+        ];
+        int colorIndex = 0;
+        foreach (IGrouping<string, ChartCashPoint> category in periodPoints
+            .Where(item => item.SignedMinorUnits < 0)
+            .GroupBy(item => item.Category)
+            .OrderBy(item => item.Key))
+        {
+            AddSlice(
+                pie,
+                category.Key,
+                -category.Sum(item => item.SignedMinorUnits),
+                colors[colorIndex++ % colors.Length]);
+        }
         if (pie.Slices.Count == 0)
         {
             pie.Slices.Add(new PieSlice("Sin datos", 1) { Fill = OxyColors.LightGray });
@@ -1274,7 +1336,7 @@ public sealed partial class AdministrationViewModel(
         var resultAxis = new LinearAxis
         {
             Position = AxisPosition.Left,
-            Title = settings.CurrencyCode,
+            Title = ApplicationCurrency.Code,
             LabelFormatter = FormatChartAxisValue,
             MaximumPadding = 0.08,
             MinimumPadding = 0.08,
@@ -1287,15 +1349,13 @@ public sealed partial class AdministrationViewModel(
             MarkerFill = OxyColor.FromRgb(5, 150, 105),
             TrackerFormatString = "{0}\n{1}: {2}\n{3}: {4:N0}",
         };
-        DateOnly firstMonth = month.FirstDay.AddMonths(-11);
         double resultMaximum = 0d;
-        for (int index = 0; index < 12; index++)
+        for (int index = 0; index < buckets.Labels.Count; index++)
         {
-            DateOnly date = firstMonth.AddMonths(index);
-            YearMonth itemMonth = YearMonth.From(date);
-            MonthlySummaryResult item = AdministrationReports.MonthlySummary(data, optionalBudget, percentage, itemMonth);
-            monthsAxis.Labels.Add($"{itemMonth.Month:00}/{itemMonth.Year}");
-            double value = item.RetainedResultMinorUnits / 100d;
+            monthsAxis.Labels.Add(buckets.Labels[index]);
+            double value = periodPoints
+                .Where(item => buckets.Index(item) == index)
+                .Sum(item => item.SignedMinorUnits) / 100d;
             line.Points.Add(new DataPoint(index, value));
             resultMaximum = Math.Max(resultMaximum, Math.Abs(value));
         }
@@ -1305,6 +1365,114 @@ public sealed partial class AdministrationViewModel(
         ResultEvolutionChart.Series.Add(line);
         ResultEvolutionChart.InvalidatePlot(true);
     }
+
+    private IReadOnlyList<ChartCashPoint> BuildChartCashPoints(AdministrationData data)
+    {
+        var result = new List<ChartCashPoint>();
+        result.AddRange(data.LocalUsePayments.Select(item =>
+            new ChartCashPoint(item.PaymentDate, item.CreatedUtc, "Uso del local", item.Amount.MinorUnits)));
+        result.AddRange(data.InventoryMovements
+            .Where(item => item.Type == InventoryMovementType.Sale)
+            .Select(item => new ChartCashPoint(item.Date, item.CreatedUtc, "Ventas", item.CashAmount?.MinorUnits ?? 0)));
+        result.AddRange(data.InventoryMovements
+            .Where(item => item.Type == InventoryMovementType.Purchase)
+            .Select(item => new ChartCashPoint(item.Date, item.CreatedUtc, "Compras", -(item.CashAmount?.MinorUnits ?? 0))));
+        result.AddRange(data.FinancialEntries.Select(item => new ChartCashPoint(
+            item.Date,
+            item.CreatedUtc,
+            SpanishText.For(item.Type),
+            item.Type == FinancialEntryType.OtherIncome ? item.Amount.MinorUnits : -item.Amount.MinorUnits)));
+        result.AddRange(data.ObligationPayments.Select(item =>
+            new ChartCashPoint(item.Date, item.CreatedUtc, "Obligaciones", -item.Amount.MinorUnits)));
+        result.AddRange(data.MaintenanceRecords
+            .Where(item => item.CompletedDate.HasValue && item.ActualCost.HasValue)
+            .Select(item => new ChartCashPoint(
+                item.CompletedDate!.Value, item.UpdatedUtc, "Mantenimiento", -item.ActualCost!.Value.MinorUnits)));
+        result.AddRange(data.DistributionPayments.Select(item =>
+            new ChartCashPoint(item.Date, item.CreatedUtc, "Pagos a colaboradores", -item.Amount.MinorUnits)));
+        return result;
+    }
+
+    private ChartBuckets BuildChartBuckets(DateOnly today)
+    {
+        if (SelectedPeriod is "Hoy" or "Fecha específica")
+        {
+            DateOnly target = SelectedPeriod == "Fecha específica" && SpecificDate.HasValue
+                ? DateOnly.FromDateTime(SpecificDate.Value)
+                : today;
+            string[] labels = Enumerable.Range(0, 24).Select(hour => $"{hour:00}:00").ToArray();
+            return new ChartBuckets(
+                target,
+                target,
+                labels,
+                true,
+                point => point.Date == target && LocalDate(point.CreatedUtc) == target
+                    ? TimeZoneInfo.ConvertTimeFromUtc(
+                        DateTime.SpecifyKind(point.CreatedUtc, DateTimeKind.Utc), timeProvider.LocalTimeZone).Hour
+                    : null);
+        }
+
+        if (SelectedPeriod is "Últimos 3 meses" or "Últimos 6 meses" or "Este año" or "Año específico")
+        {
+            int count = SelectedPeriod == "Últimos 3 meses" ? 3 : SelectedPeriod == "Últimos 6 meses" ? 6 : 12;
+            DateOnly first = SelectedPeriod switch
+            {
+                "Este año" => new DateOnly(today.Year, 1, 1),
+                "Año específico" => new DateOnly(ParseSpecificYear(), 1, 1),
+                _ => new YearMonth(today.Year, today.Month).FirstDay.AddMonths(-(count - 1)),
+            };
+            YearMonth[] months = Enumerable.Range(0, count)
+                .Select(index => YearMonth.From(first.AddMonths(index)))
+                .ToArray();
+            return new ChartBuckets(
+                months[0].FirstDay,
+                months[^1].LastDay,
+                months.Select(month => $"{month.Month:00}/{month.Year}").ToArray(),
+                false,
+                point => Array.FindIndex(months, month => month == YearMonth.From(point.Date)) is int index && index >= 0
+                    ? index
+                    : null);
+        }
+
+        DateOnly from;
+        DateOnly through;
+        if (SelectedPeriod == "Esta semana")
+        {
+            int daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
+            from = today.AddDays(-daysSinceMonday);
+            through = from.AddDays(6);
+        }
+        else
+        {
+            YearMonth month = YearMonth.From(today);
+            from = month.FirstDay;
+            through = month.LastDay;
+        }
+        int dayCount = through.DayNumber - from.DayNumber + 1;
+        return new ChartBuckets(
+            from,
+            through,
+            Enumerable.Range(0, dayCount).Select(index => from.AddDays(index).ToString("dd/MM", CultureInfo.InvariantCulture)).ToArray(),
+            false,
+            point => point.Date >= from && point.Date <= through ? point.Date.DayNumber - from.DayNumber : null);
+    }
+
+    private int ParseSpecificYear() => int.TryParse(
+        SpecificYearText, NumberStyles.None, CultureInfo.InvariantCulture, out int year) && year is >= 1 and <= 9999
+        ? year
+        : DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime).Year;
+
+    private DateOnly LocalDate(DateTime utc) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(
+        DateTime.SpecifyKind(utc, DateTimeKind.Utc), timeProvider.LocalTimeZone));
+
+    private sealed record ChartCashPoint(DateOnly Date, DateTime CreatedUtc, string Category, long SignedMinorUnits);
+
+    private sealed record ChartBuckets(
+        DateOnly From,
+        DateOnly Through,
+        IReadOnlyList<string> Labels,
+        bool Hourly,
+        Func<ChartCashPoint, int?> Index);
 
     public static string FormatChartAxisValue(double value) =>
         value.ToString("N0", CultureInfo.GetCultureInfo("es-CO"));
@@ -1324,7 +1492,6 @@ public sealed partial class AdministrationViewModel(
         int year = ParseDate(DateText, "año a consultar").Year;
         AnnualAdministrationReport report = AdministrationReports.Annual(
             data,
-            Money.FromDecimal(settings.OptionalSuppliesMonthlyBudget),
             Percentage.FromPercent(settings.CollaboratorProfitPercent),
             year);
         AnnualBalanceResult annual = report.Balance;
@@ -1332,23 +1499,23 @@ public sealed partial class AdministrationViewModel(
         YearMonth january = new(year, 1);
         return
         [
-            SummaryRow(january, "Ingresos acumulados", annual.IncomeMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Meta y gastos acumulados", annual.ExpenseMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Distribuciones pagadas", annual.DistributionMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Resultado retenido", annual.RetainedMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Pendientes", annual.PendingMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Faltante anual", annual.MissingMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Servicios", expenses.ServicesMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Impuestos", expenses.TaxesMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Otras obligaciones", expenses.OtherObligationsMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Mercancía para venta", expenses.MerchandiseMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Insumos obligatorios", expenses.MandatorySuppliesMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Insumos opcionales", expenses.OptionalSuppliesMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Mantenimiento", expenses.MaintenanceMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Imprevistos", expenses.UnexpectedMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Otros gastos", expenses.OtherExpensesMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Planes de reposición", expenses.PendingPlansMinorUnits, settings.CurrencyCode),
-            SummaryRow(january, "Ajuste histórico de cierres", expenses.HistoricalAdjustmentMinorUnits, settings.CurrencyCode),
+            SummaryRow(january, "Ingresos acumulados", annual.IncomeMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Meta y gastos acumulados", annual.ExpenseMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Distribuciones pagadas", annual.DistributionMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Resultado retenido", annual.RetainedMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Pendientes", annual.PendingMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Faltante anual", annual.MissingMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Servicios", expenses.ServicesMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Impuestos", expenses.TaxesMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Otras obligaciones", expenses.OtherObligationsMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Mercancía para venta", expenses.MerchandiseMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Insumos obligatorios", expenses.MandatorySuppliesMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Insumos opcionales", expenses.OptionalSuppliesMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Mantenimiento", expenses.MaintenanceMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Imprevistos", expenses.UnexpectedMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Otros gastos", expenses.OtherExpensesMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Planes de reposición", expenses.PendingPlansMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(january, "Ajuste histórico de cierres", expenses.HistoricalAdjustmentMinorUnits, ApplicationCurrency.Code),
             Row(january.FirstDay, "Indicador", report.Indicator, string.Empty, string.Empty, report.Indicator, null),
         ];
     }
@@ -1358,7 +1525,6 @@ public sealed partial class AdministrationViewModel(
         SettingsDto settings,
         YearMonth month) => AdministrationReports.BuildMonthlyInput(
             data,
-            Money.FromDecimal(settings.OptionalSuppliesMonthlyBudget),
             month);
 
     [RelayCommand]
@@ -1430,7 +1596,9 @@ public sealed partial class AdministrationViewModel(
             data.InventoryMovements.Where(item => item.ProductId == product.Id));
         SelectedProductAvailability = Title == SalesModule
             ? $"Existencia disponible: {available:0.###} · Precio predeterminado: "
-                + (product.DefaultSalePrice?.ToDecimal().ToString("N2", CultureInfo.CurrentCulture) ?? "Sin precio configurado")
+                + (product.DefaultSalePrice.HasValue
+                    ? FormatMoney(product.DefaultSalePrice.Value, ApplicationCurrency.Code)
+                    : "Sin precio configurado")
             : $"Existencia disponible: {available:0.###}";
         if (Title == SalesModule)
         {
@@ -1449,7 +1617,7 @@ public sealed partial class AdministrationViewModel(
             || decimal.TryParse(QuantityText, NumberStyles.Number, CultureInfo.InvariantCulture, out quantity);
         if (validUnitCost && validQuantity)
         {
-            CalculatedTotalText = $"Total calculado: {unitCost * quantity:N2}";
+            CalculatedTotalText = $"Total calculado: {ApplicationCurrency.Code} {unitCost * quantity:N2}";
         }
     }
 
@@ -1638,8 +1806,8 @@ public sealed partial class AdministrationViewModel(
                 close.Month.ToString(),
                 $"Porcentaje aplicado: {close.CollaboratorPercentageBasisPoints / 100m:0.##}%",
                 string.Empty,
-                participant.Amount.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture),
-                $"Pagado {paid / 100m:N2} · Pendiente {(participant.Amount.MinorUnits - paid) / 100m:N2}",
+                FormatMoney(participant.Amount, ApplicationCurrency.Code),
+                $"Pagado {FormatMinorUnits(paid, ApplicationCurrency.Code)} · Pendiente {FormatMinorUnits(participant.Amount.MinorUnits - paid, ApplicationCurrency.Code)}",
                 participant));
             foreach (DistributionPayment payment in payments.Where(item => range.Contains(item.Date)))
             {
@@ -1648,7 +1816,7 @@ public sealed partial class AdministrationViewModel(
                     "Pago recibido",
                     payment.Description ?? string.Empty,
                     string.Empty,
-                    payment.Amount.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture),
+                    FormatMoney(payment.Amount, ApplicationCurrency.Code),
                     "Pagado",
                     payment));
             }
@@ -1659,11 +1827,23 @@ public sealed partial class AdministrationViewModel(
     partial void OnSelectedPeriodChanged(string value)
     {
         ShowCustomPeriod = value == "Rango personalizado";
-        _ = RefreshAsync();
+        ShowSpecificDateQuery = value == "Fecha específica";
+        ShowSpecificYearQuery = value == "Año específico" || Title == AnnualBalanceModule;
+        if (!ShowSpecificDateQuery && value != "Año específico") _ = RefreshAsync();
         _ = LoadCollaboratorHistoryAsync();
     }
 
-    partial void OnSelectedRowChanged(OperationRow? value) => _ = LoadCollaboratorHistoryAsync();
+    partial void OnSelectedRowChanged(OperationRow? value)
+    {
+        _ = LoadCollaboratorHistoryAsync();
+        if (!suppressFormTracking
+            && value?.CanEdit == true
+            && value.Entity is not InventoryMovement
+            && value.Entity is not MonthlyRestockPlan)
+        {
+            LoadSelected();
+        }
+    }
 
     partial void OnCustomPeriodFromChanged(DateTime? value)
     {
@@ -1873,6 +2053,12 @@ public sealed partial class AdministrationViewModel(
         IsFormVisible = ActionOptions.Count > 0;
         ShowLocalUseSummary = Title == LocalUseModule;
         ShowCharts = Title == MonthlySummaryModule;
+        if (Title is MonthlySummaryModule or AnnualBalanceModule)
+        {
+            IsFormVisible = false;
+        }
+        ShowSpecificDateQuery = ShowCharts && SelectedPeriod == "Fecha específica";
+        ShowSpecificYearQuery = Title == AnnualBalanceModule || ShowCharts && SelectedPeriod == "Año específico";
         ShowCollaboratorHistory = Title == CollaboratorsModule;
         OnPropertyChanged(nameof(ShowSimpleFinancialTable));
         OnPropertyChanged(nameof(ShowGeneralRecordsTable));
@@ -1909,6 +2095,7 @@ public sealed partial class AdministrationViewModel(
             case Product item:
                 PrimaryText = item.Name;
                 SecondaryText = ProductCategoryName(item.Category);
+                AmountText = item.DefaultUnitCost?.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture) ?? string.Empty;
                 SecondaryAmountText = item.DefaultSalePrice?.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture) ?? string.Empty;
                 OptionalDescriptionText = item.Description ?? string.Empty;
                 break;

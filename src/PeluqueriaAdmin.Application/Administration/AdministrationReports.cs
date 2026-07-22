@@ -38,7 +38,6 @@ public static class AdministrationReports
 {
     public static MonthlySummaryResult MonthlySummary(
         AdministrationData data,
-        Money optionalSuppliesBudget,
         Percentage collaboratorPercentage,
         YearMonth month)
     {
@@ -47,13 +46,12 @@ public static class AdministrationReports
             .OrderByDescending(item => item.ClosedUtc)
             .FirstOrDefault();
         return confirmed?.ToSummary() ?? MonthlySummaryCalculator.Calculate(
-            BuildMonthlyInput(data, optionalSuppliesBudget, month),
+            BuildMonthlyInput(data, month),
             collaboratorPercentage);
     }
 
     public static MonthlySummaryInput BuildMonthlyInput(
         AdministrationData data,
-        Money optionalSuppliesBudget,
         YearMonth month)
     {
         bool InMonth(DateOnly date) => YearMonth.From(date) == month;
@@ -83,7 +81,6 @@ public static class AdministrationReports
                     && item.Category == ExpenseCategory.OptionalSupply && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits)
                 + PurchaseFor(ProductCategory.CustomerCourtesy),
-            optionalSuppliesBudget.MinorUnits,
             data.FinancialEntries.Where(item => item.Type == FinancialEntryType.UnexpectedExpense && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits),
             data.MaintenanceRecords.Sum(item => item.GoalAmountFor(month).MinorUnits),
@@ -92,7 +89,6 @@ public static class AdministrationReports
 
     public static AnnualAdministrationReport Annual(
         AdministrationData data,
-        Money optionalSuppliesBudget,
         Percentage collaboratorPercentage,
         int year)
     {
@@ -101,8 +97,8 @@ public static class AdministrationReports
         foreach (int monthNumber in Enumerable.Range(1, 12))
         {
             var month = new YearMonth(year, monthNumber);
-            MonthlySummaryResult summary = MonthlySummary(data, optionalSuppliesBudget, collaboratorPercentage, month);
-            MonthlyExpenseBreakdown dynamicBreakdown = MonthlyExpenses(data, optionalSuppliesBudget, month);
+            MonthlySummaryResult summary = MonthlySummary(data, collaboratorPercentage, month);
+            MonthlyExpenseBreakdown dynamicBreakdown = MonthlyExpenses(data, month);
             long adjustment = summary.GoalMinorUnits - dynamicBreakdown.TotalMinorUnits;
             totalExpenses = Add(totalExpenses, dynamicBreakdown with { HistoricalAdjustmentMinorUnits = adjustment });
             summaries.Add(summary);
@@ -133,7 +129,6 @@ public static class AdministrationReports
 
     public static MonthlyExpenseBreakdown MonthlyExpenses(
         AdministrationData data,
-        Money optionalSuppliesBudget,
         YearMonth month)
     {
         bool InMonth(DateOnly date) => YearMonth.From(date) == month;
@@ -158,7 +153,7 @@ public static class AdministrationReports
                 + Expenses(ExpenseCategory.MerchandisePurchase),
             Purchases(ProductCategory.Cleaning, ProductCategory.LocalSupply)
                 + Expenses(ExpenseCategory.MandatorySupply),
-            Math.Max(optionalSuppliesBudget.MinorUnits, optionalActual),
+            optionalActual,
             data.MaintenanceRecords.Sum(item => item.GoalAmountFor(month).MinorUnits),
             data.FinancialEntries.Where(item => item.Type == FinancialEntryType.UnexpectedExpense && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits),

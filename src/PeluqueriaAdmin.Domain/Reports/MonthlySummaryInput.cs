@@ -8,7 +8,34 @@ public sealed record MonthlySummaryInput(
     long MerchandisePurchasesMinorUnits,
     long MandatoryExpensesMinorUnits,
     long OptionalSuppliesActualMinorUnits,
-    long OptionalSuppliesBudgetMinorUnits,
     long UnexpectedExpensesMinorUnits,
     long MaintenanceGoalMinorUnits,
-    long PendingApprovedPlansMinorUnits);
+    long PendingApprovedPlansMinorUnits)
+{
+    public MonthlySummaryInput(
+        long localUseIncomeMinorUnits,
+        long grossSalesMinorUnits,
+        long otherIncomeMinorUnits,
+        long obligationGoalMinorUnits,
+        long merchandisePurchasesMinorUnits,
+        long mandatoryExpensesMinorUnits,
+        long optionalSuppliesActualMinorUnits,
+        long OptionalSuppliesBudgetMinorUnits,
+        long unexpectedExpensesMinorUnits,
+        long maintenanceGoalMinorUnits,
+        long pendingApprovedPlansMinorUnits)
+        : this(
+            localUseIncomeMinorUnits,
+            grossSalesMinorUnits,
+            otherIncomeMinorUnits,
+            obligationGoalMinorUnits,
+            merchandisePurchasesMinorUnits,
+            mandatoryExpensesMinorUnits,
+            optionalSuppliesActualMinorUnits,
+            unexpectedExpensesMinorUnits,
+            maintenanceGoalMinorUnits,
+            pendingApprovedPlansMinorUnits)
+    {
+        _ = OptionalSuppliesBudgetMinorUnits;
+    }
+}

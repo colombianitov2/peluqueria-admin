@@ -25,9 +25,8 @@ public sealed class SaveSettingsUseCase(
         settings.Update(
             weeklyUsageFee,
             Percentage.FromPercent(request.CollaboratorProfitPercent),
-            Money.FromDecimal(request.OptionalSuppliesMonthlyBudget),
             settings.TotalChairs,
-            CurrencyCode.From(request.CurrencyCode),
+            request.ExportDirectory,
             utcNow);
 
         if (string.IsNullOrWhiteSpace(completedDraftKey))

@@ -13,14 +13,11 @@ public static class MonthlySummaryCalculator
             input.LocalUseIncomeMinorUnits
             + input.GrossSalesMinorUnits
             + input.OtherIncomeMinorUnits);
-        long optionalReserve = Math.Max(
-            input.OptionalSuppliesBudgetMinorUnits,
-            input.OptionalSuppliesActualMinorUnits);
         long goal = checked(
             input.ObligationGoalMinorUnits
             + input.MerchandisePurchasesMinorUnits
             + input.MandatoryExpensesMinorUnits
-            + optionalReserve
+            + input.OptionalSuppliesActualMinorUnits
             + input.UnexpectedExpensesMinorUnits
             + input.MaintenanceGoalMinorUnits
             + input.PendingApprovedPlansMinorUnits);

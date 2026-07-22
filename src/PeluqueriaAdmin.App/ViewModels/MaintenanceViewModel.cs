@@ -78,9 +78,9 @@ public sealed partial class MaintenanceViewModel(
                     record.MaintenanceType,
                     record.ScheduledDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                     FrequencyName(record),
-                    record.EstimatedCost.HasValue ? $"{settings.CurrencyCode} {record.EstimatedCost.Value.ToDecimal():N2}" : string.Empty,
+                    record.EstimatedCost.HasValue ? $"{ApplicationCurrency.Code} {record.EstimatedCost.Value.ToDecimal():N2}" : string.Empty,
                     record.CompletedDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
-                    record.ActualCost.HasValue ? $"{settings.CurrencyCode} {record.ActualCost.Value.ToDecimal():N2}" : string.Empty,
+                    record.ActualCost.HasValue ? $"{ApplicationCurrency.Code} {record.ActualCost.Value.ToDecimal():N2}" : string.Empty,
                     record.CompletedDate.HasValue ? "Realizado" : "Pendiente",
                     record.Description ?? string.Empty));
             }

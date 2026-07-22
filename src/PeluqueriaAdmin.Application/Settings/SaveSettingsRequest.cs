@@ -3,17 +3,18 @@ namespace PeluqueriaAdmin.Application.Settings;
 public sealed record SaveSettingsRequest(
     decimal WeeklyUsageFee,
     decimal CollaboratorProfitPercent,
-    decimal OptionalSuppliesMonthlyBudget,
-    string CurrencyCode)
+    string ExportDirectory)
 {
     public SaveSettingsRequest(
         decimal weeklyUsageFee,
         decimal collaboratorProfitPercent,
-        decimal optionalSuppliesMonthlyBudget,
-        int legacyTotalChairs,
-        string currencyCode)
-        : this(weeklyUsageFee, collaboratorProfitPercent, optionalSuppliesMonthlyBudget, currencyCode)
+        decimal retiredOptionalSuppliesMonthlyBudget,
+        int retiredTotalChairs,
+        string retiredCurrencyCode)
+        : this(weeklyUsageFee, collaboratorProfitPercent, string.Empty)
     {
-        _ = legacyTotalChairs;
+        _ = retiredOptionalSuppliesMonthlyBudget;
+        _ = retiredTotalChairs;
+        _ = retiredCurrencyCode;
     }
 }

@@ -23,12 +23,11 @@ public static class SuggestedChairPriceCalculator
 {
     public static SuggestedChairPrice Calculate(
         AdministrationData data,
-        Money optionalSuppliesBudget,
         Money currentWeeklyRate,
         YearMonth month,
         DateOnly today)
     {
-        MonthlySummaryInput input = AdministrationReports.BuildMonthlyInput(data, optionalSuppliesBudget, month);
+        MonthlySummaryInput input = AdministrationReports.BuildMonthlyInput(data, month);
         MonthlySummaryResult summary = MonthlySummaryCalculator.Calculate(input, Percentage.FromBasisPoints(0));
         long unofficial = data.UnofficialExpenses
             .Where(item => item.AppliesOn(today))

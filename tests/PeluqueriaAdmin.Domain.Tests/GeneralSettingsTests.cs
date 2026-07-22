@@ -69,6 +69,25 @@ public sealed class GeneralSettingsTests
         Assert.Equal("USD", CurrencyCode.From(" usd ").Value);
     }
 
+    [Fact]
+    public void LegacyCopAndOptionalBudget_AreNormalizedWithoutChangingAmounts()
+    {
+        GeneralSettings settings = GeneralSettings.CreateDefault(UtcNow);
+
+        settings.Update(
+            Money.FromDecimal(123.45m),
+            Percentage.FromPercent(17.25m),
+            Money.FromDecimal(999m),
+            4,
+            CurrencyCode.From("COP"),
+            UtcNow.AddMinutes(1));
+
+        Assert.Equal(12_345, settings.WeeklyUsageFee.MinorUnits);
+        Assert.Equal(1_725, settings.CollaboratorProfit.BasisPoints);
+        Assert.Equal(0, settings.OptionalSuppliesMonthlyBudget.MinorUnits);
+        Assert.Equal("USD", settings.CurrencyCode.Value);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("US")]
