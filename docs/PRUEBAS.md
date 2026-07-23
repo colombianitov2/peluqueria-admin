@@ -128,6 +128,6 @@ Ninguna prueba automatizada utiliza la base real ni incorpora datos permanentes.
 - 418 ejecuciones aprobadas al repetir toda la suite en Debug y Release; 0 fallos y 0 omitidas.
 - La copia Fase 4.7 migrada conserva integridad SQLite y cero violaciones de claves foráneas.
 - El arranque Release fue verificado con resultado financiero negativo, reservas, préstamo, compra mensual y cierres históricos dentro de una raíz temporal aislada.
-- La revisión manual cubrió los módulos afectados en disposición amplia y reducida; los contratos responsivos cubren 100 %, 125 % y 150 %. Se detuvo el control visual al detectar entrada del usuario y se dejó la aplicación abierta.
+- La revisión manual cubrió los módulos afectados en disposición amplia y reducida; los contratos responsivos cubren 100 %, 125 % y 150 %. La revisión final de Préstamos confirmó la etiqueta completa en ancho amplio y el ajuste a una nueva fila sin cortes en ancho reducido; la aplicación quedó abierta.
 - Gitleaks 8.30.1 se ejecutó sobre 31 commits y árbol de trabajo con `--redact`; no detectó filtraciones.
 - El paquete Velopack de validación usa `0.1.0-phase48-validation` y no fue instalado ni publicado.

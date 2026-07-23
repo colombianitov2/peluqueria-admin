@@ -68,5 +68,7 @@ public sealed class Phase48UiContractTests
         Assert.Contains("Content=\"Préstamos\"", obligations, StringComparison.Ordinal);
         Assert.Contains("Content=\"Registrar cuota\"", obligations, StringComparison.Ordinal);
         Assert.Contains("Header=\"Historial de cuotas\"", obligations, StringComparison.Ordinal);
+        Assert.Contains("<Setter Property=\"TextWrapping\" Value=\"Wrap\" />", obligations, StringComparison.Ordinal);
+        Assert.Contains("Width=\"175\"", obligations, StringComparison.Ordinal);
     }
 }

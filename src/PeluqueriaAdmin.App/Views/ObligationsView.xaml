@@ -4,7 +4,7 @@
  xmlns:viewModels="clr-namespace:PeluqueriaAdmin.App.ViewModels" d:DataContext="{d:DesignInstance Type=viewModels:ObligationsViewModel, IsDesignTimeCreatable=False}"
  d:DesignHeight="760" d:DesignWidth="990" Language="es-ES" mc:Ignorable="d">
   <UserControl.Resources>
-    <Style x:Key="FieldLabel" TargetType="TextBlock"><Setter Property="Margin" Value="0,0,0,5" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="#273449" /></Style>
+    <Style x:Key="FieldLabel" TargetType="TextBlock"><Setter Property="Margin" Value="0,0,0,5" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="#273449" /><Setter Property="TextWrapping" Value="Wrap" /></Style>
     <Style x:Key="FieldBox" TargetType="Control"><Setter Property="MinHeight" Value="36" /><Setter Property="Padding" Value="9,6" /></Style>
     <Style x:Key="ActionButton" TargetType="Button"><Setter Property="Margin" Value="0,0,8,8" /><Setter Property="Padding" Value="12,7" /><Setter Property="Background" Value="#EEF2FF" /><Setter Property="BorderBrush" Value="#A5B4FC" /></Style>
   </UserControl.Resources>
@@ -43,7 +43,7 @@
               <StackPanel Width="155" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Cuota habitual" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding LoanUsualInstallment, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
               <StackPanel Width="145" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de inicio" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding LoanStartDate}" /></StackPanel>
               <StackPanel Width="140" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Frecuencia" /><ComboBox Style="{StaticResource FieldBox}" ItemsSource="{Binding LoanFrequencyOptions}" SelectedItem="{Binding SelectedLoanFrequency}" /></StackPanel>
-              <StackPanel Width="140" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Número de cuotas (opcional)" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding LoanInstallmentCount, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+              <StackPanel Width="175" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Número de cuotas (opcional)" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding LoanInstallmentCount, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
               <StackPanel Width="155" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Próximo vencimiento" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding LoanNextDueDate}" /></StackPanel>
               <StackPanel Width="260" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding LoanDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
               <Button Margin="0,23,0,8" Style="{StaticResource ActionButton}" Command="{Binding AddLoanCommand}" Content="Registrar préstamo" />

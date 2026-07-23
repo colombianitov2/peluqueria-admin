@@ -32,7 +32,7 @@ Fecha de corte técnica: 22 de julio de 2026. Rama: `feat/professional-ui-autosa
 | Duplicados de mantenimiento | Puerta de refresco y supresión de eventos internos | `MaintenanceViewModel.cs` | diez refrescos simultáneos, IDs únicos | Implementado en causa raíz |
 | Balance anual | Doce filas mensuales y gráfico de ingresos; meses sin cierre en cero | `AdministrationViewModel.cs` | cierre anual y contratos | Implementado |
 | Resumen en Ajustes | Sección fija, informativa y calculada por el servicio común | `SettingsView*` | contrato UI y pruebas del calculador | Implementado |
-| Tablas | Columnas bloqueadas, anchos fijos y barras internas | `App.xaml` y XAML afectados | contratos globales XAML y revisión amplia/reducida | Implementado; los textos largos permanecen accesibles mediante barras internas |
+| Tablas | Columnas bloqueadas, etiquetas ajustables, anchos fijos y barras internas | `App.xaml` y XAML afectados | contratos globales XAML y revisión amplia/reducida | Implementado; la etiqueta larga de cuotas de préstamo se ajusta o permanece completa según el ancho |
 | Migración | Una migración aditiva con tablas/columnas nuevas y backfill de porcentajes | `20260723014937_Phase48FinancialClosuresReservesLoansInventory*` | alpha.1→actual y Fase 4.7→4.8 | Implementado; sin eliminaciones de esquema |
 | SQLite | FKs, WAL, `synchronous=FULL`, timeout y transacciones | persistencia existente y repositorios | `integrity_check`, `foreign_key_check`, durabilidad | Implementado |
 | Excel | Hojas nuevas, tipos reales, un XLSX, cero CSV y movimiento seguro del temporal | `ExcelExportService.cs` | `ExcelExportTests` | Implementado |
@@ -47,7 +47,7 @@ La validación final ejecutó las 209 pruebas en Debug y nuevamente en Release: 
 ## Límites que no deben ocultarse
 
 - Windows 10 x64 real, firma de código y una actualización entre dos Releases siguen sin comprobarse.
-- La disposición 100 %, 125 % y 150 % queda cubierta por contratos responsivos automatizados; además se inspeccionaron manualmente tamaños amplio y reducido en la segunda pantalla. La automatización visual se detuvo cuando Windows detectó entrada del usuario, por lo que no se volvió a controlar la ventana.
+- La disposición 100 %, 125 % y 150 % queda cubierta por contratos responsivos automatizados; además se inspeccionaron manualmente tamaños amplio y reducido en la segunda pantalla. Tras reanudar la revisión, la etiqueta de cuotas de préstamo quedó completa en ancho amplio y se reorganizó sin cortes en ancho reducido.
 - La aplicación es administrativa interna; no constituye contabilidad oficial ni calcula obligaciones legales.
 
 ## Validación final local
@@ -56,6 +56,7 @@ La validación final ejecutó las 209 pruebas en Debug y nuevamente en Release: 
 - Migración de una copia aislada de Fase 4.7 hasta `20260723014937_Phase48FinancialClosuresReservesLoansInventory`: `integrity_check=ok`, cero violaciones foráneas, cuatro cierres de demostración, doce reservas y un préstamo.
 - Arranque Release completo sobre esa copia; el diagnóstico recorre inicialización, generación programada, Ajustes e Inicio. Se corrigió la presentación de resultados negativos sin permitir importes negativos en el tipo de dominio `Money`.
 - Revisión visual: Inicio, Uso del local, Colaboradores, Inventario y lista mensual, Obligaciones y préstamos, Mantenimiento, Resumen mensual, Balance anual y Ajustes. La fotografía negativa congelada de julio se mantuvo distinta del cálculo dinámico posterior, como exige el cierre histórico.
+- Cierre visual adicional de Préstamos en la segunda pantalla: sin superposiciones, controles vacíos ni etiquetas cortadas en disposición amplia o reducida.
 - NuGet directo/transitivo: cero paquetes vulnerables y cero paquetes en desuso en los orígenes consultados.
 - Gitleaks 8.30.1 con `--redact`: 31 commits y árbol de trabajo, cero filtraciones.
 - Git: cero binarios, bases, exportaciones o nombres sensibles rastreados; `git diff --check` limpio.
