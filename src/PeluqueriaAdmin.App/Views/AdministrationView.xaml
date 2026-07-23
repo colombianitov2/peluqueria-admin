@@ -34,7 +34,8 @@
         <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
       <DockPanel Grid.Row="0" Margin="0,0,0,14" LastChildFill="True">
-        <StackPanel DockPanel.Dock="Right" Margin="18,0,0,0" MinWidth="190">
+        <StackPanel DockPanel.Dock="Right" Margin="18,0,0,0" MinWidth="190"
+                    Visibility="{Binding ShowPeriodSelector, Converter={StaticResource BooleanToVisibilityConverter}}">
           <TextBlock HorizontalAlignment="Right" Style="{StaticResource FieldLabel}" Text="Periodo a mostrar" />
           <ComboBox Style="{StaticResource FieldBox}"
                     ItemsSource="{Binding PeriodOptions}"
@@ -58,6 +59,7 @@
           <Button Style="{StaticResource ActionButton}" Command="{Binding ConsultPeriodCommand}" Content="Consultar" />
         </WrapPanel>
         <WrapPanel Visibility="{Binding ShowSpecificYearQuery, Converter={StaticResource BooleanToVisibilityConverter}}">
+          <TextBlock Margin="0,8,8,0" Style="{StaticResource FieldLabel}" Text="Año a consultar" />
           <TextBox Width="110" Margin="0,0,8,8" Style="{StaticResource FieldBox}" Text="{Binding SpecificYearText, UpdateSourceTrigger=PropertyChanged}" />
           <Button Style="{StaticResource ActionButton}" Command="{Binding ConsultPeriodCommand}" Content="Consultar" />
         </WrapPanel>
@@ -85,7 +87,29 @@
       </Border>
 
       <Border Grid.Row="3" Margin="0,0,0,14" Padding="16" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7" Visibility="{Binding ShowAnnualClose, Converter={StaticResource BooleanToVisibilityConverter}}">
-        <StackPanel><DockPanel><WrapPanel DockPanel.Dock="Right"><CheckBox Margin="0,8,8,0" IsChecked="{Binding ConfirmCloseYear}" Content="Confirmo cerrar año" /><Button Style="{StaticResource ActionButton}" Command="{Binding CloseYearCommand}" Content="Cerrar año" /></WrapPanel><StackPanel><TextBlock FontSize="20" FontWeight="SemiBold" Text="Cierre anual" /><TextBlock Foreground="#475569" Text="{Binding FinancialCloseState}" /></StackPanel></DockPanel><oxy:PlotView Height="260" Margin="0,12,0,0" Model="{Binding AnnualIncomeChart}" /></StackPanel>
+        <StackPanel>
+          <DockPanel>
+            <WrapPanel DockPanel.Dock="Right"><CheckBox Margin="0,8,8,0" IsChecked="{Binding ConfirmCloseYear}" Content="Confirmo cerrar año" /><Button Style="{StaticResource ActionButton}" Command="{Binding CloseYearCommand}" Content="Cerrar año" /></WrapPanel>
+            <StackPanel><TextBlock FontSize="20" FontWeight="SemiBold" Text="Balance y cierre anual" /><TextBlock Foreground="#475569" Text="{Binding FinancialCloseState}" TextWrapping="Wrap" /></StackPanel>
+          </DockPanel>
+          <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding AnnualSummaryRows}">
+            <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate><DataTemplate><Border Margin="3" Padding="8" Background="#F8FAFC" CornerRadius="4"><StackPanel><TextBlock FontSize="11" Foreground="#64748B" Text="{Binding Concept}" TextWrapping="Wrap" /><TextBlock FontWeight="SemiBold" Text="{Binding Amount}" /></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Margin="0,12,0,6" FontSize="16" FontWeight="SemiBold" Text="Compromisos pendientes conocidos del año" />
+          <DataGrid MaxHeight="230" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding AnnualCommitmentRows}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Width="105" Header="Fecha" Binding="{Binding DueDate}" />
+              <DataGridTextColumn Width="200" Header="Nombre" Binding="{Binding Name}" />
+              <DataGridTextColumn Width="150" Header="Tipo" Binding="{Binding Type}" />
+              <DataGridTextColumn Width="125" Header="Valor" Binding="{Binding Amount}" />
+              <DataGridTextColumn Width="280" ElementStyle="{StaticResource WrappingCellText}" Header="Descripción" Binding="{Binding Description}" />
+              <DataGridTextColumn Width="100" Header="Estado" Binding="{Binding Status}" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <TextBlock Margin="0,12,0,6" FontSize="16" FontWeight="SemiBold" Text="Ingresos y egresos por mes" />
+          <oxy:PlotView Height="300" Model="{Binding AnnualIncomeChart}" />
+        </StackPanel>
       </Border>
 
       <WrapPanel Grid.Row="3" Margin="0,0,0,14"
@@ -148,14 +172,6 @@
                     <MenuItem Header="Registrar compra"
                               Visibility="{Binding PlacementTarget.DataContext.IsInventoryProduct, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}"
                               Command="{Binding PlacementTarget.Tag.PrepareInventoryPurchaseCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                    <MenuItem Header="Actualizar existencia mediante conteo"
-                              Visibility="{Binding PlacementTarget.DataContext.IsInventoryProduct, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}"
-                              Command="{Binding PlacementTarget.Tag.PrepareInventoryCountCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                    <MenuItem Header="Registrar consumo"
-                              Visibility="{Binding PlacementTarget.DataContext.AllowsInternalConsumption, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}"
-                              Command="{Binding PlacementTarget.Tag.PrepareInventoryConsumptionCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                               CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                     <MenuItem Header="Registrar pago"
                               Visibility="{Binding PlacementTarget.DataContext.IsObligation, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}"

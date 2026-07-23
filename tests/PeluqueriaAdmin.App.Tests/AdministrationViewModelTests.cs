@@ -460,7 +460,7 @@ public sealed class AdministrationViewModelTests
         AdministrationData data = await service.LoadAsync(cancellationToken);
         LocalUsePerson historical = data.LocalUsePeople.Single(item => item.Name == "Ingreso histórico");
         Assert.Equal(new DateOnly(2026, 6, 16), historical.EntryDate);
-        Assert.Equal(4_800, WeeklyChargeCalculator.CalculateDebt(
+        Assert.Equal(6_000, WeeklyChargeCalculator.CalculateDebt(
             data.WeeklyCharges.Where(item => item.PersonId == historical.Id),
             data.LocalUsePayments.Where(item => item.PersonId == historical.Id),
             today).MinorUnits);
@@ -518,7 +518,7 @@ public sealed class AdministrationViewModelTests
         viewModel.SelectedWorkerRow = viewModel.Workers.Single(item => item.Worker.Id == worker.Id);
         await viewModel.OpenSelectedWorkerProfileCommand.ExecuteAsync(null);
         Assert.Equal("Todo el historial", viewModel.SelectedWorkerHistoryPeriod);
-        Assert.Contains("48", viewModel.ProfileDebt, StringComparison.Ordinal);
+        Assert.Contains("60", viewModel.ProfileDebt, StringComparison.Ordinal);
         viewModel.SelectedWorkerHistoryPeriod = "Esta semana";
         await viewModel.RefreshCommand.ExecuteAsync(null);
         Assert.Empty(viewModel.WorkerHistoryRows);
@@ -529,8 +529,8 @@ public sealed class AdministrationViewModelTests
         await viewModel.RegisterWorkerPaymentCommand.ExecuteAsync(null);
 
         Assert.Equal("Todo el historial", viewModel.SelectedWorkerHistoryPeriod);
-        Assert.Contains("36", viewModel.ProfileDebt, StringComparison.Ordinal);
-        Assert.Contains("2026-07-04", viewModel.ProfileNextRequiredPayment, StringComparison.Ordinal);
+        Assert.Contains("48", viewModel.ProfileDebt, StringComparison.Ordinal);
+        Assert.Contains("2026-06-27", viewModel.ProfileNextRequiredPayment, StringComparison.Ordinal);
         Assert.Contains("12", viewModel.ProfileNextRequiredPayment, StringComparison.Ordinal);
         OperationRow payment = Assert.Single(
             viewModel.WorkerHistoryRows, item => item.Principal == "Pago registrado");

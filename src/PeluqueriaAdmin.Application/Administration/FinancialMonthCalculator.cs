@@ -61,7 +61,9 @@ public static class FinancialMonthCalculator
             .Sum(item => item.ActualCost?.MinorUnits ?? 0);
         long loanPayments = data.LoanPayments.Where(item => InMonth(item.Date)).Sum(item => item.Amount.MinorUnits);
         long unreservedLoanPayments = data.LoanPayments.Where(item => InMonth(item.Date)
-                && !reservedActualIds.Contains((FinancialCommitmentSource.LoanInstallment, item.LoanId)))
+                && !reservedActualIds.Contains((
+                    FinancialCommitmentSource.LoanInstallment,
+                    item.InstallmentId ?? item.LoanId)))
             .Sum(item => item.Amount.MinorUnits);
         long paidOutflows = checked(purchases + entries + obligationPayments + maintenance + unreservedLoanPayments);
 
@@ -114,13 +116,26 @@ public static class FinancialMonthCalculator
                      (item.Month.Year < month.Year || item.Month.Year == month.Year && item.Month.Month <= month.Month)
                      && item.IsActive && !item.PurchaseMovementId.HasValue))
         {
-            if (!item.ReserveWhenOutOfStock || stock.GetValueOrDefault(item.ProductId) > 0) continue;
-            string name = data.Products.SingleOrDefault(product => product.Id == item.ProductId)?.Name ?? "Producto";
+            decimal currentStock = item.ProductId.HasValue
+                ? stock.GetValueOrDefault(item.ProductId.Value)
+                : 0m;
+            if (!item.ReserveWhenOutOfStock || currentStock > 0) continue;
             result.Add(Candidate(FinancialCommitmentSource.MonthlyPurchase, item.Id, "Lista mensual de compra",
-                name, month.LastDay, item.ExpectedTotalMinorUnits, 0, "Pendiente", data, month));
+                item.Name, month.LastDay, item.ExpectedTotalMinorUnits, 0, "Pendiente", data, month));
         }
 
-        foreach (Loan loan in data.Loans.Where(item => !item.IsPaid && item.NextDueDate <= end))
+        Guid[] scheduledLoanIds = data.LoanInstallments.Select(item => item.LoanId).Distinct().ToArray();
+        foreach (LoanInstallment installment in data.LoanInstallments.Where(item => item.DueDate <= end
+                     && data.LoanPayments.All(payment => payment.InstallmentId != item.Id)))
+        {
+            Loan? loan = data.Loans.SingleOrDefault(item => item.Id == installment.LoanId);
+            result.Add(Candidate(FinancialCommitmentSource.LoanInstallment, installment.Id, "Préstamo",
+                loan?.Name ?? "Préstamo eliminado", installment.DueDate,
+                installment.Amount.MinorUnits, 0,
+                installment.DueDate < month.FirstDay ? "Vencida" : "Pendiente", data, month));
+        }
+        foreach (Loan loan in data.Loans.Where(item => !scheduledLoanIds.Contains(item.Id)
+                     && !item.IsPaid && item.NextDueDate <= end))
         {
             long amount = Math.Min(loan.UsualInstallment.MinorUnits, loan.PendingBalance.MinorUnits);
             result.Add(Candidate(FinancialCommitmentSource.LoanInstallment, loan.Id, "Préstamo",
@@ -152,14 +167,16 @@ public static class FinancialMonthCalculator
             InventoryMovement? movement = data.InventoryMovements.SingleOrDefault(value => value.Id == item.PurchaseMovementId && InMonth(value.Date));
             if (movement is not null) result[(FinancialCommitmentSource.MonthlyPurchase, item.Id)] = movement.CashAmount?.MinorUnits ?? 0;
         }
-        foreach (var group in data.LoanPayments.Where(item => InMonth(item.Date)).GroupBy(item => item.LoanId))
-            result[(FinancialCommitmentSource.LoanInstallment, group.Key)] = group.Sum(item => item.Amount.MinorUnits);
+        foreach (var group in data.LoanPayments.Where(item => InMonth(item.Date))
+                     .GroupBy(item => item.InstallmentId ?? item.LoanId))
+            result[(FinancialCommitmentSource.LoanInstallment, group.Key)] =
+                group.Sum(item => item.Amount.MinorUnits);
         return result;
     }
 
     private static long CalculateLocalUseDebt(AdministrationData data, DateOnly end)
     {
-        long charges = data.WeeklyCharges.Where(item => item.PeriodEnd <= end).Sum(item => item.Amount.MinorUnits);
+        long charges = data.WeeklyCharges.Where(item => item.DueDate <= end).Sum(item => item.Amount.MinorUnits);
         long payments = data.LocalUsePayments.Where(item => item.PaymentDate <= end).Sum(item => item.Amount.MinorUnits);
         return Math.Max(0, charges - payments);
     }

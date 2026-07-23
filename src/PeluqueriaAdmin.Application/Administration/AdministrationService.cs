@@ -148,7 +148,7 @@ public sealed class AdministrationService(
         ActivityRecord workerAssignment = ActivityRecord.Create(
             person.EntryDate,
             "Uso del local",
-            "Asignación de silla",
+            "Asignación",
             $"{person.Name} → {chair.Name}",
             person.Id,
             $"{person.Name} fue asignado a {chair.Name}.",
@@ -156,7 +156,7 @@ public sealed class AdministrationService(
         ActivityRecord chairAssignment = ActivityRecord.Create(
             person.EntryDate,
             "Uso del local",
-            "Asignación de silla",
+            "Asignación",
             $"{chair.Name} recibió a {person.Name}",
             chair.Id,
             $"Trabajador: {person.Name}. Silla: {chair.Name}.",
@@ -247,7 +247,7 @@ public sealed class AdministrationService(
         }
 
         string action = target is null ? "Retiro de silla" : current is null
-            ? "Asignación de silla"
+            ? "Asignación"
             : "Cambio de silla";
         string summary = target is null
             ? $"{person.Name} dejó {current!.Name}"
@@ -546,7 +546,18 @@ public sealed class AdministrationService(
             throw new InvalidOperationException("El colaborador seleccionado ya no está disponible.");
         }
 
-        await SaveAsync([contribution], [], completedDraftKey, cancellationToken);
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        CollaboratorContributionEvent contributionEvent =
+            CollaboratorContributionEvent.Created(contribution, utcNow);
+        ActivityRecord activity = ActivityRecord.Create(
+            DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+            "Colaboradores",
+            "Creación",
+            "Aporte creado",
+            contribution.CollaboratorId,
+            $"Valor: USD {contribution.Amount.ToDecimal():N2}. {contribution.Description}",
+            utcNow);
+        await SaveAsync([contribution, contributionEvent, activity], [], completedDraftKey, cancellationToken);
     }
 
     public async Task UpdateCollaboratorContributionAsync(
@@ -561,8 +572,45 @@ public sealed class AdministrationService(
         CollaboratorContribution contribution = data.CollaboratorContributions
             .SingleOrDefault(item => item.Id == contributionId)
             ?? throw new InvalidOperationException("El aporte seleccionado ya no está disponible.");
-        contribution.Update(date, amount, description, timeProvider.GetUtcNow().UtcDateTime);
-        await SaveAsync([], [contribution], completedDraftKey, cancellationToken);
+        DateOnly previousDate = contribution.Date;
+        Money previousAmount = contribution.Amount;
+        string? previousDescription = contribution.Description;
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        contribution.Update(date, amount, description, utcNow);
+        CollaboratorContributionEvent contributionEvent = CollaboratorContributionEvent.Edited(
+            contribution, previousDate, previousAmount, previousDescription, utcNow);
+        ActivityRecord activity = ActivityRecord.Create(
+            DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+            "Colaboradores",
+            "Edición",
+            "Aporte editado",
+            contribution.CollaboratorId,
+            $"Valor anterior: USD {previousAmount.ToDecimal():N2}. Valor nuevo: USD {amount.ToDecimal():N2}.",
+            utcNow);
+        await SaveAsync([contributionEvent, activity], [contribution], completedDraftKey, cancellationToken);
+    }
+
+    public async Task DeleteCollaboratorContributionAsync(
+        Guid contributionId,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        CollaboratorContribution contribution = data.CollaboratorContributions
+            .SingleOrDefault(item => item.Id == contributionId)
+            ?? throw new InvalidOperationException("El aporte seleccionado ya no está disponible.");
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        CollaboratorContributionEvent contributionEvent =
+            CollaboratorContributionEvent.Deleted(contribution, utcNow);
+        ActivityRecord activity = ActivityRecord.Create(
+            DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+            "Colaboradores",
+            "Eliminación",
+            "Aporte eliminado",
+            contribution.CollaboratorId,
+            $"Valor eliminado: USD {contribution.Amount.ToDecimal():N2}. {contribution.Description}",
+            utcNow);
+        contribution.MarkDeleted(utcNow);
+        await SaveAsync([contributionEvent, activity], [contribution], null, cancellationToken);
     }
 
     public async Task AddObligationAsync(
@@ -976,7 +1024,7 @@ public sealed class AdministrationService(
         var updates = new List<AuditableEntity>();
         if (plan is not null)
         {
-            plan.LinkPurchase(purchase.Id, timeProvider.GetUtcNow().UtcDateTime);
+            plan.LinkInventoryProduct(productId, purchase.Id, timeProvider.GetUtcNow().UtcDateTime);
             updates.Add(plan);
             FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(item => !item.IsConsumed
                 && item.SourceType == FinancialCommitmentSource.MonthlyPurchase && item.SourceId == plan.Id);
@@ -1013,6 +1061,46 @@ public sealed class AdministrationService(
             timeProvider.GetUtcNow().UtcDateTime,
             description);
         await SaveAsync([product, initial], [], completedDraftKey, cancellationToken);
+    }
+
+    public async Task AddProductFromMonthlyPlanAsync(
+        Guid planId,
+        Product product,
+        DateOnly entryDate,
+        Quantity initialQuantity,
+        Money unitCost,
+        string? description = null,
+        CancellationToken cancellationToken = default,
+        string? completedDraftKey = null)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        MonthlyPurchaseItem plan = data.MonthlyPurchaseItems.SingleOrDefault(item => item.Id == planId)
+            ?? throw new InvalidOperationException("El producto planificado ya no está disponible.");
+        if (plan.ProductId.HasValue || plan.PurchaseMovementId.HasValue)
+            throw new InvalidOperationException("El producto planificado ya fue incorporado al inventario.");
+        EnsureUniqueProductName(data, product.Name, null);
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        long totalMinorUnits = checked((long)decimal.Round(
+            unitCost.MinorUnits * initialQuantity.Value,
+            0,
+            MidpointRounding.AwayFromZero));
+        InventoryMovement initial = InventoryMovement.Initial(
+            product.Id,
+            entryDate,
+            initialQuantity,
+            Money.FromMinorUnits(totalMinorUnits),
+            utcNow,
+            description);
+        plan.LinkInventoryProduct(product.Id, initial.Id, utcNow);
+        FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(item => !item.IsConsumed
+            && item.SourceType == FinancialCommitmentSource.MonthlyPurchase
+            && item.SourceId == plan.Id);
+        reserve?.Settle(entryDate, Money.FromMinorUnits(totalMinorUnits), utcNow);
+        await SaveAsync(
+            [product, initial],
+            reserve is null ? [plan] : [plan, reserve],
+            completedDraftKey,
+            cancellationToken);
     }
 
     public async Task AddUnofficialExpenseAsync(
@@ -1170,11 +1258,23 @@ public sealed class AdministrationService(
         }
     }
 
-    public Task AddMonthlyPurchaseItemAsync(MonthlyPurchaseItem item,
-        CancellationToken cancellationToken = default) => AddAsync(item, cancellationToken);
+    public async Task AddMonthlyPurchaseItemAsync(MonthlyPurchaseItem item,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        EnsureUniqueMonthlyPurchaseName(data, item.Name, item.Month, null);
+        if (item.ProductId.HasValue && data.Products.All(product => product.Id != item.ProductId.Value))
+            throw new InvalidOperationException("El producto de inventario vinculado ya no está disponible.");
+        await AddAsync(item, cancellationToken);
+    }
 
     public async Task UpdateMonthlyPurchaseItemAsync(MonthlyPurchaseItem item,
-        CancellationToken cancellationToken = default) => await SaveAsync([], [item], null, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        EnsureUniqueMonthlyPurchaseName(data, item.Name, item.Month, item.Id);
+        await SaveAsync([], [item], null, cancellationToken);
+    }
 
     public async Task LinkMonthlyPurchaseAsync(Guid itemId, Guid movementId,
         CancellationToken cancellationToken = default)
@@ -1183,10 +1283,11 @@ public sealed class AdministrationService(
         MonthlyPurchaseItem item = data.MonthlyPurchaseItems.SingleOrDefault(value => value.Id == itemId)
             ?? throw new InvalidOperationException("El artículo mensual ya no está disponible.");
         InventoryMovement movement = data.InventoryMovements.SingleOrDefault(value => value.Id == movementId
-            && value.Type == InventoryMovementType.Purchase && value.ProductId == item.ProductId)
+            && value.Type == InventoryMovementType.Purchase
+            && (!item.ProductId.HasValue || value.ProductId == item.ProductId.Value))
             ?? throw new InvalidOperationException("La compra no corresponde al producto de la lista mensual.");
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
-        item.LinkPurchase(movement.Id, utcNow);
+        item.LinkInventoryProduct(movement.ProductId, movement.Id, utcNow);
         FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(value => !value.IsConsumed
             && value.SourceType == FinancialCommitmentSource.MonthlyPurchase && value.SourceId == item.Id);
         reserve?.Settle(movement.Date, movement.CashAmount ?? Money.FromMinorUnits(0), utcNow);
@@ -1196,6 +1297,16 @@ public sealed class AdministrationService(
     public Task AddLoanAsync(Loan loan, CancellationToken cancellationToken = default) =>
         AddAsync(loan, cancellationToken);
 
+    public Task AddLoanAsync(LoanPlan plan, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        return SaveAsync(
+            new AuditableEntity[] { plan.Loan }.Concat(plan.Installments).ToArray(),
+            [],
+            null,
+            cancellationToken);
+    }
+
     public async Task<LoanPayment> RegisterLoanPaymentAsync(Guid loanId, DateOnly date, Money amount,
         string? description = null, CancellationToken cancellationToken = default)
     {
@@ -1203,10 +1314,36 @@ public sealed class AdministrationService(
         Loan loan = data.Loans.SingleOrDefault(item => item.Id == loanId)
             ?? throw new InvalidOperationException("El préstamo ya no está disponible.");
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
-        loan.ApplyPayment(amount, utcNow);
-        var payment = LoanPayment.Create(loan.Id, date, amount, utcNow, description);
+        LoanInstallment? installment = data.LoanInstallments
+            .Where(item => item.LoanId == loan.Id
+                && data.LoanPayments.All(payment => payment.InstallmentId != item.Id))
+            .OrderBy(item => item.Number)
+            .FirstOrDefault();
+        LoanPayment payment;
+        Guid reserveSourceId;
+        if (installment is null)
+        {
+            loan.ApplyPayment(amount, utcNow);
+            payment = LoanPayment.Create(loan.Id, date, amount, utcNow, description);
+            reserveSourceId = loan.Id;
+        }
+        else
+        {
+            if (amount.MinorUnits != installment.Amount.MinorUnits)
+                throw new InvalidOperationException(
+                    $"El pago debe corresponder exactamente a la cuota {installment.Number}: USD {installment.Amount.ToDecimal():N2}.");
+            LoanInstallment? following = data.LoanInstallments
+                .Where(item => item.LoanId == loan.Id && item.Number > installment.Number)
+                .OrderBy(item => item.Number)
+                .FirstOrDefault();
+            loan.ApplyScheduledPayment(amount, following?.DueDate, utcNow);
+            payment = LoanPayment.CreateScheduled(
+                loan.Id, installment.Id, date, amount, utcNow, description);
+            reserveSourceId = installment.Id;
+        }
         FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(item => !item.IsConsumed
-            && item.SourceType == FinancialCommitmentSource.LoanInstallment && item.SourceId == loan.Id);
+            && item.SourceType == FinancialCommitmentSource.LoanInstallment
+            && item.SourceId == reserveSourceId);
         reserve?.Settle(date, amount, utcNow);
         await SaveAsync([payment], reserve is null ? [loan] : [loan, reserve], null, cancellationToken);
         return payment;
@@ -1221,11 +1358,38 @@ public sealed class AdministrationService(
             .GroupBy(item => item.Month.Month).Select(group => group.OrderByDescending(item => item.ClosedUtc).First()).ToArray();
         if (closes.Length != 12) throw new InvalidOperationException("Debes cerrar los 12 meses, incluso los meses en cero, antes de cerrar el año.");
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
-        var annual = AnnualClose.Create(year, closes.Sum(item => item.IncomeMinorUnits),
-            closes.Sum(item => item.PaidOutflowsMinorUnits), closes.Sum(item => item.NewReservesMinorUnits),
-            closes.Sum(item => item.AccountsPayableMinorUnits), closes.Sum(item => item.LoanPaymentsMinorUnits),
-            closes.Sum(item => item.FundMinorUnits), closes.Sum(item => item.BaseResultMinorUnits), utcNow);
-        await SaveAsync([annual], [], null, cancellationToken);
+        GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+        AnnualFinancialReport report = AnnualFinancialCalculator.Calculate(
+            data, settings.CollaboratorProfit, year, today);
+        var annual = AnnualClose.Create(
+            year,
+            report.IncomeMinorUnits,
+            report.OutflowMinorUnits,
+            report.PendingReservesMinorUnits,
+            report.AccountsPayableMinorUnits,
+            closes.Sum(item => item.LoanPaymentsMinorUnits),
+            report.CollaboratorFundMinorUnits,
+            report.ResultMinorUnits,
+            report.AccountsReceivableMinorUnits,
+            report.AccountsPayableMinorUnits,
+            report.PendingReservesMinorUnits,
+            report.PendingLoansMinorUnits,
+            report.SurplusMinorUnits,
+            report.DeficitMinorUnits,
+            report.ResultMinorUnits,
+            report.ProjectedNextYearBalanceMinorUnits,
+            utcNow);
+        AnnualCarryover carryover = AnnualCarryover.Create(
+            year,
+            report.AccountsReceivableMinorUnits,
+            report.AccountsPayableMinorUnits,
+            report.PendingReservesMinorUnits,
+            report.PendingLoansMinorUnits,
+            report.SurplusMinorUnits,
+            report.DeficitMinorUnits,
+            utcNow);
+        await SaveAsync([annual, carryover], [], null, cancellationToken);
         return annual;
     }
 
@@ -1330,6 +1494,21 @@ public sealed class AdministrationService(
             && string.Equals(item.Name, normalized, StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException("Ya existe un producto con ese nombre.");
+        }
+    }
+
+    private static void EnsureUniqueMonthlyPurchaseName(
+        AdministrationData data,
+        string name,
+        YearMonth month,
+        Guid? exceptId)
+    {
+        string normalized = name.Trim();
+        if (data.MonthlyPurchaseItems.Any(item => item.Id != exceptId
+            && item.Month == month
+            && string.Equals(item.Name, normalized, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("El producto ya está en la lista mensual seleccionada.");
         }
     }
 

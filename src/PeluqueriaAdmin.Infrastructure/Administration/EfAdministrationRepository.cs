@@ -39,12 +39,15 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
             await context.ActivityRecords.AsNoTracking().OrderByDescending(item => item.OccurredUtc).ToListAsync(cancellationToken),
             await context.UnofficialExpenses.AsNoTracking().OrderBy(item => item.Name).ToListAsync(cancellationToken),
             await context.CollaboratorContributions.AsNoTracking().OrderBy(item => item.Date).ThenBy(item => item.CreatedUtc).ToListAsync(cancellationToken),
+            await context.CollaboratorContributionEvents.AsNoTracking().OrderBy(item => item.OccurredUtc).ToListAsync(cancellationToken),
             await context.FinancialReserves.AsNoTracking().OrderBy(item => item.DueDate).ToListAsync(cancellationToken),
             await context.FinancialCloseExclusions.AsNoTracking().ToListAsync(cancellationToken),
             await context.MonthlyPurchaseItems.AsNoTracking().OrderBy(item => item.Month).ToListAsync(cancellationToken),
             await context.Loans.AsNoTracking().OrderBy(item => item.NextDueDate).ToListAsync(cancellationToken),
+            await context.LoanInstallments.AsNoTracking().OrderBy(item => item.DueDate).ThenBy(item => item.Number).ToListAsync(cancellationToken),
             await context.LoanPayments.AsNoTracking().OrderBy(item => item.Date).ToListAsync(cancellationToken),
-            await context.AnnualCloses.AsNoTracking().OrderBy(item => item.Year).ToListAsync(cancellationToken));
+            await context.AnnualCloses.AsNoTracking().OrderBy(item => item.Year).ToListAsync(cancellationToken),
+            await context.AnnualCarryovers.AsNoTracking().OrderBy(item => item.TargetYear).ToListAsync(cancellationToken));
     }
 
     public async Task SaveAsync(
@@ -138,8 +141,15 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
         IReadOnlyCollection<AuditableEntity> additions,
         IReadOnlyCollection<AuditableEntity> updates)
     {
+        HashSet<Guid> explicitlyAuditedEntityIds = additions
+            .OfType<ActivityRecord>()
+            .Where(item => item.EntityId.HasValue)
+            .Select(item => item.EntityId!.Value)
+            .ToHashSet();
         return additions.Select(item => CreateActivity(item, true))
-            .Concat(updates.Select(item => CreateActivity(item, false)))
+            .Concat(updates
+                .Where(item => !explicitlyAuditedEntityIds.Contains(item.Id))
+                .Select(item => CreateActivity(item, false)))
             .Where(item => item is not null)
             .Cast<ActivityRecord>()
             .ToArray();
@@ -147,12 +157,14 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
 
     private static ActivityRecord? CreateActivity(AuditableEntity entity, bool isAddition)
     {
-        if (entity is ActivityRecord or WeeklyCharge or WeeklyRate or MonthlyCloseParticipant)
+        if (entity is ActivityRecord or WeeklyCharge or WeeklyRate or MonthlyCloseParticipant
+            or CollaboratorContribution or CollaboratorContributionEvent or LoanInstallment
+            or AnnualCarryover)
         {
             return null;
         }
 
-        string action = entity.IsDeleted ? "Eliminación" : isAddition ? "Alta" : "Edición";
+        string action = entity.IsDeleted ? "Eliminación" : isAddition ? "Creación" : "Edición";
         (string module, string summary, DateOnly date, string? description) = entity switch
         {
             LocalUsePerson item => ("Uso del local", item.Name, item.EntryDate, item.Description),
@@ -211,18 +223,21 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
         {
             action = movement.Type switch
             {
+                InventoryMovementType.InitialStock => "Creación",
                 InventoryMovementType.Sale => "Venta",
                 InventoryMovementType.Purchase => "Compra",
+                InventoryMovementType.InternalConsumption => "Consumo",
+                InventoryMovementType.PhysicalCountAdjustment => "Ajuste de inventario",
                 _ => action,
             };
         }
-        else if (entity is Chair && !isAddition && !entity.IsDeleted)
+        else if (entity is MonthlyClose close)
         {
-            action = "Asignación o edición";
+            action = isAddition ? "Cierre" : close.IsConfirmed ? "Edición" : "Reapertura";
         }
-        else if (entity is MonthlyClose && isAddition)
+        else if (entity is UnofficialExpense)
         {
-            action = "Cierre";
+            action = "Cambio de ajustes";
         }
 
         DateTime utcNow = entity.UpdatedUtc.Kind == DateTimeKind.Utc

@@ -89,7 +89,18 @@ public sealed class AnnualClose : AuditableEntity
     private AnnualClose() { }
 
     private AnnualClose(Guid id, int year, long income, long paidOutflows, long reserves,
-        long obligations, long loanPayments, long collaboratorFund, long result, DateTime utcNow) : base(id, utcNow)
+        long obligations, long loanPayments, long collaboratorFund, long result, DateTime utcNow)
+        : this(id, year, income, paidOutflows, reserves, obligations, loanPayments,
+            collaboratorFund, result, 0, 0, reserves, 0, Math.Max(result, 0),
+            Math.Max(-result, 0), result, result, utcNow)
+    {
+    }
+
+    private AnnualClose(Guid id, int year, long income, long paidOutflows, long reserves,
+        long obligations, long loanPayments, long collaboratorFund, long result,
+        long accountsReceivable, long accountsPayable, long pendingReserves, long pendingLoans,
+        long surplus, long deficit, long availableBalance, long projectedNextYearBalance,
+        DateTime utcNow) : base(id, utcNow)
     {
         if (year is < 2000 or > 2200) throw new ArgumentOutOfRangeException(nameof(year));
         Year = year;
@@ -100,6 +111,14 @@ public sealed class AnnualClose : AuditableEntity
         LoanPaymentsMinorUnits = loanPayments;
         CollaboratorFundMinorUnits = collaboratorFund;
         ResultMinorUnits = result;
+        AccountsReceivableMinorUnits = accountsReceivable;
+        AccountsPayableMinorUnits = accountsPayable;
+        PendingReservesMinorUnits = pendingReserves;
+        PendingLoansMinorUnits = pendingLoans;
+        SurplusMinorUnits = surplus;
+        DeficitMinorUnits = deficit;
+        AvailableBalanceMinorUnits = availableBalance;
+        ProjectedNextYearBalanceMinorUnits = projectedNextYearBalance;
         ClosedUtc = utcNow;
     }
 
@@ -111,10 +130,93 @@ public sealed class AnnualClose : AuditableEntity
     public long LoanPaymentsMinorUnits { get; private set; }
     public long CollaboratorFundMinorUnits { get; private set; }
     public long ResultMinorUnits { get; private set; }
+    public long AccountsReceivableMinorUnits { get; private set; }
+    public long AccountsPayableMinorUnits { get; private set; }
+    public long PendingReservesMinorUnits { get; private set; }
+    public long PendingLoansMinorUnits { get; private set; }
+    public long SurplusMinorUnits { get; private set; }
+    public long DeficitMinorUnits { get; private set; }
+    public long AvailableBalanceMinorUnits { get; private set; }
+    public long ProjectedNextYearBalanceMinorUnits { get; private set; }
     public DateTime ClosedUtc { get; private set; }
 
     public static AnnualClose Create(int year, long income, long paidOutflows, long reserves,
         long obligations, long loanPayments, long collaboratorFund, long result, DateTime utcNow) =>
         new(Guid.NewGuid(), year, income, paidOutflows, reserves, obligations, loanPayments,
             collaboratorFund, result, utcNow);
+
+    public static AnnualClose Create(
+        int year,
+        long income,
+        long paidOutflows,
+        long reserves,
+        long obligations,
+        long loanPayments,
+        long collaboratorFund,
+        long result,
+        long accountsReceivable,
+        long accountsPayable,
+        long pendingReserves,
+        long pendingLoans,
+        long surplus,
+        long deficit,
+        long availableBalance,
+        long projectedNextYearBalance,
+        DateTime utcNow) => new(
+            Guid.NewGuid(), year, income, paidOutflows, reserves, obligations, loanPayments,
+            collaboratorFund, result, accountsReceivable, accountsPayable, pendingReserves,
+            pendingLoans, surplus, deficit, availableBalance, projectedNextYearBalance, utcNow);
+}
+
+public sealed class AnnualCarryover : AuditableEntity
+{
+    private AnnualCarryover()
+    {
+    }
+
+    private AnnualCarryover(
+        Guid id,
+        int sourceYear,
+        long accountsReceivable,
+        long accountsPayable,
+        long pendingReserves,
+        long pendingLoans,
+        long surplus,
+        long deficit,
+        DateTime utcNow) : base(id, utcNow)
+    {
+        if (sourceYear is < 2000 or > 2200) throw new ArgumentOutOfRangeException(nameof(sourceYear));
+        SourceYear = sourceYear;
+        TargetYear = checked(sourceYear + 1);
+        AccountsReceivableMinorUnits = EnsureNonNegative(accountsReceivable, nameof(accountsReceivable));
+        AccountsPayableMinorUnits = EnsureNonNegative(accountsPayable, nameof(accountsPayable));
+        PendingReservesMinorUnits = EnsureNonNegative(pendingReserves, nameof(pendingReserves));
+        PendingLoansMinorUnits = EnsureNonNegative(pendingLoans, nameof(pendingLoans));
+        SurplusMinorUnits = EnsureNonNegative(surplus, nameof(surplus));
+        DeficitMinorUnits = EnsureNonNegative(deficit, nameof(deficit));
+    }
+
+    public int SourceYear { get; private set; }
+    public int TargetYear { get; private set; }
+    public long AccountsReceivableMinorUnits { get; private set; }
+    public long AccountsPayableMinorUnits { get; private set; }
+    public long PendingReservesMinorUnits { get; private set; }
+    public long PendingLoansMinorUnits { get; private set; }
+    public long SurplusMinorUnits { get; private set; }
+    public long DeficitMinorUnits { get; private set; }
+
+    public static AnnualCarryover Create(
+        int sourceYear,
+        long accountsReceivable,
+        long accountsPayable,
+        long pendingReserves,
+        long pendingLoans,
+        long surplus,
+        long deficit,
+        DateTime utcNow) => new(
+            Guid.NewGuid(), sourceYear, accountsReceivable, accountsPayable, pendingReserves,
+            pendingLoans, surplus, deficit, utcNow);
+
+    private static long EnsureNonNegative(long value, string name) =>
+        value >= 0 ? value : throw new ArgumentOutOfRangeException(name);
 }

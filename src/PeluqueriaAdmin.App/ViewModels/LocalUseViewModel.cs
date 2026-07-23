@@ -122,16 +122,21 @@ public sealed partial class LocalUseViewModel(
             foreach (LocalUsePerson worker in data.LocalUsePeople.OrderBy(item => item.Name))
             {
                 Chair? chair = data.Chairs.SingleOrDefault(item => item.AssignedPersonId == worker.Id);
-                Money debt = WeeklyChargeCalculator.CalculateDebt(
+                WorkerAccountBalance account = WeeklyChargeCalculator.CalculateAccount(
+                    worker,
                     data.WeeklyCharges.Where(item => item.PersonId == worker.Id),
                     data.LocalUsePayments.Where(item => item.PersonId == worker.Id),
+                    data.WeeklyRates,
                     today);
                 Workers.Add(new WorkerRow(
                     worker,
                     worker.Name,
                     worker.EntryDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                     chair?.Name ?? "Sin silla",
-                    $"{ApplicationCurrency.Code} {debt.ToDecimal():N2}",
+                    FormatMoney(ApplicationCurrency.Code, account.Debt),
+                    FormatMoney(ApplicationCurrency.Code, account.Credit),
+                    FormatDate(account.NextChargeDate, worker.ExitDate.HasValue ? "No aplica" : "Sin cobro proyectado"),
+                    FormatDate(account.NextRequiredPaymentDate, worker.ExitDate.HasValue ? "No aplica" : "Cubierto"),
                     worker.IsCurrentOn(today) ? "Vigente" : "Retirado"));
             }
 
@@ -546,7 +551,7 @@ public sealed partial class LocalUseViewModel(
         }
 
         foreach (var activity in data.ActivityRecords.Where(item => item.EntityId == workerId
-            && item.Action != "Alta"
+            && item.Action is not ("Alta" or "Creación")
             && range.Contains(item.ActivityDate)))
         {
             history.Add((activity.ActivityDate, activity.OccurredUtc, History(
@@ -554,10 +559,10 @@ public sealed partial class LocalUseViewModel(
                 activity.Description ?? string.Empty, activity)));
         }
 
-        foreach (WeeklyCharge charge in data.WeeklyCharges.Where(item => item.PersonId == workerId && range.Contains(item.PeriodEnd)))
+        foreach (WeeklyCharge charge in data.WeeklyCharges.Where(item => item.PersonId == workerId && range.Contains(item.DueDate)))
         {
-            history.Add((charge.PeriodEnd, charge.CreatedUtc, History(
-                charge.PeriodEnd,
+            history.Add((charge.DueDate, charge.CreatedUtc, History(
+                charge.DueDate,
                 "Cuota semanal generada",
                 $"Periodo {charge.PeriodStart:yyyy-MM-dd} a {charge.PeriodEnd:yyyy-MM-dd}; pago habitual {charge.DueDate:yyyy-MM-dd} (sábado)",
                 $"{ApplicationCurrency.Code} {charge.Amount.ToDecimal():N2}",

@@ -123,6 +123,9 @@ public sealed partial class CollaboratorsViewModel(
             foreach (Collaborator collaborator in data.Collaborators.OrderBy(item => item.Name))
             {
                 long assignedMinorUnits = previewAmounts.GetValueOrDefault(collaborator.Id);
+                long contributedMinorUnits = data.CollaboratorContributions
+                    .Where(item => item.CollaboratorId == collaborator.Id)
+                    .Sum(item => item.Amount.MinorUnits);
                 Collaborators.Add(new CollaboratorRow(
                     collaborator,
                     collaborator.Name,
@@ -132,6 +135,7 @@ public sealed partial class CollaboratorsViewModel(
                     collaborator.Description ?? string.Empty,
                     $"{collaborator.FundParticipationBasisPoints / 100m:N2} %",
                     $"{ApplicationCurrency.Code} {Money.FromMinorUnits(assignedMinorUnits).ToDecimal():N2}",
+                    $"{ApplicationCurrency.Code} {Money.FromMinorUnits(contributedMinorUnits).ToDecimal():N2}",
                     CurrentPaymentState(data, collaborator.Id, YearMonth.From(today))));
             }
 
@@ -380,7 +384,7 @@ public sealed partial class CollaboratorsViewModel(
             return;
         }
 
-        await service.DeleteAsync(SelectedContributionRow.Contribution);
+        await service.DeleteCollaboratorContributionAsync(SelectedContributionRow.Contribution.Id);
         ConfirmContributionDelete = false;
         ClearContributionForm();
         StatusMessage = "El aporte se eliminó lógicamente y permanece en el historial eliminado.";
@@ -448,16 +452,30 @@ public sealed partial class CollaboratorsViewModel(
                 collaborator.StartDate, "Ingreso", collaborator.Description, string.Empty, "Registrado", collaborator)));
         }
 
-        foreach (CollaboratorContribution contribution in data.CollaboratorContributions
-            .Where(item => item.CollaboratorId == collaboratorId && range.Contains(item.Date)))
+        foreach (CollaboratorContributionEvent contributionEvent in data.CollaboratorContributionEvents
+            .Where(item => item.CollaboratorId == collaboratorId && range.Contains(item.EffectiveDate)))
         {
-            rows.Add((contribution.Date, contribution.CreatedUtc, History(
-                contribution.Date,
-                "Aporte de capital",
-                contribution.Description,
-                $"{ApplicationCurrency.Code} {contribution.Amount.ToDecimal():N2}",
-                "No operativo",
-                contribution)));
+            string operation = contributionEvent.EventType switch
+            {
+                CollaboratorContributionEventType.Created => "Aporte original",
+                CollaboratorContributionEventType.Edited => "Aporte editado",
+                CollaboratorContributionEventType.Deleted => "Aporte eliminado",
+                _ => "Aporte histórico migrado",
+            };
+            string detail = contributionEvent.EventType == CollaboratorContributionEventType.Edited
+                ? $"Anterior: {ApplicationCurrency.Code} {contributionEvent.PreviousAmount?.ToDecimal():N2} · "
+                    + $"Nuevo: {ApplicationCurrency.Code} {contributionEvent.Amount.ToDecimal():N2} · "
+                    + (contributionEvent.Description ?? string.Empty)
+                : contributionEvent.Description ?? string.Empty;
+            rows.Add((contributionEvent.EffectiveDate, contributionEvent.OccurredUtc, History(
+                contributionEvent.EffectiveDate,
+                operation,
+                detail,
+                $"{ApplicationCurrency.Code} {contributionEvent.Amount.ToDecimal():N2}",
+                contributionEvent.EventType == CollaboratorContributionEventType.Deleted
+                    ? "Eliminado lógicamente"
+                    : "Registrado",
+                contributionEvent)));
         }
 
         foreach (MonthlyCloseParticipant participant in data.MonthlyCloseParticipants.Where(item => item.CollaboratorId == collaboratorId))
@@ -507,8 +525,8 @@ public sealed partial class CollaboratorsViewModel(
 
         foreach (var activity in data.ActivityRecords.Where(item => item.EntityId == collaboratorId
             && range.Contains(item.ActivityDate)
-            && item.Action != "Alta"
-            && (item.Summary != "Aporte de capital" || item.Action == "Eliminación")))
+            && item.Action is not ("Alta" or "Creación")
+            && !item.Summary.StartsWith("Aporte", StringComparison.OrdinalIgnoreCase)))
         {
             rows.Add((activity.ActivityDate, activity.OccurredUtc, History(
                 activity.ActivityDate, activity.Action, activity.Summary, string.Empty,

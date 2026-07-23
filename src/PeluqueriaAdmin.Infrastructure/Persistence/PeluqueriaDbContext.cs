@@ -57,6 +57,8 @@ public sealed class PeluqueriaDbContext(DbContextOptions<PeluqueriaDbContext> op
 
     public DbSet<CollaboratorContribution> CollaboratorContributions => Set<CollaboratorContribution>();
 
+    public DbSet<CollaboratorContributionEvent> CollaboratorContributionEvents => Set<CollaboratorContributionEvent>();
+
     public DbSet<AppNote> Notes => Set<AppNote>();
 
     public DbSet<FinancialReserve> FinancialReserves => Set<FinancialReserve>();
@@ -67,9 +69,13 @@ public sealed class PeluqueriaDbContext(DbContextOptions<PeluqueriaDbContext> op
 
     public DbSet<Loan> Loans => Set<Loan>();
 
+    public DbSet<LoanInstallment> LoanInstallments => Set<LoanInstallment>();
+
     public DbSet<LoanPayment> LoanPayments => Set<LoanPayment>();
 
     public DbSet<AnnualClose> AnnualCloses => Set<AnnualClose>();
+
+    public DbSet<AnnualCarryover> AnnualCarryovers => Set<AnnualCarryover>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

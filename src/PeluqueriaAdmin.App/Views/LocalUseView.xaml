@@ -119,6 +119,9 @@
               <DataGridTextColumn Width="150" Binding="{Binding Chair}" Header="Silla actual" />
               <DataGridTextColumn Width="130" Binding="{Binding Debt}" Header="Deuda" />
               <DataGridTextColumn Width="110" Binding="{Binding State}" Header="Estado" />
+              <DataGridTextColumn Width="130" Binding="{Binding Credit}" Header="Saldo a favor" />
+              <DataGridTextColumn Width="125" Binding="{Binding NextCharge}" Header="Próximo cobro" />
+              <DataGridTextColumn Width="145" Binding="{Binding NextRequiredPayment}" Header="Próximo pago requerido" />
             </DataGrid.Columns>
           </DataGrid>
         </Border>
@@ -166,7 +169,7 @@
             <Border Margin="0,0,5,4" Padding="4" Background="#F8FAFC" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Silla actual" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileChair}" TextWrapping="Wrap" /></StackPanel></Border>
             <Border Margin="0,0,5,4" Padding="4" Background="#FFF7ED" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Deuda acumulada" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileDebt}" /></StackPanel></Border>
             <Border Margin="0,0,5,4" Padding="4" Background="#F0FDF4" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Saldo a favor" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileCredit}" /></StackPanel></Border>
-            <Border Margin="0,0,0,4" Padding="4" Background="#F8FAFC" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Próxima cuota" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileNextCharge}" TextWrapping="Wrap" /></StackPanel></Border>
+            <Border Margin="0,0,0,4" Padding="4" Background="#F8FAFC" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Próximo cobro de cuota" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileNextCharge}" TextWrapping="Wrap" /></StackPanel></Border>
             <Border Margin="0,0,5,0" Padding="4" Background="#F8FAFC" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Valor de la cuota" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileNextChargeAmount}" /></StackPanel></Border>
             <Border Margin="0,0,5,0" Padding="4" Background="#EEF2FF" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Próximo pago requerido" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileNextRequiredPayment}" TextWrapping="Wrap" /></StackPanel></Border>
             <Border Padding="4" Background="#F0FDFA" CornerRadius="4"><StackPanel><TextBlock FontSize="10" Foreground="#64748B" Text="Cobertura estimada hasta" /><TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ProfileCoveredThrough}" TextWrapping="Wrap" /></StackPanel></Border>

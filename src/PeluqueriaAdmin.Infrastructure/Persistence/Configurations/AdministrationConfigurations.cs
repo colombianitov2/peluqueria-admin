@@ -243,6 +243,28 @@ internal sealed class CollaboratorContributionConfiguration : IEntityTypeConfigu
     }
 }
 
+internal sealed class CollaboratorContributionEventConfiguration
+    : IEntityTypeConfiguration<CollaboratorContributionEvent>
+{
+    public void Configure(EntityTypeBuilder<CollaboratorContributionEvent> builder)
+    {
+        builder.ToTable("CollaboratorContributionEvents");
+        AdministrationConfiguration.ConfigureAudit(builder);
+        AdministrationConfiguration.ConfigureNullableMoney(builder.Property(item => item.PreviousAmount))
+            .HasColumnName("PreviousAmountMinorUnits");
+        AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.Amount))
+            .HasColumnName("AmountMinorUnits");
+        builder.Property(item => item.PreviousDescription).HasMaxLength(1000);
+        builder.Property(item => item.Description).HasMaxLength(1000);
+        builder.Property(item => item.OccurredUtc)
+            .HasConversion(value => value.Ticks, value => new DateTime(value, DateTimeKind.Utc));
+        builder.HasIndex(item => new { item.CollaboratorId, item.OccurredUtc });
+        builder.HasIndex(item => new { item.ContributionId, item.OccurredUtc });
+        builder.HasOne<Collaborator>().WithMany().HasForeignKey(item => item.CollaboratorId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
 internal sealed class MonthlyCloseConfiguration : IEntityTypeConfiguration<MonthlyClose>
 {
     public void Configure(EntityTypeBuilder<MonthlyClose> builder)
@@ -388,11 +410,14 @@ internal sealed class MonthlyPurchaseItemConfiguration : IEntityTypeConfiguratio
         builder.ToTable("MonthlyPurchaseItems");
         AdministrationConfiguration.ConfigureAudit(builder);
         AdministrationConfiguration.ConfigureMonth(builder.Property(item => item.Month));
+        builder.Property(item => item.Name).HasMaxLength(200).IsRequired();
+        builder.Property(item => item.Category).HasConversion<int>();
+        builder.Property(item => item.ProductId).HasColumnName("ProductId");
         builder.Property(item => item.Quantity).HasPrecision(18, 3);
         AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.ExpectedUnitCost)).HasColumnName("ExpectedUnitCostMinorUnits");
         builder.Property(item => item.Description).HasMaxLength(1000);
         builder.Ignore(item => item.ExpectedTotalMinorUnits);
-        builder.HasIndex(item => new { item.ProductId, item.Month }).IsUnique();
+        builder.HasIndex(item => new { item.Name, item.Month });
         builder.HasOne<Product>().WithMany().HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<InventoryMovement>().WithMany().HasForeignKey(item => item.PurchaseMovementId).OnDelete(DeleteBehavior.Restrict);
     }
@@ -409,8 +434,29 @@ internal sealed class LoanConfiguration : IEntityTypeConfiguration<Loan>
         AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.InitialBalance)).HasColumnName("InitialBalanceMinorUnits");
         AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.PendingBalance)).HasColumnName("PendingBalanceMinorUnits");
         AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.UsualInstallment)).HasColumnName("UsualInstallmentMinorUnits");
+        AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.ExpectedTotal)).HasColumnName("ExpectedTotalMinorUnits");
+        AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.TotalInterest)).HasColumnName("TotalInterestMinorUnits");
+        builder.Property(item => item.CalculationMethod).HasConversion<int>();
         builder.Ignore(item => item.IsPaid);
         builder.HasIndex(item => item.NextDueDate);
+    }
+}
+
+internal sealed class LoanInstallmentConfiguration : IEntityTypeConfiguration<LoanInstallment>
+{
+    public void Configure(EntityTypeBuilder<LoanInstallment> builder)
+    {
+        builder.ToTable("LoanInstallments");
+        AdministrationConfiguration.ConfigureAudit(builder);
+        AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.Amount)).HasColumnName("AmountMinorUnits");
+        AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.Principal)).HasColumnName("PrincipalMinorUnits");
+        AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.Interest)).HasColumnName("InterestMinorUnits");
+        AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.PrincipalBalanceAfter))
+            .HasColumnName("PrincipalBalanceAfterMinorUnits");
+        builder.Property(item => item.Description).HasMaxLength(1000);
+        builder.HasIndex(item => new { item.LoanId, item.Number }).IsUnique();
+        builder.HasIndex(item => new { item.LoanId, item.DueDate }).IsUnique();
+        builder.HasOne<Loan>().WithMany().HasForeignKey(item => item.LoanId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -424,6 +470,9 @@ internal sealed class LoanPaymentConfiguration : IEntityTypeConfiguration<LoanPa
         builder.Property(item => item.Description).HasMaxLength(1000);
         builder.HasIndex(item => new { item.LoanId, item.Date });
         builder.HasOne<Loan>().WithMany().HasForeignKey(item => item.LoanId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<LoanInstallment>().WithMany().HasForeignKey(item => item.InstallmentId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(item => item.InstallmentId).IsUnique();
     }
 }
 
@@ -435,5 +484,16 @@ internal sealed class AnnualCloseConfiguration : IEntityTypeConfiguration<Annual
         AdministrationConfiguration.ConfigureAudit(builder);
         builder.Property(item => item.ClosedUtc).HasConversion(value => value.Ticks, value => new DateTime(value, DateTimeKind.Utc));
         builder.HasIndex(item => item.Year).IsUnique();
+    }
+}
+
+internal sealed class AnnualCarryoverConfiguration : IEntityTypeConfiguration<AnnualCarryover>
+{
+    public void Configure(EntityTypeBuilder<AnnualCarryover> builder)
+    {
+        builder.ToTable("AnnualCarryovers");
+        AdministrationConfiguration.ConfigureAudit(builder);
+        builder.HasIndex(item => item.SourceYear).IsUnique();
+        builder.HasIndex(item => item.TargetYear).IsUnique();
     }
 }

@@ -53,7 +53,7 @@ public sealed class Phase48UiContractTests
         Assert.Contains("Content=\"Reabrir mes\"", administration, StringComparison.Ordinal);
         Assert.Contains("Content=\"Cerrar año\"", administration, StringComparison.Ordinal);
         Assert.Contains("Header=\"Movimientos del día\"", home, StringComparison.Ordinal);
-        Assert.Contains("Text=\"Resumen financiero del mes\"", settings, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"Resumen financiero del mes\"", settings, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"Punto de equilibrio mensual\" /><TextBox", settings, StringComparison.Ordinal);
     }
 
@@ -65,9 +65,9 @@ public sealed class Phase48UiContractTests
 
         Assert.Contains("Header=\"Lista mensual de compra\"", inventory, StringComparison.Ordinal);
         Assert.Contains("Reservar cuando el inventario llegue a cero", inventory, StringComparison.Ordinal);
-        Assert.Contains("Content=\"Préstamos\"", obligations, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Añadir préstamo\"", obligations, StringComparison.Ordinal);
         Assert.Contains("Content=\"Registrar cuota\"", obligations, StringComparison.Ordinal);
-        Assert.Contains("Header=\"Historial de cuotas\"", obligations, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Calendario de cuotas\"", obligations, StringComparison.Ordinal);
         Assert.Contains("<Setter Property=\"TextWrapping\" Value=\"Wrap\" />", obligations, StringComparison.Ordinal);
         Assert.Contains("Width=\"175\"", obligations, StringComparison.Ordinal);
     }

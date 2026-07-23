@@ -36,7 +36,7 @@ public sealed class AdministrationServiceTests
             new DateOnly(2026, 8, 18), cancellationToken);
 
         Assert.Single(first.WeeklyRates);
-        Assert.Equal(2, first.WeeklyCharges.Count);
+        Assert.Equal(3, first.WeeklyCharges.Count);
         Assert.Equal(2, first.Obligations.Count);
         Assert.Equal(first.WeeklyCharges.Count, second.WeeklyCharges.Count);
         Assert.Equal(first.Obligations.Count, second.Obligations.Count);
@@ -85,7 +85,7 @@ public sealed class AdministrationServiceTests
         LocalUsePerson person = LocalUsePerson.Create("Ana", new DateOnly(2026, 6, 16), null, UtcNow);
         await service.AddLocalUsePersonAsync(person, today, cancellationToken);
         AdministrationData before = await service.LoadAsync(cancellationToken);
-        Assert.Equal(4_800, WeeklyChargeCalculator.CalculateDebt(
+        Assert.Equal(6_000, WeeklyChargeCalculator.CalculateDebt(
             before.WeeklyCharges, before.LocalUsePayments, today).MinorUnits);
         repository.FailNextSave = true;
 
@@ -96,7 +96,7 @@ public sealed class AdministrationServiceTests
         AdministrationData after = await service.LoadAsync(cancellationToken);
         Assert.Empty(after.LocalUsePayments);
         Assert.Equal(before.ActivityRecords.Count, after.ActivityRecords.Count);
-        Assert.Equal(4_800, WeeklyChargeCalculator.CalculateDebt(
+        Assert.Equal(6_000, WeeklyChargeCalculator.CalculateDebt(
             after.WeeklyCharges, after.LocalUsePayments, today).MinorUnits);
     }
 
@@ -113,9 +113,9 @@ public sealed class AdministrationServiceTests
             person.Id, new DateOnly(2026, 7, 18), Money.FromDecimal(12m), cancellationToken);
 
         AdministrationData data = await service.LoadAsync(cancellationToken);
-        Assert.Equal(2, data.WeeklyCharges.Count);
+        Assert.Equal(3, data.WeeklyCharges.Count);
         Assert.Single(data.LocalUsePayments);
-        Assert.Equal(1_200, WeeklyChargeCalculator.CalculateDebt(
+        Assert.Equal(2_400, WeeklyChargeCalculator.CalculateDebt(
             data.WeeklyCharges, data.LocalUsePayments).MinorUnits);
     }
 
@@ -132,7 +132,7 @@ public sealed class AdministrationServiceTests
 
         InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.UpdateLocalUsePersonAsync(
-                person.Id, "Ana", new DateOnly(2026, 7, 2), null,
+                person.Id, "Ana", new DateOnly(2026, 7, 5), null,
                 new DateOnly(2026, 7, 18), cancellationToken));
 
         Assert.Contains("ya tiene pagos", error.Message, StringComparison.OrdinalIgnoreCase);
@@ -388,7 +388,7 @@ public sealed class AdministrationServiceTests
         AnnualAdministrationReport annual = AdministrationReports.Annual(
             data, Percentage.FromPercent(20m), 2026);
 
-        Assert.Equal(["Servicio vencido", "Impuesto del mes"], home.Obligations.Select(item => item.Name));
+        Assert.Equal(["Servicio vencido", "Otra", "Impuesto del mes"], home.Obligations.Select(item => item.Name));
         Assert.Equal(1, capacity.Overcapacity);
         Assert.Equal(0, annual.Expenses.ServicesMinorUnits);
         Assert.Equal(0, annual.Expenses.TaxesMinorUnits);

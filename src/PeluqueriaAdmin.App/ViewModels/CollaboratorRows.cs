@@ -11,6 +11,7 @@ public sealed record CollaboratorRow(
     string Description,
     string ProfitShare,
     string AssignedAmount,
+    string TotalContributed,
     string PaymentState);
 
 public sealed record ContributionRow(

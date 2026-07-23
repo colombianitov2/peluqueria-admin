@@ -161,6 +161,9 @@ public sealed partial class AdministrationViewModel(
     private string statusMessage = string.Empty;
 
     [ObservableProperty]
+    private Guid? selectedMonthlyPlanId;
+
+    [ObservableProperty]
     private bool isError;
 
     [ObservableProperty]
@@ -268,6 +271,10 @@ public sealed partial class AdministrationViewModel(
 
     public ObservableCollection<FinancialCommitmentRow> FinancialCommitmentRows { get; } = [];
 
+    public ObservableCollection<FinancialSummaryRow> AnnualSummaryRows { get; } = [];
+
+    public ObservableCollection<AnnualCommitmentRow> AnnualCommitmentRows { get; } = [];
+
     [ObservableProperty] private string financialCloseState = string.Empty;
 
     [ObservableProperty] private bool confirmReopenMonth;
@@ -277,6 +284,8 @@ public sealed partial class AdministrationViewModel(
     public bool ShowFinancialClose => Title == MonthlySummaryModule;
 
     public bool ShowAnnualClose => Title == AnnualBalanceModule;
+
+    public bool ShowPeriodSelector => Title != AnnualBalanceModule;
 
     public bool ShowSimpleFinancialTable => Title is OtherIncomeModule or ExpensesModule or UnexpectedModule;
 
@@ -396,7 +405,7 @@ public sealed partial class AdministrationViewModel(
                 BuildMonthlyCharts(data, settings);
                 PopulateFinancialClose(data, settings);
             }
-            else if (Title == AnnualBalanceModule) PopulateAnnualClose(data);
+            else if (Title == AnnualBalanceModule) PopulateAnnualClose(data, settings, today);
 
             StatusMessage = Rows.Count == 0 && ActivityRows.Count == 0 ? "No hay registros para mostrar." : string.Empty;
             IsError = false;
@@ -497,25 +506,78 @@ public sealed partial class AdministrationViewModel(
             FinancialCommitmentRows.Add(new FinancialCommitmentRow(candidate));
     }
 
-    private void PopulateAnnualClose(AdministrationData data)
+    private void PopulateAnnualClose(AdministrationData data, SettingsDto settings, DateOnly today)
     {
         int year = ParseSpecificYear();
-        FinancialCloseState = data.AnnualCloses.Any(item => item.Year == year)
-            ? $"Año {year} cerrado y congelado." : $"Año {year} abierto.";
+        AnnualFinancialReport report = AnnualFinancialCalculator.Calculate(
+            data,
+            Percentage.FromPercent(settings.CollaboratorProfitPercent),
+            year,
+            today);
+        FinancialCloseState = report.IsClosed
+            ? $"Año {year} cerrado y congelado."
+            : $"Año {year} abierto: combina meses cerrados con valores actuales de los meses abiertos.";
+
+        AnnualSummaryRows.Clear();
+        void Add(string concept, long amount) => AnnualSummaryRows.Add(
+            FinancialSummaryRow.Create(concept, ApplicationCurrency.Code, amount));
+        Add("Ingresos operativos cobrados", report.IncomeMinorUnits);
+        Add("Egresos y reservas", report.OutflowMinorUnits);
+        Add("Resultado anual", report.ResultMinorUnits);
+        Add("Cuentas por cobrar", report.AccountsReceivableMinorUnits);
+        Add("Cuentas por pagar", report.AccountsPayableMinorUnits);
+        Add("Reservas pendientes", report.PendingReservesMinorUnits);
+        Add("Préstamos pendientes", report.PendingLoansMinorUnits);
+        Add("Fondo de colaboradores", report.CollaboratorFundMinorUnits);
+        Add("Superávit", report.SurplusMinorUnits);
+        Add("Déficit", report.DeficitMinorUnits);
+        Add("Saldo proyectado para el siguiente año", report.ProjectedNextYearBalanceMinorUnits);
+
+        AnnualCommitmentRows.Clear();
+        foreach (AnnualPendingCommitment item in report.Commitments)
+        {
+            AnnualCommitmentRows.Add(new AnnualCommitmentRow(
+                item.DueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                item.Name,
+                item.Type,
+                $"{ApplicationCurrency.Code} {Money.FromMinorUnits(item.AmountMinorUnits).ToDecimal():N2}",
+                item.Description,
+                item.Status));
+        }
+
         AnnualIncomeChart.Series.Clear();
         AnnualIncomeChart.Axes.Clear();
         var months = new CategoryAxis { Position = AxisPosition.Left };
-        var columns = new BarSeries { FillColor = OxyColor.FromRgb(46, 91, 255) };
-        foreach (int number in Enumerable.Range(1, 12))
+        var incomes = new BarSeries
         {
-            months.Labels.Add(new DateOnly(year, number, 1).ToString("MMM", CultureInfo.GetCultureInfo("es-ES")));
-            MonthlyClose? close = data.MonthlyCloses.Where(item => item.IsConfirmed && item.Month == new YearMonth(year, number))
-                .OrderByDescending(item => item.ClosedUtc).FirstOrDefault();
-            columns.Items.Add(new BarItem((close?.IncomeMinorUnits ?? 0) / 100d));
+            Title = "Ingresos",
+            FillColor = OxyColor.FromRgb(46, 91, 255),
+            StrokeColor = OxyColor.FromRgb(30, 64, 175),
+            StrokeThickness = 1,
+        };
+        var outflows = new BarSeries
+        {
+            Title = "Egresos",
+            FillColor = OxyColor.FromRgb(239, 68, 68),
+            StrokeColor = OxyColor.FromRgb(153, 27, 27),
+            StrokeThickness = 1,
+        };
+        foreach (AnnualMonthFinancial month in report.Months)
+        {
+            months.Labels.Add(month.Month.FirstDay.ToString("MMM", CultureInfo.GetCultureInfo("es-ES")));
+            incomes.Items.Add(new BarItem(month.IncomeMinorUnits / 100d));
+            outflows.Items.Add(new BarItem(month.OutflowMinorUnits / 100d));
         }
         AnnualIncomeChart.Axes.Add(months);
-        AnnualIncomeChart.Axes.Add(new LinearAxis { Position = AxisPosition.Bottom, Minimum = 0, Title = ApplicationCurrency.Code, LabelFormatter = FormatChartAxisValue });
-        AnnualIncomeChart.Series.Add(columns);
+        AnnualIncomeChart.Axes.Add(new LinearAxis
+        {
+            Position = AxisPosition.Bottom,
+            Minimum = 0,
+            Title = ApplicationCurrency.Code,
+            LabelFormatter = FormatChartAxisValue,
+        });
+        AnnualIncomeChart.Series.Add(incomes);
+        AnnualIncomeChart.Series.Add(outflows);
         AnnualIncomeChart.InvalidatePlot(true);
     }
 
@@ -560,6 +622,7 @@ public sealed partial class AdministrationViewModel(
         OnPropertyChanged(nameof(ShowGeneralRecordsTable));
         OnPropertyChanged(nameof(ShowFinancialClose));
         OnPropertyChanged(nameof(ShowAnnualClose));
+        OnPropertyChanged(nameof(ShowPeriodSelector));
     }
 
     partial void OnSelectedSimpleFinancialRowChanged(SimpleFinancialRow? value)
@@ -848,13 +911,27 @@ public sealed partial class AdministrationViewModel(
                     ParseOptionalMoney(SecondaryAmountText),
                     OptionalDescriptionText,
                     ParseMoney(AmountText));
-                await service.AddProductWithInitialStockAsync(
-                    product,
-                    date,
-                    Quantity.NonNegative(ParseDecimal(QuantityText, "cantidad inicial")),
-                    ParseMoney(AmountText),
-                    OptionalDescriptionText,
-                    completedDraftKey: completedDraftKey);
+                if (SelectedMonthlyPlanId.HasValue)
+                {
+                    await service.AddProductFromMonthlyPlanAsync(
+                        SelectedMonthlyPlanId.Value,
+                        product,
+                        date,
+                        Quantity.NonNegative(ParseDecimal(QuantityText, "cantidad inicial")),
+                        ParseMoney(AmountText),
+                        OptionalDescriptionText,
+                        completedDraftKey: completedDraftKey);
+                }
+                else
+                {
+                    await service.AddProductWithInitialStockAsync(
+                        product,
+                        date,
+                        Quantity.NonNegative(ParseDecimal(QuantityText, "cantidad inicial")),
+                        ParseMoney(AmountText),
+                        OptionalDescriptionText,
+                        completedDraftKey: completedDraftKey);
+                }
                 break;
             case (InventoryModule, "Registrar compra"):
                 await service.RegisterPurchaseAsync(
@@ -2166,7 +2243,7 @@ public sealed partial class AdministrationViewModel(
             LocalUseModule => ("Sillas, trabajadores, asignaciones, cuotas semanales y pagos.", ["Añadir silla", "Añadir trabajador", "Registrar pago", "Asignar o cambiar silla", "Retirar silla"]),
             CollaboratorsModule => ("Participantes de los cierres mensuales; no constituye nómina laboral.", ["Agregar colaborador"]),
             SalesModule => ("Ventas de productos del local. Selecciona el producto por nombre.", ["Registrar venta"]),
-            InventoryModule => ("Productos, compras, consumos y conteos físicos.", ["Agregar producto", "Registrar compra", "Registrar consumo", "Conteo físico"]),
+            InventoryModule => ("Productos y compras de inventario.", ["Agregar producto", "Registrar compra"]),
             OtherIncomeModule => ("Ingresos reales diferentes de uso del local y ventas.", ["Registrar ingreso"]),
             ExpensesModule => ("Gastos del local que no provienen ya de una compra de inventario.", ["Registrar gasto"]),
             UnexpectedModule => ("Daños, reparaciones y acontecimientos no planificados.", ["Registrar imprevisto"]),
@@ -2415,6 +2492,7 @@ public sealed partial class AdministrationViewModel(
     private void ClearForm(bool keepMessage = false)
     {
         PrimaryText = string.Empty;
+        SelectedMonthlyPlanId = null;
         SecondaryText = string.Empty;
         ExtraText = string.Empty;
         DateText = FormatDate(DateOnly.FromDateTime(DateTime.Today));
@@ -2466,3 +2544,11 @@ public sealed partial class FinancialCommitmentRow : ObservableObject
     [ObservableProperty] private bool isIgnored;
     [ObservableProperty] private string exclusionReason;
 }
+
+public sealed record AnnualCommitmentRow(
+    string DueDate,
+    string Name,
+    string Type,
+    string Amount,
+    string Description,
+    string Status);

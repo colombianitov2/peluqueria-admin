@@ -8,6 +8,9 @@ public sealed record WorkerRow(
     string EntryDate,
     string Chair,
     string Debt,
+    string Credit,
+    string NextCharge,
+    string NextRequiredPayment,
     string State);
 
 public sealed record ChairRow(

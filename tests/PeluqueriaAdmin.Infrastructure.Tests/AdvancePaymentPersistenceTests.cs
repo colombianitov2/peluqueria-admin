@@ -13,7 +13,7 @@ namespace PeluqueriaAdmin.Infrastructure.Tests;
 public sealed class AdvancePaymentPersistenceTests
 {
     [Fact]
-    public async Task WorkerEntryDatesAndZeroOrFortyEightDollarDebtSurviveRealSqliteRestart()
+    public async Task WorkerEntryDatesAndZeroOrSixtyDollarDebtSurviveRealSqliteRestart()
     {
         string root = Path.Combine(AppContext.BaseDirectory, "TestData", Guid.NewGuid().ToString("N"));
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
@@ -47,7 +47,7 @@ public sealed class AdvancePaymentPersistenceTests
             Assert.Equal(0, WeeklyChargeCalculator.CalculateDebt(
                 reloaded.WeeklyCharges.Where(item => item.PersonId == current.Id),
                 reloaded.LocalUsePayments.Where(item => item.PersonId == current.Id), today).MinorUnits);
-            Assert.Equal(4_800, WeeklyChargeCalculator.CalculateDebt(
+            Assert.Equal(6_000, WeeklyChargeCalculator.CalculateDebt(
                 reloaded.WeeklyCharges.Where(item => item.PersonId == historical.Id),
                 reloaded.LocalUsePayments.Where(item => item.PersonId == historical.Id), today).MinorUnits);
         }

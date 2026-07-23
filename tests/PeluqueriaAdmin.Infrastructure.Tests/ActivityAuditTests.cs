@@ -37,7 +37,7 @@ public sealed class ActivityAuditTests
             Assert.Single(afterAdd.FinancialEntries);
             var created = Assert.Single(afterAdd.ActivityRecords);
             Assert.Equal("Gastos", created.Module);
-            Assert.Equal("Alta", created.Action);
+            Assert.Equal("Creación", created.Action);
             Assert.Equal("Descripción conservada", created.Description);
 
             await service.DeleteAsync(entry, cancellationToken);

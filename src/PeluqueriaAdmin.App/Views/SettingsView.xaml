@@ -58,34 +58,9 @@
                  ToolTip="Porcentaje entre 0 y 100 con máximo dos decimales." />
       </StackPanel>
 
-      <Border Grid.Row="3" Margin="0,4,0,24" Padding="18" Background="#EFF6FF" CornerRadius="6">
-        <StackPanel>
-          <DockPanel Margin="0,0,0,10">
-            <DatePicker DockPanel.Dock="Right" Width="160" SelectedDate="{Binding SelectedFinancialMonth}" />
-            <TextBlock FontSize="20" FontWeight="SemiBold" Text="Resumen financiero del mes" />
-          </DockPanel>
-          <TextBlock Margin="0,0,0,10" Foreground="#4B5563" Text="Proyección antes del cierre; fotografía histórica congelada después del cierre." TextWrapping="Wrap" />
-          <ItemsControl ItemsSource="{Binding FinancialSummaryRows}">
-            <ItemsControl.ItemTemplate><DataTemplate><DockPanel Margin="0,3"><TextBlock DockPanel.Dock="Right" FontWeight="SemiBold" Text="{Binding Amount}" /><TextBlock Text="{Binding Concept}" /></DockPanel></DataTemplate></ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </StackPanel>
-      </Border>
-
       <Border Grid.Row="4" Margin="0,4,0,24" Padding="18" Background="#FFF7ED" CornerRadius="6">
         <StackPanel>
-          <DockPanel Margin="0,0,0,12">
-            <TextBlock DockPanel.Dock="Left" FontSize="20" FontWeight="SemiBold" Text="Gastos extraoficiales" />
-            <ComboBox Width="170"
-                      HorizontalAlignment="Right"
-                      ItemsSource="{Binding ActivityPeriodOptions}"
-                      SelectedItem="{Binding SelectedUnofficialPeriod}" />
-          </DockPanel>
-          <WrapPanel Margin="0,0,0,12"
-                     HorizontalAlignment="Right"
-                     Visibility="{Binding ShowUnofficialCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <DatePicker Width="145" Margin="0,0,8,0" SelectedDate="{Binding UnofficialCustomFrom}" />
-            <DatePicker Width="145" SelectedDate="{Binding UnofficialCustomThrough}" />
-          </WrapPanel>
+          <TextBlock Margin="0,0,0,12" FontSize="20" FontWeight="SemiBold" Text="Gastos extraoficiales" />
           <TextBlock Margin="0,0,0,12"
                      Foreground="#4B5563"
                      Text="Se usan únicamente para el precio sugerido por silla y no forman parte del Balance anual oficial."
@@ -103,6 +78,8 @@
                    TextWrapping="Wrap" />
           <WrapPanel Margin="0,0,0,12">
             <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding AddUnofficialExpenseCommand}" Content="Agregar" />
+            <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding EditUnofficialExpenseCommand}" Content="Editar seleccionado" />
+            <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding SaveUnofficialExpenseEditCommand}" Content="Guardar edición" />
             <CheckBox Margin="4,0,8,8" VerticalAlignment="Center" IsChecked="{Binding ConfirmUnofficialExpenseDelete}" Content="Confirmo eliminar" />
             <Button Padding="12,8" Command="{Binding DeleteUnofficialExpenseCommand}" Content="Eliminar seleccionado" />
           </WrapPanel>

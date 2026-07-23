@@ -35,10 +35,8 @@ public sealed partial class SettingsViewModel(
     private string? lastExcelPath;
     private readonly SemaphoreSlim autosaveLock = new(1, 1);
     private CancellationTokenSource? autosaveCancellation;
-    private CancellationTokenSource? unofficialEditCancellation;
     private bool trackingEnabled;
     private bool loadingUnofficialExpense;
-    private bool subscribedToFinancialChanges;
     [ObservableProperty]
     private string weeklyUsageFee = string.Empty;
 
@@ -64,19 +62,10 @@ public sealed partial class SettingsViewModel(
     private OperationRow? selectedUnofficialExpense;
 
     [ObservableProperty]
-    private string selectedUnofficialPeriod = "Hoy";
-
-    [ObservableProperty]
-    private DateTime? unofficialCustomFrom = DateTime.Today;
-
-    [ObservableProperty]
-    private DateTime? unofficialCustomThrough = DateTime.Today;
-
-    [ObservableProperty]
-    private bool showUnofficialCustomPeriod;
-
-    [ObservableProperty]
     private bool confirmUnofficialExpenseDelete;
+
+    [ObservableProperty]
+    private bool isEditingUnofficialExpense;
 
     [ObservableProperty]
     private string restorePath = string.Empty;
@@ -94,19 +83,11 @@ public sealed partial class SettingsViewModel(
     [ObservableProperty]
     private bool isBusy;
 
-    [ObservableProperty]
-    private DateTime? selectedFinancialMonth = timeProvider.GetLocalNow().DateTime.Date;
-
     public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
-
-    public ObservableCollection<string> ActivityPeriodOptions { get; } =
-        ["Hoy", "Esta semana", "Este mes", "Últimos 3 meses", "Últimos 6 meses", "Este año", "Rango personalizado"];
 
     public ObservableCollection<OperationRow> UnofficialExpenses { get; } = [];
 
     public ObservableCollection<OperationRow> UnofficialExpenseActivity { get; } = [];
-
-    public ObservableCollection<FinancialSummaryRow> FinancialSummaryRows { get; } = [];
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -131,12 +112,6 @@ public sealed partial class SettingsViewModel(
                 UnofficialExpenseEffectiveFrom = LocalTodayText();
             }
             await LoadUnofficialExpensesAsync(cancellationToken);
-            if (!subscribedToFinancialChanges)
-            {
-                administrationService.DataChanged += OnAdministrationDataChanged;
-                subscribedToFinancialChanges = true;
-            }
-            await RefreshFinancialSummaryAsync(cancellationToken);
             IsError = false;
         }
         finally
@@ -144,35 +119,6 @@ public sealed partial class SettingsViewModel(
             IsBusy = false;
         }
     }
-
-    private void OnAdministrationDataChanged(object? sender, EventArgs eventArgs) => _ = RefreshFinancialSummaryAsync();
-
-    private async Task RefreshFinancialSummaryAsync(CancellationToken cancellationToken = default)
-    {
-        if (!SelectedFinancialMonth.HasValue) return;
-        FinancialMonthSnapshot summary = await administrationService.CalculateFinancialMonthAsync(
-            YearMonth.From(DateOnly.FromDateTime(SelectedFinancialMonth.Value)), cancellationToken);
-        FinancialSummaryRows.Clear();
-        AddFinancialRow("Ingresos operativos cobrados", summary.CollectedOperatingIncomeMinorUnits);
-        AddFinancialRow("Cuentas por cobrar", summary.AccountsReceivableMinorUnits);
-        AddFinancialRow("Egresos pagados", summary.PaidOutflowsMinorUnits);
-        AddFinancialRow("Cuentas por pagar", summary.AccountsPayableMinorUnits);
-        AddFinancialRow("Reservas nuevas", summary.NewReservesMinorUnits);
-        AddFinancialRow("Reservas arrastradas", summary.CarriedReservesMinorUnits);
-        AddFinancialRow("Ajustes de reservas", summary.ReserveAdjustmentsMinorUnits);
-        AddFinancialRow("Cuotas de préstamos", summary.LoanPaymentsMinorUnits);
-        AddFinancialRow("Financiación recibida (no es ganancia)", summary.FinancingReceivedMinorUnits);
-        AddFinancialRow("Resultado distribuible", summary.DistributableResultMinorUnits);
-        AddFinancialRow("Punto de equilibrio", summary.BreakEvenMinorUnits);
-        AddFinancialRow("Faltante", summary.ShortfallMinorUnits);
-        AddFinancialRow("Fondo de colaboradores", summary.CollaboratorFundMinorUnits);
-        AddFinancialRow("Retenido por el local", summary.RetainedLocalMinorUnits);
-    }
-
-    private void AddFinancialRow(string concept, long minorUnits) => FinancialSummaryRows.Add(
-        FinancialSummaryRow.Create(concept, ApplicationCurrency.Code, minorUnits));
-
-    partial void OnSelectedFinancialMonthChanged(DateTime? value) => _ = RefreshFinancialSummaryAsync();
 
     public async Task CheckForUpdatesOnStartupAsync()
     {
@@ -352,10 +298,8 @@ public sealed partial class SettingsViewModel(
     public async Task FlushPendingAsync()
     {
         autosaveCancellation?.Cancel();
-        unofficialEditCancellation?.Cancel();
         await autosaveLock.WaitAsync();
         autosaveLock.Release();
-        await PersistUnofficialExpenseEditAsync();
     }
 
     private void TrackSettingsChange()
@@ -481,7 +425,7 @@ public sealed partial class SettingsViewModel(
         }
     }
 
-    [RelayCommand(CanExecute = nameof(HasSelectedUnofficialExpense))]
+    [RelayCommand(CanExecute = nameof(CanDeleteUnofficialExpense))]
     private async Task DeleteUnofficialExpenseAsync()
     {
         if (SelectedUnofficialExpense?.Entity is not UnofficialExpense expense) return;
@@ -506,35 +450,24 @@ public sealed partial class SettingsViewModel(
     partial void OnSelectedUnofficialExpenseChanged(OperationRow? value)
     {
         DeleteUnofficialExpenseCommand.NotifyCanExecuteChanged();
-        if (value?.Entity is not UnofficialExpense expense) return;
+        EditUnofficialExpenseCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelectedUnofficialExpense))]
+    private void EditUnofficialExpense()
+    {
+        if (SelectedUnofficialExpense?.Entity is not UnofficialExpense expense) return;
         loadingUnofficialExpense = true;
         UnofficialExpenseName = expense.Name;
         UnofficialExpenseAmount = expense.MonthlyAmount.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture);
         UnofficialExpenseEffectiveFrom = expense.EffectiveFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         UnofficialExpenseDescription = expense.Description ?? string.Empty;
+        IsEditingUnofficialExpense = true;
         loadingUnofficialExpense = false;
     }
 
-    partial void OnUnofficialExpenseNameChanged(string value) => ScheduleUnofficialExpenseEdit();
-    partial void OnUnofficialExpenseAmountChanged(string value) => ScheduleUnofficialExpenseEdit();
-    partial void OnUnofficialExpenseEffectiveFromChanged(string value) => ScheduleUnofficialExpenseEdit();
-    partial void OnUnofficialExpenseDescriptionChanged(string value) => ScheduleUnofficialExpenseEdit();
-
-    partial void OnSelectedUnofficialPeriodChanged(string value)
-    {
-        ShowUnofficialCustomPeriod = value == "Rango personalizado";
-        _ = LoadUnofficialExpensesAsync();
-    }
-
-    partial void OnUnofficialCustomFromChanged(DateTime? value)
-    {
-        if (ShowUnofficialCustomPeriod) _ = LoadUnofficialExpensesAsync();
-    }
-
-    partial void OnUnofficialCustomThroughChanged(DateTime? value)
-    {
-        if (ShowUnofficialCustomPeriod) _ = LoadUnofficialExpensesAsync();
-    }
+    [RelayCommand]
+    private async Task SaveUnofficialExpenseEditAsync() => await PersistUnofficialExpenseEditAsync();
 
     partial void OnConfirmUnofficialExpenseDeleteChanged(bool value) =>
         DeleteUnofficialExpenseCommand.NotifyCanExecuteChanged();
@@ -542,26 +475,8 @@ public sealed partial class SettingsViewModel(
     private async Task LoadUnofficialExpensesAsync(CancellationToken cancellationToken = default)
     {
         AdministrationData data = await administrationService.LoadAsync(cancellationToken);
-        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
-        ActivityDateRange range;
-        try
-        {
-            range = ActivityPeriodCalculator.Calculate(
-                ParsePeriod(SelectedUnofficialPeriod),
-                today,
-                UnofficialCustomFrom.HasValue ? DateOnly.FromDateTime(UnofficialCustomFrom.Value) : null,
-                UnofficialCustomThrough.HasValue ? DateOnly.FromDateTime(UnofficialCustomThrough.Value) : null);
-        }
-        catch (ArgumentException exception)
-        {
-            UnofficialExpenses.Clear();
-            UnofficialExpenseActivity.Clear();
-            StatusMessage = exception.Message;
-            IsError = true;
-            return;
-        }
         UnofficialExpenses.Clear();
-        foreach (UnofficialExpense item in data.UnofficialExpenses.Where(item => range.Contains(item.EffectiveFrom)))
+        foreach (UnofficialExpense item in data.UnofficialExpenses.OrderBy(item => item.EffectiveFrom).ThenBy(item => item.Name))
         {
             UnofficialExpenses.Add(new OperationRow(
                 item.EffectiveFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
@@ -575,7 +490,7 @@ public sealed partial class SettingsViewModel(
 
         UnofficialExpenseActivity.Clear();
         foreach (var item in data.ActivityRecords
-            .Where(item => item.Module == "Ajustes" && range.Contains(item.ActivityDate))
+            .Where(item => item.Module == "Ajustes")
             .OrderByDescending(item => item.OccurredUtc))
         {
             UnofficialExpenseActivity.Add(new OperationRow(
@@ -588,18 +503,6 @@ public sealed partial class SettingsViewModel(
                 null));
         }
     }
-
-    private static ActivityPeriod ParsePeriod(string value) => value switch
-    {
-        "Hoy" => ActivityPeriod.Today,
-        "Esta semana" => ActivityPeriod.ThisWeek,
-        "Este mes" => ActivityPeriod.ThisMonth,
-        "Últimos 3 meses" => ActivityPeriod.LastThreeMonths,
-        "Últimos 6 meses" => ActivityPeriod.LastSixMonths,
-        "Este año" => ActivityPeriod.ThisYear,
-        "Rango personalizado" => ActivityPeriod.Custom,
-        _ => ActivityPeriod.Today,
-    };
 
     private decimal ParseUnofficialAmount() => TryParseDecimal(UnofficialExpenseAmount, out decimal amount)
         ? amount
@@ -623,36 +526,14 @@ public sealed partial class SettingsViewModel(
         UnofficialExpenseEffectiveFrom = LocalTodayText();
         UnofficialExpenseDescription = string.Empty;
         ConfirmUnofficialExpenseDelete = false;
+        IsEditingUnofficialExpense = false;
         loadingUnofficialExpense = false;
-    }
-
-    private void ScheduleUnofficialExpenseEdit()
-    {
-        if (loadingUnofficialExpense || SelectedUnofficialExpense?.Entity is not UnofficialExpense)
-        {
-            return;
-        }
-
-        unofficialEditCancellation?.Cancel();
-        unofficialEditCancellation = new CancellationTokenSource();
-        _ = PersistUnofficialExpenseEditAfterDelayAsync(unofficialEditCancellation.Token);
-    }
-
-    private async Task PersistUnofficialExpenseEditAfterDelayAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            await Task.Delay(650, cancellationToken);
-            await PersistUnofficialExpenseEditAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-        }
     }
 
     private async Task PersistUnofficialExpenseEditAsync(CancellationToken cancellationToken = default)
     {
-        if (loadingUnofficialExpense || SelectedUnofficialExpense?.Entity is not UnofficialExpense expense)
+        if (loadingUnofficialExpense || !IsEditingUnofficialExpense
+            || SelectedUnofficialExpense?.Entity is not UnofficialExpense expense)
         {
             return;
         }
@@ -665,7 +546,7 @@ public sealed partial class SettingsViewModel(
                 || amount < 0
                 || !DateOnly.TryParseExact(UnofficialExpenseEffectiveFrom, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly date))
             {
-                StatusMessage = "Edición pendiente: completa valores válidos para autoguardar.";
+                StatusMessage = "Edición pendiente: completa valores válidos antes de guardar.";
                 IsError = false;
                 return;
             }
@@ -677,7 +558,8 @@ public sealed partial class SettingsViewModel(
             loadingUnofficialExpense = true;
             SelectedUnofficialExpense = UnofficialExpenses.SingleOrDefault(item => item.Entity?.Id == id);
             loadingUnofficialExpense = false;
-            StatusMessage = "Gasto extraoficial guardado automáticamente.";
+            IsEditingUnofficialExpense = false;
+            StatusMessage = "Gasto extraoficial actualizado correctamente.";
             IsError = false;
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)

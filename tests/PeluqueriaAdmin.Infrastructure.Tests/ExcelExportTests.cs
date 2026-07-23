@@ -96,7 +96,9 @@ public sealed class ExcelExportTests
             Assert.DoesNotContain("+borrador", workbook.Worksheet("Otros ingresos").Column(2).CellsUsed().Select(x => x.GetString()));
             Assert.Equal("Texto persistente de prueba", workbook.Worksheet("Notas").Cell(2, 1).GetString());
             Assert.Equal("Porcentaje de ganancia", workbook.Worksheet("Colaboradores").Cell(1, 4).GetString());
-            Assert.Equal("Mensual", workbook.Worksheet("Préstamos").Cell(2, 7).GetString());
+            Assert.Equal("Préstamo anterior", workbook.Worksheet("Préstamos").Cell(2, 2).GetString());
+            Assert.True(workbook.TryGetWorksheet("Cuotas de préstamos", out _));
+            Assert.True(workbook.TryGetWorksheet("Pagos de préstamos", out _));
             Assert.Equal(XLDataType.Number, workbook.Worksheet("Lista mensual de compra").Cell(2, 4).DataType);
             Assert.Equal(XLDataType.Number, workbook.Worksheet("Reservas financieras").Cell(2, 5).DataType);
             Assert.Equal(XLDataType.Number, workbook.Worksheet("Distribuciones a colaboradores").Cell(2, 3).DataType);
@@ -131,6 +133,28 @@ public sealed class ExcelExportTests
             MonthlyClose[] annualCloses = data.MonthlyCloses.Where(x => x.IsConfirmed && x.Month.Year == 2026).ToArray();
             Assert.Equal(annualCloses.Sum(x => x.IncomeMinorUnits) / 100m, annualRow.Cell(2).GetValue<decimal>());
             Assert.Equal(annualCloses.Sum(x => x.PaidOutflowsMinorUnits) / 100m, annualRow.Cell(3).GetValue<decimal>());
+        }
+        finally
+        {
+            Cleanup(root);
+        }
+    }
+
+    [Fact]
+    public async Task Phase49_46_ExportProducesOneXlsxAndZeroCsvFiles()
+    {
+        string root = CreateRoot();
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        try
+        {
+            TestDbContextFactory factory = await PrepareDatabaseAsync(root, cancellationToken);
+            string desktop = Path.Combine(root, "EscritorioPruebas");
+            Directory.CreateDirectory(desktop);
+
+            await CreateService(factory, desktop, new ClosedXmlWorkbookWriter()).ExportAsync(cancellationToken);
+
+            Assert.Single(Directory.EnumerateFiles(desktop, "*.xlsx", SearchOption.TopDirectoryOnly));
+            Assert.Empty(Directory.EnumerateFiles(desktop, "*.csv", SearchOption.TopDirectoryOnly));
         }
         finally
         {

@@ -99,6 +99,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     public ObservableCollection<DailyMovementRow> DailyMovements { get; } = [];
 
+    public ObservableCollection<PendingPaymentRow> PendingPayments { get; } = [];
+
     [ObservableProperty]
     private object? currentPage;
 
@@ -126,6 +128,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private int maintenanceNotificationCount;
     [ObservableProperty] private bool isMaintenanceNotificationsOpen;
     [ObservableProperty] private DateTime? movementQueryDate = DateTime.Today;
+    [ObservableProperty] private string dailyMovementsStatus = "Sin movimientos registrados para la fecha consultada.";
 
     [RelayCommand]
     private async Task ConsultDailyMovementsAsync()
@@ -268,12 +271,20 @@ public sealed partial class MainViewModel : ObservableObject
             data,
             Percentage.FromPercent(settings.CollaboratorProfitPercent),
             today);
-        string[] pendingObligations = dashboard.Obligations
-            .Select(item => $"{item.DueDate:yyyy-MM-dd} · {item.Name}")
-            .ToArray();
-        EstadoServiciosEImpuestos = pendingObligations.Length == 0
+        PendingPayments.Clear();
+        foreach (PendingHomeObligation item in dashboard.Obligations)
+        {
+            PendingPayments.Add(new PendingPaymentRow(
+                item.DueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                item.Name,
+                item.Type,
+                $"{ApplicationCurrency.Code} {item.Amount.ToDecimal():N2}",
+                item.Description,
+                item.Status));
+        }
+        EstadoServiciosEImpuestos = PendingPayments.Count == 0
             ? "Sin obligaciones pendientes"
-            : string.Join(Environment.NewLine, pendingObligations);
+            : $"{PendingPayments.Count} pago(s) pendiente(s)";
 
         string[] debts = dashboard.Debts
             .Select(item => $"{item.Name} · {ApplicationCurrency.Code} {item.Amount.ToDecimal():N2}")
@@ -304,15 +315,20 @@ public sealed partial class MainViewModel : ObservableObject
     {
         DateOnly date = DateOnly.FromDateTime(MovementQueryDate ?? timeProvider.GetLocalNow().DateTime.Date);
         DailyMovements.Clear();
-        foreach (var item in data.ActivityRecords.Where(item => item.ActivityDate == date)
-            .OrderByDescending(item => item.OccurredUtc))
+        foreach (var item in DailyActivityQuery.ForLocalDate(data.ActivityRecords, date, TimeZoneInfo.Local))
         {
             long? amount = ActivityAmount(data, item.EntityId);
-            DailyMovements.Add(new DailyMovementRow(item.OccurredUtc.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture),
+            DateTime localOccurrence = TimeZoneInfo.ConvertTimeFromUtc(
+                DateTime.SpecifyKind(item.OccurredUtc, DateTimeKind.Utc),
+                TimeZoneInfo.Local);
+            DailyMovements.Add(new DailyMovementRow(localOccurrence.ToString("HH:mm:ss", CultureInfo.InvariantCulture),
                 item.Module, item.Action, item.Summary, item.Description ?? string.Empty,
                 amount.HasValue ? $"{ApplicationCurrency.Code} {Money.FromMinorUnits(amount.Value).ToDecimal():N2}" : string.Empty,
                 item.Action == "Eliminación" ? "Eliminado lógicamente" : "Registrado"));
         }
+        DailyMovementsStatus = DailyMovements.Count == 0
+            ? "Sin movimientos registrados para la fecha consultada."
+            : $"{DailyMovements.Count} movimiento(s) encontrado(s).";
     }
 
     private static long? ActivityAmount(AdministrationData data, Guid? entityId)
@@ -400,3 +416,10 @@ public sealed partial class MainViewModel : ObservableObject
 public sealed record MaintenanceNotificationRow(string Asset, string Type, string Date, string Status);
 public sealed record DailyMovementRow(string Time, string Module, string Operation, string Entity,
     string Detail, string Amount, string State);
+public sealed record PendingPaymentRow(
+    string DueDate,
+    string Name,
+    string Type,
+    string Amount,
+    string Description,
+    string Status);
