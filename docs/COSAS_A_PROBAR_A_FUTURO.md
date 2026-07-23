@@ -43,3 +43,12 @@ Para cada comprobación se debe usar una raíz de datos temporal, anotar fecha/h
 - Revisar cierres mensuales y anual con doce meses reales, reaperturas y cambios históricos de porcentajes.
 - Repetir la revisión visual de Inicio, Uso del local, Colaboradores, Inventario, Obligaciones, Mantenimiento, Resumen mensual, Balance anual y Ajustes a 100 %, 125 % y 150 % en el segundo monitor.
 - Confirmar la migración y el rendimiento con una copia futura de gran tamaño; las pruebas actuales usan bases aisladas pequeñas y controladas.
+
+## Comprobaciones posteriores a Fase 4.9
+
+- Dejar una copia temporal cerrada durante uno, dos y varios sábados; al abrirla, verificar que cada cuota se generó una sola vez y consumió el saldo a favor cronológicamente.
+- Repetir con saldo suficiente, saldo parcial y sin saldo; anotar saldo restante, deuda, próximo cobro, próximo pago requerido y cobertura estimada.
+- Cambiar la tarifa antes de un sábado futuro y comprobar que las cuotas anteriores conservan la tarifa histórica y la nueva solo rige desde su fecha efectiva.
+- Consultar movimientos cercanos a las 00:00 y durante un cambio real de fecha local; verificar que ayer, hoy y mañana nunca se mezclan.
+- Pagar durante varios meses el préstamo de prueba USD 100 → USD 150 y confirmar cinco cuotas de USD 30, incluido el historial tras reiniciar.
+- Cerrar un año temporal con cuentas, reservas, préstamo, superávit o déficit; comprobar el arrastre separado al año siguiente sin convertirlo en ingreso o gasto nuevo.

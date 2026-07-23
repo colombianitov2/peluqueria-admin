@@ -40,6 +40,15 @@ Una obligación o mantenimiento pendiente correspondiente al mes crea un comprom
 
 Los préstamos recibidos son financiación. La cuota vencida o correspondiente al mes es un compromiso; para esta aplicación la cuota completa es salida de efectivo y no se separan capital e intereses.
 
+Para un préstamo de principal `P`, tasa mensual decimal `r` y `n` cuotas, el método de interés sobre saldo usa:
+
+```text
+cuota = P × r × (1 + r)^n / ((1 + r)^n - 1)   si r > 0
+cuota = P / n                                   si r = 0
+```
+
+Cada periodo calcula el interés sobre el saldo de capital y la parte de capital como cuota menos interés. Para una cantidad final acordada `T`, el interés total es `T - P`, el porcentaje total es `(T - P) / P × 100` y la tasa mensual equivalente de referencia es `((T / P)^(1/n) - 1) × 100`. Todo dinero se calcula en centavos enteros; la última cuota absorbe el residuo para que la suma coincida exactamente con el total esperado.
+
 ## Resumen mensual
 
 ```text
@@ -72,7 +81,14 @@ Mientras el cierre permanezca confirmado, sus totales y asignaciones guardados p
 
 ## Balance anual
 
-El balance presenta los 12 cierres mensuales del año, usando cero y `Sin cerrar` cuando falta un snapshot. Suma ingresos cobrados, egresos, reservas, obligaciones, préstamos, fondo y resultado congelados; conserva el desglose por categorías como control. El indicador es `Positivo` cuando el resultado acumulado es mayor o igual a cero y `Negativo` cuando es inferior a cero.
+El balance presenta enero a diciembre. Un mes confirmado usa su snapshot y no vuelve a calcularse; un mes abierto hasta la fecha consultada usa el cálculo financiero vigente. Un cierre anual congela el acumulado y crea un arrastre separado de cuentas por cobrar, cuentas por pagar, reservas, préstamos, superávit y déficit. El saldo proyectado es:
+
+```text
+superávit + cuentas por cobrar
+- cuentas por pagar - reservas - préstamos - déficit
+```
+
+El arrastre no convierte por sí mismo una cuenta por cobrar en ingreso ni un préstamo pendiente en gasto nuevo.
 
 Las operaciones originales de ingresos y gastos se conservan para los cálculos internos. Flujo de caja no es un módulo visible, pero se exporta como hoja de trazabilidad en Excel.
 

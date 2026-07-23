@@ -17,6 +17,8 @@ La Fase 4.7 amplía la suite a **175 pruebas únicas**: 58 de dominio, 42 de apl
 
 La Fase 4.8 amplía la suite a **209 pruebas únicas**: 65 de dominio, 60 de aplicación, 21 de infraestructura y 63 de interfaz. Cubre el ejemplo exacto `1000 - 500 - 100 - 50 - 80 = 270` y fondo `54`, deuda de trabajador excluida, resultado negativo sin pago, presentación segura de importes negativos, reservas y ajustes `100/110`, exclusiones justificadas, cierre/reapertura, porcentajes congelados, pago completo, préstamos, lista mensual, vinculación manual y automática de compras, migración Fase 4.7→4.8, integridad SQLite, hojas Excel y contratos visuales. La validación final ejecutó las 209 pruebas en Debug y nuevamente en Release: **418 ejecuciones aprobadas, 0 fallos y 0 omitidas**.
 
+La Fase 4.9 amplía la suite a **256 pruebas únicas**: 80 de dominio, 69 de aplicación, 26 de infraestructura y 81 de interfaz. Sus 47 casos nuevos corresponden uno a uno a la matriz de aceptación: fechas locales y acciones exactas; sábado, crédito y tarifa histórica; eventos de aportes; planes independientes; préstamos exactos; Inicio; balance anual vivo/cerrado/arrastres; Ajustes; persistencia; migración F48→F49; integridad SQLite; un XLSX y cero CSV; y refresco sin acumulación.
+
 ## Cobertura funcional comprobada
 
 - primera cuota, periodos de siete días, retiro, cambio futuro de tarifa e idempotencia;
@@ -129,5 +131,12 @@ Ninguna prueba automatizada utiliza la base real ni incorpora datos permanentes.
 - La copia Fase 4.7 migrada conserva integridad SQLite y cero violaciones de claves foráneas.
 - El arranque Release fue verificado con resultado financiero negativo, reservas, préstamo, compra mensual y cierres históricos dentro de una raíz temporal aislada.
 - La revisión manual cubrió los módulos afectados en disposición amplia y reducida; los contratos responsivos cubren 100 %, 125 % y 150 %. La revisión final de Préstamos confirmó la etiqueta completa en ancho amplio y el ajuste a una nueva fila sin cortes en ancho reducido; la aplicación quedó abierta.
+
+## Cierre de Fase 4.9
+
+- 256 pruebas únicas: 80 Domain, 69 Application, 26 Infrastructure y 81 App.
+- La prueba de migración parte exactamente de `Phase48FinancialClosuresReservesLoansInventory`, conserva un préstamo heredado y crea su cuota compatible.
+- `PRAGMA integrity_check` y `PRAGMA foreign_key_check` forman parte de la suite, junto con persistencia tras reinicio y exportación aislada.
+- Los contratos de interfaz verifican columnas estables, desplazamiento horizontal, selector editable, acciones retiradas, Balance anual y ausencia del resumen mensual en Ajustes.
 - Gitleaks 8.30.1 se ejecutó sobre 31 commits y árbol de trabajo con `--redact`; no detectó filtraciones.
 - El paquete Velopack de validación usa `0.1.0-phase48-validation` y no fue instalado ni publicado.

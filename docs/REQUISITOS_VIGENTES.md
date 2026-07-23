@@ -2,9 +2,9 @@
 
 ## Carácter canónico y precedencia
 
-Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.8 del 22 de julio de 2026.
+Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.9 del 23 de julio de 2026.
 
-La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, cobro semanal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 y 4.5 concretan las reglas vigentes de Uso del local, perfil, fechas, sillas, cuenta, historial y pagos anticipados. La Fase 4.7 sustituyó la notificación de obligaciones, los porcentajes individuales directos y los planes de reposición. La Fase 4.8 sustituye la regla de cierre automático: el cierre mensual vuelve a ser una acción manual visible únicamente en Resumen mensual y crea reservas, exclusiones y distribuciones congeladas.
+La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, cobro semanal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 y 4.5 concretan las reglas vigentes de Uso del local, perfil, fechas, sillas, cuenta, historial y pagos anticipados. La Fase 4.7 sustituyó la notificación de obligaciones, los porcentajes individuales directos y los planes de reposición. La Fase 4.8 sustituye la regla de cierre automático: el cierre mensual vuelve a ser una acción manual visible únicamente en Resumen mensual y crea reservas, exclusiones y distribuciones congeladas. La Fase 4.9 sustituye las etiquetas ambiguas de actividad, el anticipo congelado, la lista mensual dependiente del inventario, el préstamo sin calendario exacto y el balance anual limitado a cierres.
 
 Los trabajadores son quienes usan y alquilan las sillas. Los colaboradores son exclusivamente inversionistas y nunca ocupan sillas. La interfaz, los mensajes, Excel y la documentación usan esta distinción.
 
@@ -399,7 +399,7 @@ La primera alpha es x64, sin certificado y puede activar una advertencia de Smar
 - Reabrir un cierre con pagos de distribución se rechaza. Sin pagos, la reapertura invalida sus asignaciones calculadas; un cierre nuevo crea una sola distribución activa cuya suma coincide exactamente con el fondo.
 - Solo las asignaciones de cierres confirmados se pueden pagar o mostrar como pendientes.
 - Un cierre confirmado es una fotografía histórica para el resumen mensual, el balance anual y Excel. Un mes reabierto vuelve al cálculo dinámico.
-- Inicio muestra exclusivamente servicios e impuestos pendientes vencidos o del mes actual, deudas por Uso del local y el faltante mensual.
+- Inicio muestra **Pagos pendientes** con servicios, impuestos, otras obligaciones y cuotas de préstamos vencidas o del mes actual; mantenimiento conserva su campana separada. También muestra deudas por Uso del local y el faltante mensual.
 - La capacidad de sillas se muestra únicamente en Uso del local, incluyendo total, personas vigentes, disponibles y sobrecupo explícito.
 - El balance anual y su hoja de Excel desglosan las categorías aprobadas y muestran un indicador explícito `Positivo` o `Negativo`.
 - Las correcciones de inventario conservan las invariantes de cantidad, dinero y existencia cronológica no negativa. Los nombres activos de productos son únicos sin distinguir mayúsculas.
@@ -434,4 +434,14 @@ Quedan reemplazados el recibo de obligaciones de Inicio, los porcentajes individ
 - El colaborador recibe únicamente el pago completo congelado de un resultado repartible positivo; nunca asume pérdidas ni pagos parciales arbitrarios.
 - La Lista mensual de compra es una entidad nueva vinculada por identificador; no reutiliza `MonthlyRestockPlans`.
 - Los préstamos se administran dentro de Obligaciones y su desembolso se separa de los ingresos operativos.
+
+## Decisiones vigentes de Fase 4.9
+
+- Movimientos del día filtra por fecha local usando `OccurredUtc`, limpia la colección y ordena de más reciente a más antiguo; las operaciones nuevas usan una acción exacta.
+- Cada sábado vencido genera una cuota con su tarifa histórica. Los pagos se aplican cronológicamente: el sobrante es saldo a favor, el faltante es deuda, el próximo cobro es el siguiente sábado y el próximo pago requerido es el primero no cubierto.
+- Los eventos de aportes son inmutables. La eliminación lógica excluye el aporte del total vigente, pero conserva creación, edición, valores anterior/nuevo y eliminación.
+- La Lista mensual de compra admite nombre y categoría libres, `ProductId` nulo y vínculo atómico posterior con inventario. Conteo físico y consumo no se ofrecen en Agregar al inventario; los históricos se conservan.
+- Un préstamo nuevo usa exclusivamente amortización fija sobre saldo o cantidad final acordada. El calendario mensual, capital, interés, saldo y pago asociado se persisten en unidades menores enteras.
+- Balance anual consulta solo el año, combina snapshots mensuales confirmados con meses abiertos en vivo, grafica 12 meses y congela un snapshot anual con arrastres separados.
+- Resumen financiero vive únicamente en Resumen mensual. Los gastos extraoficiales son configuraciones persistentes sin filtro temporal y admiten edición explícita.
 - Inicio añade movimientos generales diarios sin recuperar una notificación independiente de obligaciones.

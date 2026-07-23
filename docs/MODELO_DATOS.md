@@ -15,9 +15,9 @@
 |---|---|---|
 | Ajustes | `Settings`, `UnofficialExpenses` | Tarifa semanal, porcentaje, reserva, moneda y gastos extraoficiales separados. `TotalChairs` se conserva solo para migrar bases antiguas. |
 | Uso del local | `Chairs`, `LocalUsePeople`, `WeeklyRates`, `WeeklyCharges`, `LocalUsePayments` | Sillas individuales y opcionales, trabajadores, histórico de tarifas, cuotas de periodos completos y pagos positivos incluidos anticipos. `WorkerAccountBalance` calcula deuda, crédito y proyección sin persistir ni cambiar el esquema. |
-| Inventario | `Products`, `InventoryMovements`, `MonthlyPurchaseItems`, `MonthlyRestockPlans` | Catálogo y existencias por movimientos. La lista mensual se vincula por `ProductId` y puede asociar una compra real; `MonthlyRestockPlans` permanece obsoleto solo para compatibilidad histórica. |
+| Inventario | `Products`, `InventoryMovements`, `MonthlyPurchaseItems`, `MonthlyRestockPlans` | Catálogo y existencias por movimientos. La lista mensual tiene identidad, nombre y categoría propios; `ProductId` es opcional hasta el vínculo atómico con una compra. `MonthlyRestockPlans` permanece obsoleto solo para compatibilidad histórica. |
 | Caja | `FinancialEntries` | Otros ingresos, gastos e imprevistos sin duplicar movimientos originados en otros módulos. |
-| Obligaciones | `Obligations`, `ObligationPayments`, `Loans`, `LoanPayments` | Importe esperado, recurrencia y pagos; préstamos con saldo, frecuencia, próximo vencimiento y cuotas. |
+| Obligaciones | `Obligations`, `ObligationPayments`, `Loans`, `LoanInstallments`, `LoanPayments` | Importe esperado, recurrencia y pagos; préstamos con método, total esperado, calendario mensual, desglose de capital/interés y pago ligado a cuota. |
 | Mantenimiento | `MaintenanceRecords` | Plan y ejecución con costo estimado o real. |
 | Colaboradores | `Collaborators`, `CollaboratorContributions`, `MonthlyCloses`, `MonthlyCloseParticipants`, `DistributionPayments` | Inversionistas, aportes no operativos, fotografía financiera del cierre, porcentajes global/individual congelados y pagos completos de distribución. |
 | Cierres financieros | `FinancialReserves`, `FinancialCloseExclusions`, `AnnualCloses` | Reservas por ocurrencia, exclusiones justificadas y snapshot anual; nunca reemplazan la operación fuente. |
@@ -57,5 +57,6 @@
 7. `Phase46UsdExportsDistributionInventory`: agrega ruta de exportación, porcentaje directo heredado y costo de producto sin reinterpretar datos.
 8. `Phase47SimplificationAndNotes`: agrega `Collaborators.FundParticipationBasisPoints`, `Obligations.IsSettled` y la tabla singleton `Notes`; conserva columnas y tablas anteriores.
 9. `Phase48FinancialClosuresReservesLoansInventory`: migración aditiva única que amplía snapshots, congela porcentajes históricos y agrega reservas, exclusiones, lista mensual, préstamos/cuotas y cierres anuales. No elimina tablas o columnas heredadas.
+10. `Phase49HistoriesLoansAndAnnualBalance`: añade eventos inmutables de aportes, calendario de préstamos, campos de método/cálculo, producto planificado independiente, snapshot anual ampliado y arrastres separados; rellena compatibilidad de datos F48 sin borrar estructuras heredadas.
 
 La prueba de integración migra una base alpha.1, conserva su configuración y tablas, convierte el conteo histórico de sillas y valida las entidades nuevas. Antes de migrar una base existente con cambios pendientes, el inicializador crea una copia `pre-migration-*`.

@@ -19,7 +19,9 @@ Las personas que trabajan en el local utilizan sus propios implementos y cobran 
 
 ## Estado de implementación
 
-La aplicación implementa Inicio, Uso del local, Colaboradores, Ventas, Inventario, Otros ingresos, Gastos, Imprevistos, Obligaciones, Mantenimiento, Resumen mensual, Balance anual, Ajustes y un bloc único de Notas. Trabaja en USD, separa cobros, cuentas, egresos, reservas y financiación, distribuye únicamente resultados positivos mediante porcentajes congelados, permite cierres mensuales/anuales manuales, préstamos y lista mensual de compra, ofrece tablas con desplazamiento interno, copias/restauración y una exportación `.xlsx` completa sin planes de reposición heredados.
+La aplicación implementa Inicio, Uso del local, Colaboradores, Ventas, Inventario, Otros ingresos, Gastos, Imprevistos, Obligaciones, Mantenimiento, Resumen mensual, Balance anual, Ajustes y un bloc único de Notas. Trabaja en USD, separa cobros, cuentas, egresos, reservas y financiación, distribuye únicamente resultados positivos mediante porcentajes congelados, permite cierres mensuales/anuales manuales, préstamos con calendario exacto y una lista mensual independiente del inventario, ofrece tablas con desplazamiento interno, copias/restauración y una exportación `.xlsx` completa sin planes de reposición heredados.
+
+La Fase 4.9 añade consulta diaria por zona horaria local, consumo semanal real de anticipos, historial inmutable de aportes, préstamos por amortización o cantidad final acordada, balance anual vivo/snapshot y arrastres separados. La migración es aditiva y preserva bases anteriores.
 
 El instalador alpha x64 se construyó localmente sin firma y permanece ignorado por Git. No se ha publicado un Release ni se ha probado todavía una actualización real entre dos Releases.
 

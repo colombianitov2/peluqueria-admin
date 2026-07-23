@@ -160,3 +160,12 @@ Los GitHub Releases públicos son la fuente configurada para Velopack. La aplica
 - actualización entre dos versiones de prueba conservando la base de datos;
 - instalación limpia y actualización sobre cada versión de Windows aprobada;
 - comparación de resultados mensuales y anuales con ejemplos manuales aprobados.
+
+## Extensiones de dominio de Fase 4.9
+
+- `DailyActivityQuery` es una consulta pura: convierte `OccurredUtc` con la zona del reloj y no confía en una fecha técnica precalculada.
+- `WeeklyChargeCalculator` mantiene el libro mayor por vencimientos sabatinos y deriva deuda, crédito y proyecciones sin temporizadores ni escrituras periódicas.
+- `CollaboratorContributionEvent` conserva la bitácora inmutable separada del aporte activo.
+- `LoanCalculator` construye el agregado `Loan` y su calendario `LoanInstallment` antes de persistirlos atómicamente.
+- `AnnualFinancialCalculator` es el único ensamblador anual: usa snapshots confirmados y calcula solo meses abiertos; `AnnualCarryover` separa los saldos iniciales.
+- La exportación abre una lectura consistente de todas estas colecciones y genera un único `.xlsx` temporal antes del movimiento final.
