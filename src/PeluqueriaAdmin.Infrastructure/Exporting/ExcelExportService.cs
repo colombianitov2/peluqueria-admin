@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.Exporting;
 using PeluqueriaAdmin.Application.Localization;
+using PeluqueriaAdmin.Domain.Activity;
 using PeluqueriaAdmin.Domain.Collaborators;
 using PeluqueriaAdmin.Domain.Common;
 using PeluqueriaAdmin.Domain.Finance;
@@ -54,7 +55,7 @@ public sealed class ExcelExportService(
             throw new InvalidOperationException($"No se puede crear la carpeta de exportación: {destination}", exception);
         }
 
-        string finalPath = UniquePath(destination, $"Peluqueria-Administracion-{cutoffLocal:yyyy-MM-dd-HHmmss}.xlsx");
+        string finalPath = UniquePath(destination, $"PeluqueriaAdmin-{cutoffLocal:yyyy-MM-dd_HH-mm-ss}.xlsx");
         string temporaryPath = Path.Combine(destination, $".{Path.GetFileName(finalPath)}.{Guid.NewGuid():N}.tmp.xlsx");
 
         try
@@ -101,7 +102,13 @@ public sealed class ExcelExportService(
             await db.Chairs.AsNoTracking().ToListAsync(cancellationToken),
             await db.ActivityRecords.AsNoTracking().ToListAsync(cancellationToken),
             await db.UnofficialExpenses.AsNoTracking().ToListAsync(cancellationToken),
-            await db.CollaboratorContributions.AsNoTracking().ToListAsync(cancellationToken));
+            await db.CollaboratorContributions.AsNoTracking().ToListAsync(cancellationToken),
+            await db.FinancialReserves.AsNoTracking().ToListAsync(cancellationToken),
+            await db.FinancialCloseExclusions.AsNoTracking().ToListAsync(cancellationToken),
+            await db.MonthlyPurchaseItems.AsNoTracking().ToListAsync(cancellationToken),
+            await db.Loans.AsNoTracking().ToListAsync(cancellationToken),
+            await db.LoanPayments.AsNoTracking().ToListAsync(cancellationToken),
+            await db.AnnualCloses.AsNoTracking().ToListAsync(cancellationToken));
 
         var deletedPeople = await db.LocalUsePeople.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken);
         var deletedCollaborators = await db.Collaborators.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken);
@@ -123,6 +130,11 @@ public sealed class ExcelExportService(
         deleted.AddRange((await db.MonthlyCloses.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Cierre mensual", x.Month.ToString(), x.DeletedUtc)));
         deleted.AddRange((await db.MonthlyCloseParticipants.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Distribución a colaborador", x.Amount.ToDecimal().ToString("0.00"), x.DeletedUtc)));
         deleted.AddRange((await db.DistributionPayments.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Pago a colaborador", $"{x.Date:yyyy-MM-dd} · {x.Amount.ToDecimal():0.00}", x.DeletedUtc)));
+        deleted.AddRange((await db.FinancialReserves.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Reserva financiera", x.Name, x.DeletedUtc)));
+        deleted.AddRange((await db.FinancialCloseExclusions.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Exclusión de cierre", x.Reason, x.DeletedUtc)));
+        deleted.AddRange((await db.MonthlyPurchaseItems.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Artículo de compra mensual", x.Month.ToString(), x.DeletedUtc)));
+        deleted.AddRange((await db.Loans.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Préstamo", x.Name, x.DeletedUtc)));
+        deleted.AddRange((await db.LoanPayments.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken)).Select(x => Deleted("Cuota de préstamo", x.Date.ToString("yyyy-MM-dd"), x.DeletedUtc)));
 
         var drafts = await db.FormDrafts.AsNoTracking().OrderBy(x => x.UpdatedUtc).ToListAsync(cancellationToken);
         AppNote? note = await db.Notes.AsNoTracking().SingleOrDefaultAsync(cancellationToken);
@@ -219,7 +231,16 @@ public sealed class ExcelExportService(
             data.LocalUsePayments.OrderBy(x => x.PaymentDate).Select(x => (object?[])
             [SafeText(PersonName(data, snapshot.DeletedPeople, x.PersonId)), Date(x.PaymentDate), x.Amount.ToDecimal(), currency, SafeText(x.Description ?? ""), "Registrado"]), moneyColumns: [3]);
 
-        AddTable(workbook, "Colaboradores", ["Nombre", "Fecha de inicio", "Fecha de retiro", "Participación dentro del fondo", "Descripción", "Estado"],
+        AddTable(workbook, "Cuentas por cobrar", ["Persona", "Cuotas causadas", "Pagos recibidos", "Saldo por cobrar", "Moneda", "Estado"],
+            data.LocalUsePeople.OrderBy(x => x.Name).Select(person =>
+            {
+                decimal charges = data.WeeklyCharges.Where(x => x.PersonId == person.Id && x.PeriodEnd <= today).Sum(x => x.Amount.ToDecimal());
+                decimal payments = data.LocalUsePayments.Where(x => x.PersonId == person.Id && x.PaymentDate <= today).Sum(x => x.Amount.ToDecimal());
+                decimal pending = Math.Max(0, charges - payments);
+                return (object?[])[SafeText(person.Name), charges, payments, pending, currency, pending > 0 ? "Pendiente" : "Al día"];
+            }), moneyColumns: [2, 3, 4]);
+
+        AddTable(workbook, "Colaboradores", ["Nombre", "Fecha de inicio", "Fecha de retiro", "Porcentaje de ganancia", "Descripción", "Estado"],
             data.Collaborators.OrderBy(x => x.Name).Select(x => (object?[])
             [SafeText(x.Name), Date(x.StartDate), Date(x.ExitDate), x.FundParticipationBasisPoints / 10_000m, SafeText(x.Description ?? ""), x.IsCurrentOn(today) ? "Activo" : "Retirado"]), percentColumns: [4]);
 
@@ -258,6 +279,15 @@ public sealed class ExcelExportService(
             data.InventoryMovements.OrderBy(x => x.Date).Select(x => (object?[])
             [SafeText(ProductName(data, x.ProductId)), Date(x.Date), MovementName(x.Type), x.QuantityDelta, x.CashAmount?.ToDecimal(), x.EstimatedCost?.ToDecimal(), currency, SafeText(x.Description ?? ""), "Registrado"]), moneyColumns: [5, 6], quantityColumns: [4]);
 
+        AddTable(workbook, "Lista mensual de compra", ["Mes", "Producto", "Categoría", "Cantidad", "Costo esperado unitario", "Total esperado", "Moneda", "Activa", "Reserva cuando llega a cero", "Compra vinculada", "Descripción"],
+            data.MonthlyPurchaseItems.OrderBy(x => x.Month.Year).ThenBy(x => x.Month.Month).Select(x =>
+            {
+                Product? product = data.Products.SingleOrDefault(p => p.Id == x.ProductId);
+                return (object?[])[Date(x.Month.FirstDay), SafeText(product?.Name ?? "Producto eliminado"), product is null ? "" : SpanishText.For(product.Category), x.Quantity,
+                    x.ExpectedUnitCost.ToDecimal(), Minor(x.ExpectedTotalMinorUnits), currency, x.IsActive ? "Sí" : "No", x.ReserveWhenOutOfStock ? "Sí" : "No",
+                    x.PurchaseMovementId.HasValue ? "Sí" : "No", SafeText(x.Description ?? "")];
+            }), moneyColumns: [5, 6], quantityColumns: [4]);
+
         AddFinancialSheet(workbook, "Otros ingresos", data, FinancialEntryType.OtherIncome, currency);
         AddFinancialSheet(workbook, "Gastos", data, FinancialEntryType.Expense, currency);
         AddFinancialSheet(workbook, "Imprevistos", data, FinancialEntryType.UnexpectedExpense, currency);
@@ -277,22 +307,44 @@ public sealed class ExcelExportService(
             data.ObligationPayments.OrderBy(x => x.Date).Select(x => (object?[])
             [SafeText(ObligationName(data, x.ObligationId)), Date(x.Date), x.Amount.ToDecimal(), currency, SafeText(x.Description ?? ""), "Registrado"]), moneyColumns: [3]);
 
+        IEnumerable<object?[]> payableRows = data.Obligations.Select(x =>
+        {
+            decimal paid = data.ObligationPayments.Where(p => p.ObligationId == x.Id).Sum(p => p.Amount.ToDecimal());
+            return (object?[])["Obligación", SafeText(x.Name), Date(x.DueDate), Math.Max(0, x.ExpectedAmount.ToDecimal() - paid), currency, paid >= x.ExpectedAmount.ToDecimal() ? "Pagada" : "Pendiente"];
+        }).Where(row => row[3] is decimal value && value > 0)
+        .Concat(data.MaintenanceRecords.Where(x => !x.CompletedDate.HasValue).Select(x => (object?[])["Mantenimiento", SafeText($"{x.Asset}: {x.MaintenanceType}"), Date(x.ScheduledDate), x.EstimatedCost?.ToDecimal(), currency, "Pendiente"]))
+        .Concat(data.Loans.Where(x => !x.IsPaid).Select(x => (object?[])["Préstamo", SafeText(x.Name), Date(x.NextDueDate), x.PendingBalance.ToDecimal(), currency, "Pendiente"]));
+        AddTable(workbook, "Cuentas por pagar", ["Origen", "Nombre", "Fecha exigible", "Valor pendiente", "Moneda", "Estado"], payableRows, moneyColumns: [4]);
+
+        AddTable(workbook, "Préstamos", ["Nombre", "Saldo inicial", "Saldo pendiente", "Cuota habitual", "Moneda", "Fecha de inicio", "Frecuencia", "Número de cuotas", "Próximo vencimiento", "Descripción", "Estado"],
+            data.Loans.OrderBy(x => x.StartDate).Select(x => (object?[])[SafeText(x.Name), x.InitialBalance.ToDecimal(), x.PendingBalance.ToDecimal(), x.UsualInstallment.ToDecimal(), currency,
+                Date(x.StartDate), SpanishText.For(x.Frequency), x.InstallmentCount, Date(x.NextDueDate), SafeText(x.Description ?? ""), x.IsPaid ? "Pagado" : "Pendiente"]), moneyColumns: [2, 3, 4]);
+        AddTable(workbook, "Cuotas de préstamos", ["Préstamo", "Fecha", "Valor", "Moneda", "Descripción", "Estado"],
+            data.LoanPayments.OrderBy(x => x.Date).Select(x => (object?[])[SafeText(data.Loans.SingleOrDefault(l => l.Id == x.LoanId)?.Name ?? "Préstamo eliminado"),
+                Date(x.Date), x.Amount.ToDecimal(), currency, SafeText(x.Description ?? ""), "Registrada"]), moneyColumns: [3]);
+
         AddTable(workbook, "Mantenimiento", ["Equipo o bien", "Tipo de mantenimiento", "Fecha programada", "Costo estimado", "Fecha realizada", "Costo real", "Moneda", "Frecuencia", "Intervalo personalizado", "Unidad del intervalo", "Número de ocurrencia", "Descripción", "Estado"],
             data.MaintenanceRecords.OrderBy(x => x.ScheduledDate).Select(x => (object?[])
             [SafeText(x.Asset), SafeText(x.MaintenanceType), Date(x.ScheduledDate), x.EstimatedCost?.ToDecimal(), Date(x.CompletedDate), x.ActualCost?.ToDecimal(), currency, MaintenanceFrequencyName(x.Frequency), x.CustomInterval, MaintenanceUnitName(x.CustomIntervalUnit), x.OccurrenceNumber + 1, SafeText(x.Description ?? ""),
              x.CompletedDate.HasValue ? "Realizado" : x.ScheduledDate < today ? "Pendiente vencido" : "Programado"]), moneyColumns: [4, 6]);
 
-        AddTable(workbook, "Cierres mensuales", ["Mes", "Porcentaje de colaboradores", "Ingresos", "Meta mensual", "Resultado base", "Fondo de colaboradores", "Resultado retenido", "Moneda", "Fecha de cierre", "Descripción", "Estado"],
+        AddTable(workbook, "Cierres mensuales", ["Mes", "Porcentaje global", "Ingresos cobrados", "Cuentas por cobrar", "Egresos pagados", "Cuentas por pagar", "Reservas nuevas", "Reservas arrastradas", "Ajustes de reservas", "Pagos de préstamos", "Financiación recibida", "Compromisos anteriores", "Resultado distribuible", "Punto de equilibrio", "Faltante", "Fondo de colaboradores", "Retenido por el local", "Moneda", "Fecha de cierre", "Descripción", "Estado"],
             data.MonthlyCloses.OrderBy(x => x.Month.Year).ThenBy(x => x.Month.Month).Select(x => (object?[])
-            [Date(x.Month.FirstDay), x.CollaboratorPercentageBasisPoints / 10000m, Minor(x.IncomeMinorUnits), Minor(x.GoalMinorUnits), Minor(x.BaseResultMinorUnits), Minor(x.FundMinorUnits), Minor(x.RetainedResultMinorUnits), currency, x.ClosedUtc.ToLocalTime(), SafeText(x.Description ?? ""), x.IsConfirmed ? "Confirmado" : "Reabierto"]), moneyColumns: [3, 4, 5, 6, 7], percentColumns: [2]);
+            [Date(x.Month.FirstDay), x.CollaboratorPercentageBasisPoints / 10000m, Minor(x.IncomeMinorUnits), Minor(x.AccountsReceivableMinorUnits), Minor(x.PaidOutflowsMinorUnits), Minor(x.AccountsPayableMinorUnits), Minor(x.NewReservesMinorUnits), Minor(x.CarriedReservesMinorUnits), Minor(x.ReserveAdjustmentsMinorUnits), Minor(x.LoanPaymentsMinorUnits), Minor(x.FinancingReceivedMinorUnits), Minor(x.PriorUncoveredCommitmentsMinorUnits), Minor(x.BaseResultMinorUnits), Minor(x.BreakEvenMinorUnits), Minor(x.ShortfallMinorUnits), Minor(x.FundMinorUnits), Minor(x.RetainedResultMinorUnits), currency, x.ClosedUtc.ToLocalTime(), SafeText(x.Description ?? ""), x.IsConfirmed ? "Confirmado" : "Reabierto"]), moneyColumns: Enumerable.Range(3, 15).ToArray(), percentColumns: [2]);
 
-        AddTable(workbook, "Distribuciones a colaboradores", ["Mes", "Colaborador", "Valor asignado", "Valor pagado", "Saldo pendiente", "Moneda", "Estado"],
+        AddTable(workbook, "Reservas financieras", ["Mes de creación", "Origen", "Nombre", "Fecha exigible", "Valor reservado", "Valor real", "Moneda", "Fecha de consumo", "Estado"],
+            data.FinancialReserves.OrderBy(x => x.DueDate).Select(x => (object?[])[Date(x.Month.FirstDay), CommitmentSourceName(x.SourceType), SafeText(x.Name), Date(x.DueDate),
+                x.ReservedAmount.ToDecimal(), x.ActualAmount?.ToDecimal(), currency, Date(x.SettledDate), x.IsConsumed ? "Consumida" : "Comprometida"]), moneyColumns: [5, 6]);
+        AddTable(workbook, "Exclusiones de cierre", ["Mes", "Origen", "Motivo", "Estado"],
+            data.FinancialCloseExclusions.OrderBy(x => x.Month.Year).ThenBy(x => x.Month.Month).Select(x => (object?[])[Date(x.Month.FirstDay), CommitmentSourceName(x.SourceType), SafeText(x.Reason), "Excluida y auditada"]));
+
+        AddTable(workbook, "Distribuciones a colaboradores", ["Mes", "Colaborador", "Porcentaje global congelado", "Porcentaje individual congelado", "Valor asignado", "Valor pagado", "Saldo pendiente", "Moneda", "Estado"],
             data.MonthlyCloseParticipants.Select(x =>
             {
                 MonthlyClose? close = data.MonthlyCloses.SingleOrDefault(c => c.Id == x.CloseId);
                 decimal paid = data.DistributionPayments.Where(p => p.ParticipantId == x.Id).Sum(p => p.Amount.ToDecimal());
-                return (object?[])[Date(close?.Month.FirstDay), SafeText(CollaboratorName(data, snapshot.DeletedCollaborators, x.CollaboratorId)), x.Amount.ToDecimal(), paid, Math.Max(0, x.Amount.ToDecimal() - paid), currency, close?.IsConfirmed == true ? (paid >= x.Amount.ToDecimal() ? "Pagada" : "Pendiente") : "Cierre reabierto"];
-            }), moneyColumns: [3, 4, 5]);
+                return (object?[])[Date(close?.Month.FirstDay), SafeText(CollaboratorName(data, snapshot.DeletedCollaborators, x.CollaboratorId)), x.GlobalPercentageBasisPoints / 10_000m, x.IndividualPercentageBasisPoints / 10_000m, x.Amount.ToDecimal(), paid, Math.Max(0, x.Amount.ToDecimal() - paid), currency, close?.IsConfirmed == true ? (paid >= x.Amount.ToDecimal() ? "Pagada completa" : "Pendiente de pago completo") : "Cierre reabierto"];
+            }), moneyColumns: [5, 6, 7], percentColumns: [3, 4]);
 
         AddTable(workbook, "Pagos a colaboradores", ["Mes", "Colaborador", "Fecha", "Valor", "Moneda", "Descripción", "Estado"],
             data.DistributionPayments.OrderBy(x => x.Date).Select(x =>
@@ -312,14 +364,17 @@ public sealed class ExcelExportService(
 
         AddMonthlySummaries(workbook, data, snapshot.Settings, currency, from, to);
         AddAnnualBalances(workbook, data, snapshot.Settings, currency, from, to);
+        AddTable(workbook, "Cierres anuales", ["Año", "Ingresos cobrados", "Egresos pagados", "Reservas", "Obligaciones", "Pagos de préstamos", "Fondo de colaboradores", "Resultado", "Moneda", "Fecha de cierre", "Estado"],
+            data.AnnualCloses.OrderBy(x => x.Year).Select(x => (object?[])[x.Year, Minor(x.IncomeMinorUnits), Minor(x.PaidOutflowsMinorUnits), Minor(x.ReservesMinorUnits), Minor(x.ObligationsMinorUnits), Minor(x.LoanPaymentsMinorUnits), Minor(x.CollaboratorFundMinorUnits), Minor(x.ResultMinorUnits), currency, x.ClosedUtc.ToLocalTime(), "Confirmado"]), moneyColumns: [2, 3, 4, 5, 6, 7, 8]);
 
         AddTable(workbook, "Flujo de caja", ["Fecha", "Origen", "Concepto", "Entrada o salida", "Moneda"],
             BuildCashMovements(data).OrderBy(x => x.Date).Select(x => (object?[])
             [Date(x.Date), SafeText(x.Category), SafeText(x.Concept), Minor(x.SignedMinorUnits), currency]), moneyColumns: [4]);
 
-        AddTable(workbook, "Actividad e historial", ["Fecha", "Fecha y hora exacta", "Módulo", "Acción", "Resumen", "Descripción"],
+        AddTable(workbook, "Movimientos generales", ["Fecha", "Fecha y hora exacta", "Módulo", "Acción", "Resumen", "Descripción", "Importe", "Moneda", "Estado"],
             data.ActivityRecords.OrderBy(x => x.OccurredUtc).Select(x => (object?[])
-            [Date(x.ActivityDate), x.OccurredUtc.ToLocalTime(), SafeText(x.Module), SafeText(x.Action), SafeText(x.Summary), SafeText(x.Description ?? "")]));
+            [Date(x.ActivityDate), x.OccurredUtc.ToLocalTime(), SafeText(x.Module), SafeText(x.Action), SafeText(x.Summary), SafeText(x.Description ?? ""), ActivityAmount(data, x), currency,
+                x.Action.Contains("Eliminación", StringComparison.OrdinalIgnoreCase) ? "Eliminado lógicamente" : "Registrado"]), moneyColumns: [7]);
 
         AddTable(workbook, "Historial eliminado", ["Tipo de registro", "Descripción", "Fecha de eliminación", "Estado"],
             snapshot.Deleted.OrderBy(x => x.DeletedUtc).Select(x => (object?[])[x.Type, SafeText(x.Description), x.DeletedUtc?.ToLocalTime(), "Eliminado lógicamente"]));
@@ -367,17 +422,17 @@ public sealed class ExcelExportService(
     {
         if (!from.HasValue || !to.HasValue)
         {
-            AddTable(workbook, "Resúmenes mensuales", ["Mes", "Ingresos", "Meta mensual", "Faltante", "Resultado base", "Fondo colaboradores", "Resultado retenido", "Moneda", "Origen"], []);
+            AddTable(workbook, "Resúmenes mensuales", ["Mes", "Ingresos cobrados", "Cuentas por cobrar", "Egresos pagados", "Cuentas por pagar", "Reservas nuevas", "Reservas arrastradas", "Ajustes de reservas", "Préstamos pagados", "Financiación recibida", "Resultado distribuible", "Punto de equilibrio", "Faltante", "Fondo colaboradores", "Retenido por el local", "Moneda", "Origen"], []);
             return;
         }
 
         var months = MonthsBetween(from.Value, to.Value).Select(month =>
         {
-            MonthlySummaryResult result = AdministrationReports.MonthlySummary(data, settings.CollaboratorProfit, month);
-            bool snapshot = data.MonthlyCloses.Any(x => x.Month == month && x.IsConfirmed);
-            return (object?[])[Date(month.FirstDay), Minor(result.IncomeMinorUnits), Minor(result.GoalMinorUnits), Minor(result.MissingMinorUnits), Minor(result.BaseResultMinorUnits), Minor(result.CollaboratorFundMinorUnits), Minor(result.RetainedResultMinorUnits), currency, snapshot ? "Snapshot de cierre confirmado" : "Cálculo actual"];
+            MonthlyClose? close = data.MonthlyCloses.Where(x => x.Month == month && x.IsConfirmed).OrderByDescending(x => x.ClosedUtc).FirstOrDefault();
+            FinancialMonthSnapshot result = close?.ToFinancialSnapshot() ?? FinancialMonthCalculator.Calculate(data, settings.CollaboratorProfit, month);
+            return (object?[])[Date(month.FirstDay), Minor(result.CollectedOperatingIncomeMinorUnits), Minor(result.AccountsReceivableMinorUnits), Minor(result.PaidOutflowsMinorUnits), Minor(result.AccountsPayableMinorUnits), Minor(result.NewReservesMinorUnits), Minor(result.CarriedReservesMinorUnits), Minor(result.ReserveAdjustmentsMinorUnits), Minor(result.LoanPaymentsMinorUnits), Minor(result.FinancingReceivedMinorUnits), Minor(result.DistributableResultMinorUnits), Minor(result.BreakEvenMinorUnits), Minor(result.ShortfallMinorUnits), Minor(result.CollaboratorFundMinorUnits), Minor(result.RetainedLocalMinorUnits), currency, close is not null ? "Snapshot de cierre confirmado" : "Proyección actual"];
         });
-        AddTable(workbook, "Resúmenes mensuales", ["Mes", "Ingresos", "Meta mensual", "Faltante", "Resultado base", "Fondo colaboradores", "Resultado retenido", "Moneda", "Origen"], months, moneyColumns: [2, 3, 4, 5, 6, 7]);
+        AddTable(workbook, "Resúmenes mensuales", ["Mes", "Ingresos cobrados", "Cuentas por cobrar", "Egresos pagados", "Cuentas por pagar", "Reservas nuevas", "Reservas arrastradas", "Ajustes de reservas", "Préstamos pagados", "Financiación recibida", "Resultado distribuible", "Punto de equilibrio", "Faltante", "Fondo colaboradores", "Retenido por el local", "Moneda", "Origen"], months, moneyColumns: Enumerable.Range(2, 14).ToArray());
     }
 
     private static void AddAnnualBalances(XLWorkbook workbook, AdministrationData data, GeneralSettings settings, string currency, DateOnly? from, DateOnly? to)
@@ -387,10 +442,26 @@ public sealed class ExcelExportService(
         {
             AnnualAdministrationReport report = AdministrationReports.Annual(data, settings.CollaboratorProfit, year);
             MonthlyExpenseBreakdown e = report.Expenses;
-            AnnualBalanceResult b = report.Balance;
-            return (object?[])[year, Minor(b.IncomeMinorUnits), Minor(b.ExpenseMinorUnits), Minor(b.DistributionMinorUnits), Minor(b.RetainedMinorUnits), Minor(b.PendingMinorUnits), Minor(b.MissingMinorUnits), Minor(e.ServicesMinorUnits), Minor(e.TaxesMinorUnits), Minor(e.OtherObligationsMinorUnits), Minor(e.MerchandiseMinorUnits), Minor(e.MandatorySuppliesMinorUnits), Minor(e.OptionalSuppliesMinorUnits), Minor(e.MaintenanceMinorUnits), Minor(e.UnexpectedMinorUnits), Minor(e.OtherExpensesMinorUnits), Minor(e.HistoricalAdjustmentMinorUnits), currency, report.Indicator];
+            MonthlyClose[] closes = data.MonthlyCloses.Where(x => x.IsConfirmed && x.Month.Year == year)
+                .GroupBy(x => x.Month.Month)
+                .Select(group => group.OrderByDescending(x => x.ClosedUtc).First())
+                .ToArray();
+            long income = closes.Sum(x => x.IncomeMinorUnits);
+            long paidOutflows = closes.Sum(x => x.PaidOutflowsMinorUnits);
+            long reserves = closes.Sum(x => x.NewReservesMinorUnits);
+            long payables = closes.Sum(x => x.AccountsPayableMinorUnits);
+            long loans = closes.Sum(x => x.LoanPaymentsMinorUnits);
+            long fund = closes.Sum(x => x.FundMinorUnits);
+            long retained = closes.Sum(x => x.RetainedResultMinorUnits);
+            long missing = closes.Sum(x => x.ShortfallMinorUnits);
+            return (object?[])[year, Minor(income), Minor(paidOutflows), Minor(reserves), Minor(payables), Minor(loans),
+                Minor(fund), Minor(retained), Minor(missing), Minor(e.ServicesMinorUnits), Minor(e.TaxesMinorUnits),
+                Minor(e.OtherObligationsMinorUnits), Minor(e.MerchandiseMinorUnits), Minor(e.MandatorySuppliesMinorUnits),
+                Minor(e.OptionalSuppliesMinorUnits), Minor(e.MaintenanceMinorUnits), Minor(e.UnexpectedMinorUnits),
+                Minor(e.OtherExpensesMinorUnits), Minor(e.HistoricalAdjustmentMinorUnits), currency,
+                closes.Sum(x => x.BaseResultMinorUnits) >= 0 ? "Positivo" : "Negativo"];
         });
-        AddTable(workbook, "Balance anual", ["Año", "Ingresos", "Gastos reales", "Distribuciones pagadas", "Resultado retenido", "Pendientes", "Faltante", "Servicios", "Impuestos", "Otras obligaciones", "Mercancía", "Insumos obligatorios", "Insumos opcionales", "Mantenimiento", "Imprevistos", "Otros gastos", "Ajuste histórico", "Moneda", "Indicador"], rows, moneyColumns: Enumerable.Range(2, 16).ToArray());
+        AddTable(workbook, "Balance anual", ["Año", "Ingresos cobrados", "Egresos pagados", "Reservas", "Cuentas por pagar", "Préstamos", "Fondo de colaboradores", "Resultado retenido", "Faltante", "Servicios", "Impuestos", "Otras obligaciones", "Mercancía", "Insumos obligatorios", "Insumos opcionales", "Mantenimiento", "Imprevistos", "Otros gastos", "Ajuste histórico", "Moneda", "Indicador"], rows, moneyColumns: Enumerable.Range(2, 18).ToArray());
     }
 
     private static IReadOnlyList<CashMovement> BuildCashMovements(AdministrationData data)
@@ -405,7 +476,24 @@ public sealed class ExcelExportService(
         result.AddRange(data.ObligationPayments.Select(x => new CashMovement(x.Date, "Obligaciones", ObligationName(data, x.ObligationId), -x.Amount.MinorUnits)));
         result.AddRange(data.MaintenanceRecords.Where(x => x.CompletedDate.HasValue && x.ActualCost.HasValue).Select(x => new CashMovement(x.CompletedDate!.Value, "Mantenimiento", x.Asset, -x.ActualCost!.Value.MinorUnits)));
         result.AddRange(data.DistributionPayments.Where(x => participantIds.Contains(x.ParticipantId)).Select(x => new CashMovement(x.Date, "Pagos a colaboradores", "Distribución pagada", -x.Amount.MinorUnits)));
+        result.AddRange(data.Loans.Select(x => new CashMovement(x.StartDate, "Financiación / préstamos", x.Name, x.InitialBalance.MinorUnits)));
+        result.AddRange(data.LoanPayments.Select(x => new CashMovement(x.Date, "Financiación / préstamos", data.Loans.SingleOrDefault(loan => loan.Id == x.LoanId)?.Name ?? "Préstamo eliminado", -x.Amount.MinorUnits)));
+        result.AddRange(data.CollaboratorContributions.Select(x => new CashMovement(x.Date, "Financiación / aportes", CollaboratorName(data, new Dictionary<Guid, string>(), x.CollaboratorId), x.Amount.MinorUnits)));
         return result;
+    }
+
+    private static decimal? ActivityAmount(AdministrationData data, ActivityRecord activity)
+    {
+        long? minorUnits = data.LocalUsePayments.SingleOrDefault(x => x.Id == activity.EntityId)?.Amount.MinorUnits
+            ?? data.InventoryMovements.SingleOrDefault(x => x.Id == activity.EntityId)?.CashAmount?.MinorUnits
+            ?? data.FinancialEntries.SingleOrDefault(x => x.Id == activity.EntityId)?.Amount.MinorUnits
+            ?? data.ObligationPayments.SingleOrDefault(x => x.Id == activity.EntityId)?.Amount.MinorUnits
+            ?? data.DistributionPayments.SingleOrDefault(x => x.Id == activity.EntityId)?.Amount.MinorUnits
+            ?? data.LoanPayments.SingleOrDefault(x => x.Id == activity.EntityId)?.Amount.MinorUnits
+            ?? data.FinancialReserves.SingleOrDefault(x => x.Id == activity.EntityId)?.ReservedAmount.MinorUnits
+            ?? data.MonthlyCloses.SingleOrDefault(x => x.Id == activity.EntityId)?.FundMinorUnits
+            ?? data.AnnualCloses.SingleOrDefault(x => x.Id == activity.EntityId)?.ResultMinorUnits;
+        return minorUnits.HasValue ? Minor(minorUnits.Value) : null;
     }
 
     private static void AddFinancialSheet(XLWorkbook workbook, string name, AdministrationData data, FinancialEntryType type, string currency) =>
@@ -501,6 +589,9 @@ public sealed class ExcelExportService(
         dates.AddRange(data.MaintenanceRecords.Where(x => x.CompletedDate.HasValue).Select(x => x.CompletedDate!.Value)); dates.AddRange(data.Collaborators.Select(x => x.StartDate));
         dates.AddRange(data.MonthlyCloses.Select(x => x.Month.FirstDay)); dates.AddRange(data.DistributionPayments.Select(x => x.Date));
         dates.AddRange(data.CollaboratorContributions.Select(x => x.Date));
+        dates.AddRange(data.MonthlyPurchaseItems.Select(x => x.Month.FirstDay));
+        dates.AddRange(data.Loans.Select(x => x.StartDate)); dates.AddRange(data.Loans.Select(x => x.NextDueDate));
+        dates.AddRange(data.LoanPayments.Select(x => x.Date)); dates.AddRange(data.FinancialReserves.Select(x => x.DueDate));
         return dates.Count == 0 ? (null, null) : (dates.Min(), dates.Max());
     }
 
@@ -545,6 +636,8 @@ public sealed class ExcelExportService(
         data.Collaborators.SingleOrDefault(x => x.Id == id)?.Name
         ?? (deleted.TryGetValue(id, out string? name) ? name : "Colaborador eliminado");
     private static string MovementName(InventoryMovementType type) => type switch { InventoryMovementType.InitialStock => "Existencia inicial", InventoryMovementType.Purchase => "Compra", InventoryMovementType.Sale => "Venta", InventoryMovementType.InternalConsumption => "Consumo interno", InventoryMovementType.PhysicalCountAdjustment => "Ajuste por conteo físico", _ => type.ToString() };
+
+    private static string CommitmentSourceName(FinancialCommitmentSource source) => source switch { FinancialCommitmentSource.Obligation => "Obligación", FinancialCommitmentSource.Maintenance => "Mantenimiento", FinancialCommitmentSource.MonthlyPurchase => "Lista mensual de compra", FinancialCommitmentSource.LoanInstallment => "Cuota de préstamo", _ => "Compromiso anterior" };
 
     private static string MaintenanceFrequencyName(MaintenanceFrequency frequency) => frequency switch { MaintenanceFrequency.Weekly => "Semanal", MaintenanceFrequency.Biweekly => "Quincenal", MaintenanceFrequency.Monthly => "Mensual", MaintenanceFrequency.EveryTwoMonths => "Cada 2 meses", MaintenanceFrequency.EveryThreeMonths => "Cada 3 meses", MaintenanceFrequency.EverySixMonths => "Cada 6 meses", MaintenanceFrequency.Yearly => "Anual", MaintenanceFrequency.Custom => "Personalizada", _ => "Una vez" };
 

@@ -82,8 +82,6 @@ public sealed class AdministrationService(
             await repository.SaveAsync(additions, updates, cancellationToken);
         }
 
-        AdministrationData refreshed = await repository.LoadAsync(cancellationToken);
-        await PreserveCompletedMonthsAsync(refreshed, localToday, utcNow, cancellationToken);
         return await repository.LoadAsync(cancellationToken);
     }
 
@@ -638,9 +636,12 @@ public sealed class AdministrationService(
             }
         }
 
+        FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(item => !item.IsConsumed
+            && item.SourceType == FinancialCommitmentSource.Obligation && item.SourceId == occurrence.Id);
+        reserve?.Settle(paymentDate, actualAmount, utcNow);
         await SaveAsync(
             new AuditableEntity[] { payment }.Concat(generated).ToArray(),
-            [occurrence],
+            reserve is null ? [occurrence] : [occurrence, reserve],
             completedDraftKey: null,
             cancellationToken: cancellationToken);
         return payment;
@@ -761,7 +762,10 @@ public sealed class AdministrationService(
                 && item.OccurrenceNumber == maintenance.OccurrenceNumber + 1)
             ? [maintenance.CreateNext(utcNow)]
             : [];
-        await SaveAsync(additions, [maintenance], completedDraftKey, cancellationToken);
+        FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(item => !item.IsConsumed
+            && item.SourceType == FinancialCommitmentSource.Maintenance && item.SourceId == maintenance.Id);
+        reserve?.Settle(completedDate, actualCost, utcNow);
+        await SaveAsync(additions, reserve is null ? [maintenance] : [maintenance, reserve], completedDraftKey, cancellationToken);
     }
 
     public async Task StopFutureMaintenanceAsync(
@@ -958,7 +962,31 @@ public sealed class AdministrationService(
             Money.FromMinorUnits(totalMinorUnits),
             timeProvider.GetUtcNow().UtcDateTime,
             description);
-        await AddInventoryMovementAsync(purchase, cancellationToken, completedDraftKey);
+        InventoryMovement[] productMovements = data.InventoryMovements.Where(item => item.ProductId == productId)
+            .Append(purchase).ToArray();
+        InventoryCalculator.EnsureNonNegative(productMovements);
+        YearMonth purchaseMonth = YearMonth.From(date);
+        MonthlyPurchaseItem? plan = data.MonthlyPurchaseItems
+            .Where(item => item.ProductId == productId && item.IsActive && !item.PurchaseMovementId.HasValue
+                && (item.Month.Year < purchaseMonth.Year
+                    || item.Month.Year == purchaseMonth.Year && item.Month.Month <= purchaseMonth.Month))
+            .OrderByDescending(item => item.Month.Year)
+            .ThenByDescending(item => item.Month.Month)
+            .FirstOrDefault();
+        var updates = new List<AuditableEntity>();
+        if (plan is not null)
+        {
+            plan.LinkPurchase(purchase.Id, timeProvider.GetUtcNow().UtcDateTime);
+            updates.Add(plan);
+            FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(item => !item.IsConsumed
+                && item.SourceType == FinancialCommitmentSource.MonthlyPurchase && item.SourceId == plan.Id);
+            if (reserve is not null)
+            {
+                reserve.Settle(date, purchase.CashAmount ?? Money.FromMinorUnits(0), timeProvider.GetUtcNow().UtcDateTime);
+                updates.Add(reserve);
+            }
+        }
+        await SaveAsync([purchase], updates, completedDraftKey, cancellationToken);
         return purchase;
     }
 
@@ -1067,6 +1095,140 @@ public sealed class AdministrationService(
         return (close, participants);
     }
 
+    public async Task<FinancialMonthSnapshot> CalculateFinancialMonthAsync(
+        YearMonth month, CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
+        MonthlyClose? close = data.MonthlyCloses.Where(item => item.Month == month && item.IsConfirmed)
+            .OrderByDescending(item => item.ClosedUtc).FirstOrDefault();
+        return close?.ToFinancialSnapshot()
+            ?? FinancialMonthCalculator.Calculate(data, settings.CollaboratorProfit, month);
+    }
+
+    public async Task<(MonthlyClose Close, IReadOnlyList<MonthlyCloseParticipant> Participants)> CloseFinancialMonthAsync(
+        YearMonth month,
+        CancellationToken cancellationToken = default,
+        string? description = null)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        if (data.MonthlyCloses.Any(item => item.Month == month && item.IsConfirmed))
+            throw new InvalidOperationException("El mes ya tiene un cierre confirmado.");
+
+        GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
+        FinancialMonthSnapshot snapshot = FinancialMonthCalculator.Calculate(data, settings.CollaboratorProfit, month);
+        FinancialCommitmentCandidate? invalid = snapshot.Candidates.FirstOrDefault(item =>
+            !item.IsExcluded && item.ExpectedMinorUnits <= 0);
+        if (invalid is not null)
+            throw new InvalidOperationException($"El compromiso '{invalid.Name}' no tiene un valor esperado válido.");
+
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        MonthlyClose close = MonthlyClose.Create(snapshot, utcNow, description);
+        IReadOnlyList<MonthlyCloseParticipant> participants = CollaboratorDistributionCalculator.Distribute(
+            close,
+            data.Collaborators.Where(item => item.IsCurrentOn(month.LastDay))
+                .Select(item => (item.Id, item.FundParticipationBasisPoints)),
+            utcNow);
+        FinancialReserve[] reserves = snapshot.Candidates.Where(item => !item.IsExcluded
+                && item.ExpectedMinorUnits > 0
+                && !data.FinancialReserves.Any(existing => !existing.IsConsumed
+                    && existing.SourceType == item.SourceType && existing.SourceId == item.SourceId))
+            .Select(item => FinancialReserve.Create(month, item.SourceType, item.SourceId,
+                item.Name, item.DueDate, Money.FromMinorUnits(item.ExpectedMinorUnits), utcNow))
+            .ToArray();
+        await SaveAsync(new AuditableEntity[] { close }.Concat(participants).Concat(reserves).ToArray(),
+            [], completedDraftKey: null, cancellationToken);
+        return (close, participants);
+    }
+
+    public async Task SetCloseExclusionAsync(YearMonth month, FinancialCommitmentSource sourceType,
+        Guid sourceId, bool excluded, string? reason, CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        FinancialCloseExclusion? existing = data.FinancialCloseExclusions.SingleOrDefault(item =>
+            item.Month == month && item.SourceType == sourceType && item.SourceId == sourceId);
+        if (excluded)
+        {
+            if (string.IsNullOrWhiteSpace(reason))
+                throw new ArgumentException("Debes escribir el motivo para ignorar el compromiso.", nameof(reason));
+            FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(item => !item.IsConsumed
+                && item.SourceType == sourceType && item.SourceId == sourceId);
+            reserve?.MarkDeleted(timeProvider.GetUtcNow().UtcDateTime);
+            if (existing is null)
+                await SaveAsync([FinancialCloseExclusion.Create(month, sourceType, sourceId, reason,
+                    timeProvider.GetUtcNow().UtcDateTime)], reserve is null ? [] : [reserve], null, cancellationToken);
+            else
+            {
+                existing.UpdateReason(reason, timeProvider.GetUtcNow().UtcDateTime);
+                await SaveAsync([], reserve is null ? [existing] : [existing, reserve], null, cancellationToken);
+            }
+        }
+        else if (existing is not null)
+        {
+            existing.MarkDeleted(timeProvider.GetUtcNow().UtcDateTime);
+            await SaveAsync([], [existing], null, cancellationToken);
+        }
+    }
+
+    public Task AddMonthlyPurchaseItemAsync(MonthlyPurchaseItem item,
+        CancellationToken cancellationToken = default) => AddAsync(item, cancellationToken);
+
+    public async Task UpdateMonthlyPurchaseItemAsync(MonthlyPurchaseItem item,
+        CancellationToken cancellationToken = default) => await SaveAsync([], [item], null, cancellationToken);
+
+    public async Task LinkMonthlyPurchaseAsync(Guid itemId, Guid movementId,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        MonthlyPurchaseItem item = data.MonthlyPurchaseItems.SingleOrDefault(value => value.Id == itemId)
+            ?? throw new InvalidOperationException("El artículo mensual ya no está disponible.");
+        InventoryMovement movement = data.InventoryMovements.SingleOrDefault(value => value.Id == movementId
+            && value.Type == InventoryMovementType.Purchase && value.ProductId == item.ProductId)
+            ?? throw new InvalidOperationException("La compra no corresponde al producto de la lista mensual.");
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        item.LinkPurchase(movement.Id, utcNow);
+        FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(value => !value.IsConsumed
+            && value.SourceType == FinancialCommitmentSource.MonthlyPurchase && value.SourceId == item.Id);
+        reserve?.Settle(movement.Date, movement.CashAmount ?? Money.FromMinorUnits(0), utcNow);
+        await SaveAsync([], reserve is null ? [item] : [item, reserve], null, cancellationToken);
+    }
+
+    public Task AddLoanAsync(Loan loan, CancellationToken cancellationToken = default) =>
+        AddAsync(loan, cancellationToken);
+
+    public async Task<LoanPayment> RegisterLoanPaymentAsync(Guid loanId, DateOnly date, Money amount,
+        string? description = null, CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        Loan loan = data.Loans.SingleOrDefault(item => item.Id == loanId)
+            ?? throw new InvalidOperationException("El préstamo ya no está disponible.");
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        loan.ApplyPayment(amount, utcNow);
+        var payment = LoanPayment.Create(loan.Id, date, amount, utcNow, description);
+        FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(item => !item.IsConsumed
+            && item.SourceType == FinancialCommitmentSource.LoanInstallment && item.SourceId == loan.Id);
+        reserve?.Settle(date, amount, utcNow);
+        await SaveAsync([payment], reserve is null ? [loan] : [loan, reserve], null, cancellationToken);
+        return payment;
+    }
+
+    public async Task<AnnualClose> CloseYearAsync(int year, CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        if (data.AnnualCloses.Any(item => item.Year == year))
+            throw new InvalidOperationException("El año ya tiene un cierre confirmado.");
+        MonthlyClose[] closes = data.MonthlyCloses.Where(item => item.IsConfirmed && item.Month.Year == year)
+            .GroupBy(item => item.Month.Month).Select(group => group.OrderByDescending(item => item.ClosedUtc).First()).ToArray();
+        if (closes.Length != 12) throw new InvalidOperationException("Debes cerrar los 12 meses, incluso los meses en cero, antes de cerrar el año.");
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        var annual = AnnualClose.Create(year, closes.Sum(item => item.IncomeMinorUnits),
+            closes.Sum(item => item.PaidOutflowsMinorUnits), closes.Sum(item => item.NewReservesMinorUnits),
+            closes.Sum(item => item.AccountsPayableMinorUnits), closes.Sum(item => item.LoanPaymentsMinorUnits),
+            closes.Sum(item => item.FundMinorUnits), closes.Sum(item => item.BaseResultMinorUnits), utcNow);
+        await SaveAsync([annual], [], null, cancellationToken);
+        return annual;
+    }
+
     public async Task ReopenMonthAsync(Guid closeId, CancellationToken cancellationToken = default)
     {
         AdministrationData data = await repository.LoadAsync(cancellationToken);
@@ -1089,7 +1251,11 @@ public sealed class AdministrationService(
             participant.MarkDeleted(utcNow);
         }
 
-        await repository.SaveAsync([], new AuditableEntity[] { close }.Concat(participants).ToArray(), cancellationToken);
+        FinancialReserve[] reserves = data.FinancialReserves.Where(item => item.Month == close.Month && !item.IsConsumed).ToArray();
+        foreach (FinancialReserve reserve in reserves) reserve.MarkDeleted(utcNow);
+
+        await repository.SaveAsync([], new AuditableEntity[] { close }.Concat(participants).Concat(reserves).ToArray(), cancellationToken);
+        DataChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public async Task<DistributionPayment> RegisterDistributionPaymentAsync(
@@ -1115,6 +1281,8 @@ public sealed class AdministrationService(
             .Where(item => item.ParticipantId == participant.Id)
             .Sum(item => item.Amount.MinorUnits);
         Money pending = Money.FromMinorUnits(participant.Amount.MinorUnits - paid);
+        if (amount.MinorUnits != pending.MinorUnits)
+            throw new InvalidOperationException("El pago al colaborador debe cubrir el valor completo pendiente del cierre mensual.");
         DistributionPayment payment = DistributionPayment.Create(
             participant.Id, date, amount, pending, timeProvider.GetUtcNow().UtcDateTime, description);
         await SaveAsync([payment], [], completedDraftKey, cancellationToken);
@@ -1136,59 +1304,6 @@ public sealed class AdministrationService(
             await repository.SaveCompletingDraftAsync(additions, updates, completedDraftKey, cancellationToken);
         }
         DataChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private async Task PreserveCompletedMonthsAsync(
-        AdministrationData data,
-        DateOnly localToday,
-        DateTime utcNow,
-        CancellationToken cancellationToken)
-    {
-        YearMonth currentMonth = YearMonth.From(localToday);
-        YearMonth[] candidates = data.WeeklyCharges.Select(item => YearMonth.From(item.PeriodEnd))
-            .Concat(data.LocalUsePayments.Select(item => YearMonth.From(item.PaymentDate)))
-            .Concat(data.InventoryMovements.Select(item => YearMonth.From(item.Date)))
-            .Concat(data.FinancialEntries.Select(item => YearMonth.From(item.Date)))
-            .Concat(data.ObligationPayments.Select(item => YearMonth.From(item.Date)))
-            .Concat(data.MaintenanceRecords.Where(item => item.CompletedDate.HasValue)
-                .Select(item => YearMonth.From(item.CompletedDate!.Value)))
-            .Where(month => month.Year < currentMonth.Year
-                || month.Year == currentMonth.Year && month.Month < currentMonth.Month)
-            .Where(month => !data.MonthlyCloses.Any(close => close.Month == month && close.IsConfirmed))
-            .Distinct()
-            .OrderBy(month => month.Year)
-            .ThenBy(month => month.Month)
-            .ToArray();
-        if (candidates.Length == 0)
-        {
-            return;
-        }
-
-        GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
-        var additions = new List<AuditableEntity>();
-        foreach (YearMonth month in candidates)
-        {
-            MonthlySummaryResult summary = MonthlySummaryCalculator.Calculate(
-                AdministrationReports.BuildMonthlyInput(data, month),
-                settings.CollaboratorProfit);
-            MonthlyClose close = MonthlyClose.Create(
-                month,
-                settings.CollaboratorProfit,
-                summary,
-                utcNow,
-                "Snapshot automático del mes finalizado");
-            IReadOnlyList<MonthlyCloseParticipant> participants =
-                CollaboratorDistributionCalculator.Distribute(
-                    close,
-                    data.Collaborators
-                        .Where(item => item.IsCurrentOn(month.LastDay))
-                        .Select(item => (item.Id, item.FundParticipationBasisPoints)),
-                    utcNow);
-            additions.Add(close);
-            additions.AddRange(participants);
-        }
-
-        await SaveAsync(additions, [], completedDraftKey: null, cancellationToken);
     }
 
     private async Task<(IReadOnlyCollection<WeeklyRate> Rates, WeeklyRate? NewRate)> EnsureRatesAsync(

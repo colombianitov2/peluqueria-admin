@@ -44,8 +44,8 @@ public sealed class ExcelExportTests
             ExcelExportResult first = await service.ExportAsync(cancellationToken);
             ExcelExportResult second = await service.ExportAsync(cancellationToken);
 
-            Assert.EndsWith("Peluqueria-Administracion-2026-07-18-214530.xlsx", first.FilePath, StringComparison.Ordinal);
-            Assert.EndsWith("Peluqueria-Administracion-2026-07-18-214530-2.xlsx", second.FilePath, StringComparison.Ordinal);
+            Assert.EndsWith("PeluqueriaAdmin-2026-07-18_21-45-30.xlsx", first.FilePath, StringComparison.Ordinal);
+            Assert.EndsWith("PeluqueriaAdmin-2026-07-18_21-45-30-2.xlsx", second.FilePath, StringComparison.Ordinal);
             Assert.Equal(".xlsx", Path.GetExtension(first.FilePath));
             Assert.True(File.Exists(first.FilePath));
             Assert.Equal(2, Directory.EnumerateFiles(desktop, "*.xlsx", SearchOption.TopDirectoryOnly).Count());
@@ -56,11 +56,11 @@ public sealed class ExcelExportTests
                 "Resumen general", "Ajustes", "Notas", "Uso del local", "Cuotas semanales",
                 "Precio sugerido por silla", "Sillas", "Asignaciones actuales",
                 "Pagos por uso del local", "Historial trabajadores", "Colaboradores", "Aportes colaboradores", "Historial colaboradores", "Ventas", "Productos",
-                "Inventario actual", "Movimientos de inventario",
+                "Inventario actual", "Movimientos de inventario", "Lista mensual de compra",
                 "Otros ingresos", "Gastos", "Imprevistos", "Gastos extraoficiales", "Obligaciones",
-                "Pagos de obligaciones", "Mantenimiento", "Cierres mensuales",
+                "Pagos de obligaciones", "Cuentas por cobrar", "Cuentas por pagar", "Préstamos", "Cuotas de préstamos", "Mantenimiento", "Cierres mensuales", "Reservas financieras", "Exclusiones de cierre",
                 "Distribuciones a colaboradores", "Pagos a colaboradores",
-                "Resúmenes mensuales", "Balance anual", "Flujo de caja", "Actividad e historial", "Historial fin. colaboradores", "Historial eliminado",
+                "Resúmenes mensuales", "Balance anual", "Cierres anuales", "Flujo de caja", "Movimientos generales", "Historial fin. colaboradores", "Historial eliminado",
                 "Borradores sin finalizar",
             ];
             Assert.All(requiredSheets, sheet => Assert.True(workbook.TryGetWorksheet(sheet, out _), sheet));
@@ -95,7 +95,14 @@ public sealed class ExcelExportTests
             Assert.Contains("no finalizado", workbook.Worksheet("Borradores sin finalizar").Cell(2, 3).GetString(), StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("+borrador", workbook.Worksheet("Otros ingresos").Column(2).CellsUsed().Select(x => x.GetString()));
             Assert.Equal("Texto persistente de prueba", workbook.Worksheet("Notas").Cell(2, 1).GetString());
-            Assert.Equal("Participación dentro del fondo", workbook.Worksheet("Colaboradores").Cell(1, 4).GetString());
+            Assert.Equal("Porcentaje de ganancia", workbook.Worksheet("Colaboradores").Cell(1, 4).GetString());
+            Assert.Equal("Mensual", workbook.Worksheet("Préstamos").Cell(2, 7).GetString());
+            Assert.Equal(XLDataType.Number, workbook.Worksheet("Lista mensual de compra").Cell(2, 4).DataType);
+            Assert.Equal(XLDataType.Number, workbook.Worksheet("Reservas financieras").Cell(2, 5).DataType);
+            Assert.Equal(XLDataType.Number, workbook.Worksheet("Distribuciones a colaboradores").Cell(2, 3).DataType);
+            Assert.Contains('%', workbook.Worksheet("Distribuciones a colaboradores").Cell(2, 3).Style.NumberFormat.Format);
+            Assert.Equal("Importe", workbook.Worksheet("Movimientos generales").Cell(1, 7).GetString());
+            Assert.Equal("Estado", workbook.Worksheet("Movimientos generales").Cell(1, 9).GetString());
 
             AdministrationData data = await new EfAdministrationRepository(factory).LoadAsync(cancellationToken);
             GeneralSettings generalSettings = await new EfSettingsRepository(factory).GetAsync(cancellationToken);
@@ -112,18 +119,18 @@ public sealed class ExcelExportTests
             Assert.Equal(expectedInventory, inventoryRow.Cell(3).GetValue<decimal>());
 
             var july = new YearMonth(2026, 7);
-            MonthlySummaryResult expectedMonth = AdministrationReports.MonthlySummary(
-                data, generalSettings.CollaboratorProfit, july);
+            MonthlyClose? julyClose = data.MonthlyCloses.SingleOrDefault(x => x.Month == july && x.IsConfirmed);
+            FinancialMonthSnapshot expectedMonth = julyClose?.ToFinancialSnapshot()
+                ?? FinancialMonthCalculator.Calculate(data, generalSettings.CollaboratorProfit, july);
             IXLRow monthlyRow = workbook.Worksheet("Resúmenes mensuales").RowsUsed()
                 .Single(row => row.Cell(1).DataType == XLDataType.DateTime && row.Cell(1).GetDateTime().Date == july.FirstDay.ToDateTime(TimeOnly.MinValue));
-            Assert.Equal(expectedMonth.IncomeMinorUnits / 100m, monthlyRow.Cell(2).GetValue<decimal>());
-            Assert.Equal(expectedMonth.GoalMinorUnits / 100m, monthlyRow.Cell(3).GetValue<decimal>());
+            Assert.Equal(expectedMonth.CollectedOperatingIncomeMinorUnits / 100m, monthlyRow.Cell(2).GetValue<decimal>());
+            Assert.Equal(expectedMonth.AccountsReceivableMinorUnits / 100m, monthlyRow.Cell(3).GetValue<decimal>());
 
-            AnnualBalanceResult expectedAnnual = AdministrationReports.Annual(
-                data, generalSettings.CollaboratorProfit, 2026).Balance;
             IXLRow annualRow = workbook.Worksheet("Balance anual").RowsUsed().Single(row => row.Cell(1).TryGetValue(out int year) && year == 2026);
-            Assert.Equal(expectedAnnual.IncomeMinorUnits / 100m, annualRow.Cell(2).GetValue<decimal>());
-            Assert.Equal(expectedAnnual.ExpenseMinorUnits / 100m, annualRow.Cell(3).GetValue<decimal>());
+            MonthlyClose[] annualCloses = data.MonthlyCloses.Where(x => x.IsConfirmed && x.Month.Year == 2026).ToArray();
+            Assert.Equal(annualCloses.Sum(x => x.IncomeMinorUnits) / 100m, annualRow.Cell(2).GetValue<decimal>());
+            Assert.Equal(annualCloses.Sum(x => x.PaidOutflowsMinorUnits) / 100m, annualRow.Cell(3).GetValue<decimal>());
         }
         finally
         {
@@ -186,12 +193,28 @@ public sealed class ExcelExportTests
         await service.AddAsync(MaintenanceRecord.Create("Silla principal", "Preventivo", new DateOnly(2027, 2, 1), Money.FromDecimal(30), null, null, utc), cancellationToken);
         Collaborator collaborator = Collaborator.Create("Colaboradora", new DateOnly(2026, 1, 1), null, utc);
         await service.AddAsync(collaborator, cancellationToken);
+        await service.UpdateCollaboratorFundParticipationAsync(
+            collaborator.Id, Percentage.FromPercent(100m), cancellationToken);
         await service.AddCollaboratorContributionAsync(CollaboratorContribution.Create(
             collaborator.Id, new DateOnly(2026, 7, 2), Money.FromDecimal(500m), "Capital activo", utc), cancellationToken);
         CollaboratorContribution deletedContribution = CollaboratorContribution.Create(
             collaborator.Id, new DateOnly(2026, 7, 3), Money.FromDecimal(25m), "Capital eliminado", utc);
         await service.AddCollaboratorContributionAsync(deletedContribution, cancellationToken);
         await service.DeleteAsync(deletedContribution, cancellationToken);
+        await service.AddMonthlyPurchaseItemAsync(MonthlyPurchaseItem.Create(
+            product.Id, new YearMonth(2026, 7), 2, Money.FromDecimal(5m), true, false, utc,
+            "Compra mensual de prueba"), cancellationToken);
+        Loan loan = Loan.Create("Préstamo de prueba", Money.FromDecimal(100m), Money.FromDecimal(10m),
+            new DateOnly(2026, 7, 1), LoanFrequency.Monthly, 10, new DateOnly(2026, 7, 31), utc,
+            "Financiación separada");
+        await service.AddLoanAsync(loan, cancellationToken);
+        await service.SetCloseExclusionAsync(new YearMonth(2026, 7), FinancialCommitmentSource.Obligation,
+            Guid.NewGuid(), true, "Pendiente de verificación documental", cancellationToken);
+        await service.CloseFinancialMonthAsync(new YearMonth(2026, 7), cancellationToken);
+        await service.RegisterLoanPaymentAsync(loan.Id, new DateOnly(2026, 7, 31), Money.FromDecimal(10m),
+            "Cuota real", cancellationToken);
+        await service.AddAsync(AnnualClose.Create(2025, 50_000, 20_000, 5_000, 4_000, 3_000,
+            5_000, 25_000, utc), cancellationToken);
         await service.AddUnofficialExpenseAsync(UnlistedExpense(), cancellationToken);
         await new EfFormDraftStore(factory).UpsertAsync(FormDraft.Create("Otros ingresos:nuevo", "Otros ingresos", "Registrar ingreso", "{\"concepto\":\"+borrador\"}", null, false, utc), cancellationToken);
         await new EfNoteRepository(factory).SaveAsync(AppNote.Create("Texto persistente de prueba", utc), cancellationToken);

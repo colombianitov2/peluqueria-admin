@@ -61,7 +61,7 @@ public static class AdministrationReports
             .Where(item => item.Type == InventoryMovementType.Purchase && InMonth(item.Date))
             .ToArray();
         return new MonthlySummaryInput(
-            CalculateEarnedLocalUseIncome(data, month),
+            data.LocalUsePayments.Where(item => InMonth(item.PaymentDate)).Sum(item => item.Amount.MinorUnits),
             data.InventoryMovements.Where(item => item.Type == InventoryMovementType.Sale && InMonth(item.Date))
                 .Sum(item => item.CashAmount?.MinorUnits ?? 0),
             data.FinancialEntries.Where(item => item.Type == FinancialEntryType.OtherIncome && InMonth(item.Date))

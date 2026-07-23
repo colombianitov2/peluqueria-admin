@@ -1,0 +1,120 @@
+using PeluqueriaAdmin.Domain.Common;
+using PeluqueriaAdmin.Domain.Settings;
+
+namespace PeluqueriaAdmin.Domain.Finance;
+
+public enum FinancialCommitmentSource
+{
+    Obligation,
+    Maintenance,
+    MonthlyPurchase,
+    LoanInstallment,
+    PriorUncovered,
+}
+
+public sealed class FinancialReserve : AuditableEntity
+{
+    private FinancialReserve() { }
+
+    private FinancialReserve(Guid id, YearMonth month, FinancialCommitmentSource sourceType,
+        Guid sourceId, string name, DateOnly dueDate, Money reservedAmount, DateTime utcNow) : base(id, utcNow)
+    {
+        Month = month;
+        SourceType = sourceType;
+        SourceId = sourceId;
+        Name = NormalizeRequiredText(name, nameof(name));
+        DueDate = dueDate;
+        ReservedAmount = EnsurePositive(reservedAmount);
+    }
+
+    public YearMonth Month { get; private set; }
+    public FinancialCommitmentSource SourceType { get; private set; }
+    public Guid SourceId { get; private set; }
+    public string Name { get; private set; } = string.Empty;
+    public DateOnly DueDate { get; private set; }
+    public Money ReservedAmount { get; private set; }
+    public Money? ActualAmount { get; private set; }
+    public DateOnly? SettledDate { get; private set; }
+    public bool IsConsumed => SettledDate.HasValue;
+
+    public static FinancialReserve Create(YearMonth month, FinancialCommitmentSource sourceType,
+        Guid sourceId, string name, DateOnly dueDate, Money amount, DateTime utcNow) =>
+        new(Guid.NewGuid(), month, sourceType, sourceId, name, dueDate, amount, utcNow);
+
+    public void Settle(DateOnly date, Money actualAmount, DateTime utcNow)
+    {
+        if (IsConsumed) throw new InvalidOperationException("La reserva ya fue consumida.");
+        if (actualAmount.MinorUnits < 0) throw new ArgumentOutOfRangeException(nameof(actualAmount));
+        SettledDate = date;
+        ActualAmount = actualAmount;
+        MarkUpdated(utcNow);
+    }
+
+    private static Money EnsurePositive(Money amount) => amount.MinorUnits > 0
+        ? amount
+        : throw new ArgumentOutOfRangeException(nameof(amount), "La reserva debe ser mayor que cero.");
+}
+
+public sealed class FinancialCloseExclusion : AuditableEntity
+{
+    private FinancialCloseExclusion() { }
+
+    private FinancialCloseExclusion(Guid id, YearMonth month, FinancialCommitmentSource sourceType,
+        Guid sourceId, string reason, DateTime utcNow) : base(id, utcNow)
+    {
+        Month = month;
+        SourceType = sourceType;
+        SourceId = sourceId;
+        Reason = NormalizeRequiredText(reason, nameof(reason));
+    }
+
+    public YearMonth Month { get; private set; }
+    public FinancialCommitmentSource SourceType { get; private set; }
+    public Guid SourceId { get; private set; }
+    public string Reason { get; private set; } = string.Empty;
+
+    public static FinancialCloseExclusion Create(YearMonth month, FinancialCommitmentSource sourceType,
+        Guid sourceId, string reason, DateTime utcNow) =>
+        new(Guid.NewGuid(), month, sourceType, sourceId, reason, utcNow);
+
+    public void UpdateReason(string reason, DateTime utcNow)
+    {
+        Reason = NormalizeRequiredText(reason, nameof(reason));
+        MarkUpdated(utcNow);
+    }
+}
+
+public sealed class AnnualClose : AuditableEntity
+{
+    private AnnualClose() { }
+
+    private AnnualClose(Guid id, int year, long income, long paidOutflows, long reserves,
+        long obligations, long loanPayments, long collaboratorFund, long result, DateTime utcNow) : base(id, utcNow)
+    {
+        if (year is < 2000 or > 2200) throw new ArgumentOutOfRangeException(nameof(year));
+        Year = year;
+        IncomeMinorUnits = income;
+        PaidOutflowsMinorUnits = paidOutflows;
+        ReservesMinorUnits = reserves;
+        ObligationsMinorUnits = obligations;
+        LoanPaymentsMinorUnits = loanPayments;
+        CollaboratorFundMinorUnits = collaboratorFund;
+        ResultMinorUnits = result;
+        ClosedUtc = utcNow;
+    }
+
+    public int Year { get; private set; }
+    public long IncomeMinorUnits { get; private set; }
+    public long PaidOutflowsMinorUnits { get; private set; }
+    public long ReservesMinorUnits { get; private set; }
+    public long ObligationsMinorUnits { get; private set; }
+    public long LoanPaymentsMinorUnits { get; private set; }
+    public long CollaboratorFundMinorUnits { get; private set; }
+    public long ResultMinorUnits { get; private set; }
+    public DateTime ClosedUtc { get; private set; }
+
+    public static AnnualClose Create(int year, long income, long paidOutflows, long reserves,
+        long obligations, long loanPayments, long collaboratorFund, long result, DateTime utcNow) =>
+        new(Guid.NewGuid(), year, income, paidOutflows, reserves, obligations, loanPayments,
+            collaboratorFund, result, utcNow);
+}

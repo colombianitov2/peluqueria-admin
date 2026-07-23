@@ -38,7 +38,13 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
             await context.Chairs.AsNoTracking().OrderBy(item => item.Name).ToListAsync(cancellationToken),
             await context.ActivityRecords.AsNoTracking().OrderByDescending(item => item.OccurredUtc).ToListAsync(cancellationToken),
             await context.UnofficialExpenses.AsNoTracking().OrderBy(item => item.Name).ToListAsync(cancellationToken),
-            await context.CollaboratorContributions.AsNoTracking().OrderBy(item => item.Date).ThenBy(item => item.CreatedUtc).ToListAsync(cancellationToken));
+            await context.CollaboratorContributions.AsNoTracking().OrderBy(item => item.Date).ThenBy(item => item.CreatedUtc).ToListAsync(cancellationToken),
+            await context.FinancialReserves.AsNoTracking().OrderBy(item => item.DueDate).ToListAsync(cancellationToken),
+            await context.FinancialCloseExclusions.AsNoTracking().ToListAsync(cancellationToken),
+            await context.MonthlyPurchaseItems.AsNoTracking().OrderBy(item => item.Month).ToListAsync(cancellationToken),
+            await context.Loans.AsNoTracking().OrderBy(item => item.NextDueDate).ToListAsync(cancellationToken),
+            await context.LoanPayments.AsNoTracking().OrderBy(item => item.Date).ToListAsync(cancellationToken),
+            await context.AnnualCloses.AsNoTracking().OrderBy(item => item.Year).ToListAsync(cancellationToken));
     }
 
     public async Task SaveAsync(
@@ -78,6 +84,7 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
     {
         await using PeluqueriaDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await AddSettingsActivityIfChangedAsync(context, settings, cancellationToken);
         context.Settings.Update(settings);
         if (newRate is not null)
         {
@@ -97,11 +104,34 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
         ArgumentException.ThrowIfNullOrWhiteSpace(completedDraftKey);
         await using PeluqueriaDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await AddSettingsActivityIfChangedAsync(context, settings, cancellationToken);
         context.Settings.Update(settings);
         if (newRate is not null) context.WeeklyRates.Add(newRate);
         await context.FormDrafts.Where(item => item.Key == completedDraftKey).ExecuteDeleteAsync(cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task AddSettingsActivityIfChangedAsync(
+        PeluqueriaDbContext context,
+        GeneralSettings settings,
+        CancellationToken cancellationToken)
+    {
+        GeneralSettings? previous = await context.Settings.AsNoTracking().SingleOrDefaultAsync(cancellationToken);
+        bool changed = previous is null
+            || previous.WeeklyUsageFee != settings.WeeklyUsageFee
+            || previous.CollaboratorProfit != settings.CollaboratorProfit
+            || !string.Equals(previous.ExportDirectory, settings.ExportDirectory, StringComparison.Ordinal);
+        if (!changed) return;
+
+        context.ActivityRecords.Add(ActivityRecord.Create(
+            DateOnly.FromDateTime(settings.UpdatedUtc.ToLocalTime()),
+            "Ajustes",
+            "Edición",
+            "Ajustes generales actualizados",
+            Guid.Empty,
+            "Cambio válido consolidado por autoguardado; no se almacenan rutas ni valores sensibles.",
+            settings.UpdatedUtc));
     }
 
     private static IReadOnlyList<ActivityRecord> BuildActivityRecords(
@@ -159,6 +189,12 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
                 item.Month.LastDay, item.Description),
             DistributionPayment item => ("Colaboradores", "Pago a colaborador", item.Date, item.Description),
             UnofficialExpense item => ("Ajustes", item.Name, item.EffectiveFrom, item.Description),
+            MonthlyPurchaseItem item => ("Inventario", "Lista mensual de compra", item.Month.FirstDay, item.Description),
+            Loan item => ("Obligaciones", item.Name, item.StartDate, item.Description),
+            LoanPayment item => ("Obligaciones", "Pago de préstamo", item.Date, item.Description),
+            FinancialReserve item => ("Resumen mensual", $"Reserva: {item.Name}", item.DueDate, null),
+            FinancialCloseExclusion item => ("Resumen mensual", "Exclusión de cierre", item.Month.LastDay, item.Reason),
+            AnnualClose item => ("Balance anual", $"Cierre {item.Year}", new DateOnly(item.Year, 12, 31), null),
             _ => default,
         };
 
@@ -167,7 +203,7 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
             return null;
         }
 
-        if (entity is LocalUsePayment or ObligationPayment or DistributionPayment)
+        if (entity is LocalUsePayment or ObligationPayment or DistributionPayment or LoanPayment)
         {
             action = isAddition ? "Pago" : action;
         }

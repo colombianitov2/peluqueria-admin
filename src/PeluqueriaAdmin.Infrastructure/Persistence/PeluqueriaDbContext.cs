@@ -59,6 +59,18 @@ public sealed class PeluqueriaDbContext(DbContextOptions<PeluqueriaDbContext> op
 
     public DbSet<AppNote> Notes => Set<AppNote>();
 
+    public DbSet<FinancialReserve> FinancialReserves => Set<FinancialReserve>();
+
+    public DbSet<FinancialCloseExclusion> FinancialCloseExclusions => Set<FinancialCloseExclusion>();
+
+    public DbSet<MonthlyPurchaseItem> MonthlyPurchaseItems => Set<MonthlyPurchaseItem>();
+
+    public DbSet<Loan> Loans => Set<Loan>();
+
+    public DbSet<LoanPayment> LoanPayments => Set<LoanPayment>();
+
+    public DbSet<AnnualClose> AnnualCloses => Set<AnnualClose>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(PeluqueriaDbContext).Assembly);

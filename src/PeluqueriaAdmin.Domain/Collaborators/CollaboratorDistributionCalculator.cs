@@ -9,17 +9,20 @@ public static class CollaboratorDistributionCalculator
         IEnumerable<(Guid CollaboratorId, int ProfitShareBasisPoints)> allocations,
         DateTime utcNow)
     {
+        (Guid CollaboratorId, int ProfitShareBasisPoints)[] frozenAllocations = allocations.ToArray();
         IReadOnlyDictionary<Guid, long> amounts = CalculateMinorUnitAmounts(
             Math.Max(0, close.BaseResultMinorUnits),
             close.CollaboratorPercentageBasisPoints,
-            allocations);
-        return amounts
-            .OrderBy(item => item.Key)
+            frozenAllocations);
+        return frozenAllocations
+            .OrderBy(item => item.CollaboratorId)
             .Select(item => new MonthlyCloseParticipant(
                 Guid.NewGuid(),
                 close.Id,
-                item.Key,
-                Money.FromMinorUnits(item.Value),
+                item.CollaboratorId,
+                Money.FromMinorUnits(amounts.GetValueOrDefault(item.CollaboratorId)),
+                close.CollaboratorPercentageBasisPoints,
+                item.ProfitShareBasisPoints,
                 utcNow))
             .ToArray();
     }

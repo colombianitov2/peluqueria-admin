@@ -27,8 +27,42 @@ public sealed record AdministrationData(
     IReadOnlyList<Chair> Chairs,
     IReadOnlyList<ActivityRecord> ActivityRecords,
     IReadOnlyList<UnofficialExpense> UnofficialExpenses,
-    IReadOnlyList<CollaboratorContribution> CollaboratorContributions)
+    IReadOnlyList<CollaboratorContribution> CollaboratorContributions,
+    IReadOnlyList<FinancialReserve> FinancialReserves,
+    IReadOnlyList<FinancialCloseExclusion> FinancialCloseExclusions,
+    IReadOnlyList<MonthlyPurchaseItem> MonthlyPurchaseItems,
+    IReadOnlyList<Loan> Loans,
+    IReadOnlyList<LoanPayment> LoanPayments,
+    IReadOnlyList<AnnualClose> AnnualCloses)
 {
+    public AdministrationData(
+        IReadOnlyList<LocalUsePerson> localUsePeople,
+        IReadOnlyList<WeeklyRate> weeklyRates,
+        IReadOnlyList<WeeklyCharge> weeklyCharges,
+        IReadOnlyList<LocalUsePayment> localUsePayments,
+        IReadOnlyList<Product> products,
+        IReadOnlyList<InventoryMovement> inventoryMovements,
+        IReadOnlyList<MonthlyRestockPlan> restockPlans,
+        IReadOnlyList<FinancialEntry> financialEntries,
+        IReadOnlyList<Obligation> obligations,
+        IReadOnlyList<ObligationPayment> obligationPayments,
+        IReadOnlyList<MaintenanceRecord> maintenanceRecords,
+        IReadOnlyList<Collaborator> collaborators,
+        IReadOnlyList<MonthlyClose> monthlyCloses,
+        IReadOnlyList<MonthlyCloseParticipant> monthlyCloseParticipants,
+        IReadOnlyList<DistributionPayment> distributionPayments,
+        IReadOnlyList<Chair> chairs,
+        IReadOnlyList<ActivityRecord> activityRecords,
+        IReadOnlyList<UnofficialExpense> unofficialExpenses,
+        IReadOnlyList<CollaboratorContribution> collaboratorContributions)
+        : this(localUsePeople, weeklyRates, weeklyCharges, localUsePayments, products,
+            inventoryMovements, restockPlans, financialEntries, obligations, obligationPayments,
+            maintenanceRecords, collaborators, monthlyCloses, monthlyCloseParticipants,
+            distributionPayments, chairs, activityRecords, unofficialExpenses, collaboratorContributions,
+            [], [], [], [], [], [])
+    {
+    }
+
     public AdministrationData(
         IReadOnlyList<LocalUsePerson> localUsePeople,
         IReadOnlyList<WeeklyRate> weeklyRates,
@@ -53,7 +87,7 @@ public sealed record AdministrationData(
             products, inventoryMovements, restockPlans, financialEntries,
             obligations, obligationPayments, maintenanceRecords, collaborators,
             monthlyCloses, monthlyCloseParticipants, distributionPayments,
-            chairs, activityRecords, unofficialExpenses, [])
+            chairs, activityRecords, unofficialExpenses, [], [], [], [], [], [], [])
     {
     }
 
@@ -78,7 +112,7 @@ public sealed record AdministrationData(
             products, inventoryMovements, restockPlans, financialEntries,
             obligations, obligationPayments, maintenanceRecords, collaborators,
             monthlyCloses, monthlyCloseParticipants, distributionPayments,
-            [], [], [], [])
+            [], [], [], [], [], [], [], [], [], [])
     {
     }
 }

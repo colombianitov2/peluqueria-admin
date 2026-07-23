@@ -39,9 +39,9 @@ public sealed class DistributionPayment : AuditableEntity
         DateTime utcNow,
         string? description = null)
     {
-        if (amount.MinorUnits == 0 || amount.MinorUnits > pending.MinorUnits)
+        if (amount.MinorUnits <= 0 || amount.MinorUnits != pending.MinorUnits)
         {
-            throw new InvalidOperationException("El pago debe ser mayor que cero y no superar el pendiente.");
+            throw new InvalidOperationException("El pago debe cubrir el valor completo pendiente del cierre mensual.");
         }
 
         return new DistributionPayment(Guid.NewGuid(), participantId, date, amount, utcNow, description);
@@ -49,9 +49,9 @@ public sealed class DistributionPayment : AuditableEntity
 
     public void Update(DateOnly date, Money amount, Money available, DateTime utcNow, string? description = null)
     {
-        if (amount.MinorUnits == 0 || amount.MinorUnits > available.MinorUnits)
+        if (amount.MinorUnits <= 0 || amount.MinorUnits != available.MinorUnits)
         {
-            throw new InvalidOperationException("El pago editado no puede superar el pendiente disponible.");
+            throw new InvalidOperationException("El pago editado debe conservar el valor completo de la asignación.");
         }
 
         Date = date;

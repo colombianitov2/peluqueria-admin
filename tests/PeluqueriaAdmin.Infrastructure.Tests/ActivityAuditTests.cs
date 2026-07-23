@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using PeluqueriaAdmin.Application.Administration;
+using PeluqueriaAdmin.Domain.Activity;
 using PeluqueriaAdmin.Domain.Finance;
 using PeluqueriaAdmin.Domain.Settings;
 using PeluqueriaAdmin.Infrastructure.Administration;
@@ -44,6 +45,42 @@ public sealed class ActivityAuditTests
             Assert.Empty(afterDelete.FinancialEntries);
             Assert.Equal(2, afterDelete.ActivityRecords.Count);
             Assert.Contains(afterDelete.ActivityRecords, item => item.Action == "Eliminación");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task SettingsAutosave_RecordsOneConsolidatedChangeAndDoesNotPersistSensitivePath()
+    {
+        string root = Path.Combine(AppContext.BaseDirectory, "TestData", Guid.NewGuid().ToString("N"));
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        try
+        {
+            ApplicationPaths paths = ApplicationPaths.FromRoot(root);
+            paths.EnsureDirectories();
+            var factory = new Factory(paths.DatabaseFilePath);
+            DateTime utc = new(2026, 7, 22, 12, 0, 0, DateTimeKind.Utc);
+            var clock = new FixedTimeProvider(new DateTimeOffset(utc));
+            await new DatabaseInitializer(factory, paths, clock).InitializeAsync(cancellationToken);
+            var repository = new EfAdministrationRepository(factory);
+            var settingsRepository = new EfSettingsRepository(factory);
+            GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
+            string privatePath = Path.Combine(root, "carpeta-privada");
+            settings.Update(Money.FromDecimal(14m), Percentage.FromPercent(25m), settings.TotalChairs,
+                privatePath, utc.AddMinutes(1));
+
+            await repository.SaveSettingsAndRateAsync(settings, null, cancellationToken);
+            settings.Update(Money.FromDecimal(14m), Percentage.FromPercent(25m), settings.TotalChairs,
+                privatePath, utc.AddMinutes(2));
+            await repository.SaveSettingsAndRateAsync(settings, null, cancellationToken);
+
+            ActivityRecord activity = Assert.Single((await repository.LoadAsync(cancellationToken)).ActivityRecords);
+            Assert.Equal("Ajustes", activity.Module);
+            Assert.DoesNotContain(privatePath, activity.Description ?? string.Empty, StringComparison.Ordinal);
         }
         finally
         {

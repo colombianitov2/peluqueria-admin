@@ -58,4 +58,12 @@ public static class SpanishText
         RecurrenceFrequency.Annual => "Anual",
         _ => throw new ArgumentOutOfRangeException(nameof(value)),
     };
+
+    public static string For(LoanFrequency value) => value switch
+    {
+        LoanFrequency.Weekly => "Semanal",
+        LoanFrequency.Biweekly => "Quincenal",
+        LoanFrequency.Monthly => "Mensual",
+        _ => throw new ArgumentOutOfRangeException(nameof(value)),
+    };
 }

@@ -253,6 +253,54 @@ public sealed class MigrationPreservationTests
         }
     }
 
+    [Fact]
+    public async Task Phase47SchemaToPhase48_PreservesDataCreatesFinancialTablesAndPassesSqliteIntegrity()
+    {
+        string root = Path.Combine(AppContext.BaseDirectory, "TestData", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        try
+        {
+            var factory = new TestFactory(Path.Combine(root, "phase47.db"));
+            DateTime utc = new(2026, 7, 22, 12, 0, 0, DateTimeKind.Utc);
+            await using (PeluqueriaDbContext context = factory.CreateDbContext())
+            {
+                string phase47 = context.Database.GetMigrations()
+                    .Single(item => item.EndsWith("_Phase47SimplificationAndNotes", StringComparison.Ordinal));
+                await context.GetService<IMigrator>().MigrateAsync(phase47, cancellationToken);
+                await context.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO Notes (Id, Content, UpdatedUtc)
+                    VALUES ({1}, {"Información conservada de Fase 4.7"}, {utc.Ticks});
+                    """, cancellationToken);
+
+                await context.GetService<IMigrator>().MigrateAsync(cancellationToken: cancellationToken);
+            }
+
+            await using PeluqueriaDbContext verified = factory.CreateDbContext();
+            Assert.Equal("Información conservada de Fase 4.7",
+                (await verified.Notes.SingleAsync(cancellationToken)).Content);
+            Assert.Empty(await verified.FinancialReserves.ToListAsync(cancellationToken));
+            Assert.Empty(await verified.FinancialCloseExclusions.ToListAsync(cancellationToken));
+            Assert.Empty(await verified.MonthlyPurchaseItems.ToListAsync(cancellationToken));
+            Assert.Empty(await verified.Loans.ToListAsync(cancellationToken));
+            Assert.Empty(await verified.AnnualCloses.ToListAsync(cancellationToken));
+
+            await verified.Database.OpenConnectionAsync(cancellationToken);
+            await using var integrityCommand = verified.Database.GetDbConnection().CreateCommand();
+            integrityCommand.CommandText = "PRAGMA integrity_check;";
+            Assert.Equal("ok", await integrityCommand.ExecuteScalarAsync(cancellationToken));
+            await using var foreignKeyCommand = verified.Database.GetDbConnection().CreateCommand();
+            foreignKeyCommand.CommandText = "PRAGMA foreign_key_check;";
+            await using var violations = await foreignKeyCommand.ExecuteReaderAsync(cancellationToken);
+            Assert.False(await violations.ReadAsync(cancellationToken));
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
     private sealed class FixedClock(DateTime utc) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(utc);

@@ -757,7 +757,7 @@ public sealed class AdministrationServiceTests
     }
 
     [Fact]
-    public async Task MonthlySummary_UsesOnlyEarnedAndRealMovements()
+    public async Task MonthlySummary_UsesCollectedLocalPaymentsAndRealMovements()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
@@ -792,11 +792,11 @@ public sealed class AdministrationServiceTests
         MonthlySummaryResult summary = AdministrationReports.MonthlySummary(
             await service.LoadAsync(cancellationToken), Percentage.FromPercent(20m), new YearMonth(2026, 7));
 
-        Assert.Equal(6_200, summary.IncomeMinorUnits);
+        Assert.Equal(15_000, summary.IncomeMinorUnits);
         Assert.Equal(3_000, summary.GoalMinorUnits);
-        Assert.Equal(3_200, summary.BaseResultMinorUnits);
-        Assert.Equal(640, summary.CollaboratorFundMinorUnits);
-        Assert.Equal(2_560, summary.RetainedResultMinorUnits);
+        Assert.Equal(12_000, summary.BaseResultMinorUnits);
+        Assert.Equal(2_400, summary.CollaboratorFundMinorUnits);
+        Assert.Equal(9_600, summary.RetainedResultMinorUnits);
     }
 
     [Fact]
@@ -868,7 +868,7 @@ public sealed class AdministrationServiceTests
     }
 
     [Fact]
-    public async Task CompletedMonth_IsSnapshottedInternallyOnceWithoutVisibleManualClose()
+    public async Task CompletedMonth_RemainsOpenUntilExplicitManualClose()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
@@ -886,10 +886,8 @@ public sealed class AdministrationServiceTests
         await augustService.GenerateScheduledRecordsAsync(new DateOnly(2026, 8, 1), cancellationToken);
         AdministrationData data = await augustService.LoadAsync(cancellationToken);
 
-        MonthlyClose close = Assert.Single(data.MonthlyCloses, item => item.Month == new YearMonth(2026, 7));
-        Assert.True(close.IsConfirmed);
-        Assert.Equal("Snapshot automático del mes finalizado", close.Description);
-        Assert.Single(data.MonthlyCloseParticipants);
+        Assert.DoesNotContain(data.MonthlyCloses, item => item.Month == new YearMonth(2026, 7));
+        Assert.Empty(data.MonthlyCloseParticipants);
     }
 
     private static AdministrationService CreateService(
