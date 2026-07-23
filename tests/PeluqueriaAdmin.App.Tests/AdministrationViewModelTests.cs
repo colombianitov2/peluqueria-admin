@@ -242,6 +242,39 @@ public sealed class AdministrationViewModelTests
         Assert.Equal("Resultado retenido", line.Title);
     }
 
+    [Fact]
+    public async Task ExpenseChart_IncludesObligationsLoansAndFinancialReservesWithoutFinancingIncome()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
+        var service = new AdministrationService(repository, settingsRepository, timeProvider);
+        Obligation obligation = Obligation.Create("Energía", ObligationType.Service,
+            new DateOnly(2026, 7, 10), Money.FromDecimal(25m), RecurrenceFrequency.None, UtcNow);
+        await service.AddAsync(obligation, cancellationToken);
+        await service.AddAsync(ObligationPayment.Create(obligation.Id, new DateOnly(2026, 7, 10),
+            Money.FromDecimal(25m), UtcNow), cancellationToken);
+        Loan loan = Loan.Create("Préstamo", Money.FromDecimal(100m), Money.FromDecimal(10m),
+            new DateOnly(2026, 7, 1), LoanFrequency.Monthly, 10, new DateOnly(2026, 7, 15), UtcNow);
+        await service.AddLoanAsync(loan, cancellationToken);
+        await service.RegisterLoanPaymentAsync(loan.Id, new DateOnly(2026, 7, 15),
+            Money.FromDecimal(10m), cancellationToken: cancellationToken);
+        await service.AddAsync(FinancialReserve.Create(new YearMonth(2026, 7),
+            FinancialCommitmentSource.Maintenance, Guid.NewGuid(), "Aire", new DateOnly(2026, 7, 31),
+            Money.FromDecimal(15m), UtcNow), cancellationToken);
+        var viewModel = new AdministrationViewModel(
+            service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
+
+        await viewModel.SelectModuleAsync(AdministrationViewModel.MonthlySummaryModule);
+        viewModel.SelectedPeriod = "Este mes";
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Contains(viewModel.ExpenseLegendRows, row => row.Category == "Obligaciones");
+        Assert.Contains(viewModel.ExpenseLegendRows, row => row.Category == "Préstamos");
+        Assert.Contains(viewModel.ExpenseLegendRows, row => row.Category == "Reservas");
+    }
+
     [Theory]
     [InlineData("Hoy", 24)]
     [InlineData("Esta semana", 7)]
@@ -387,12 +420,10 @@ public sealed class AdministrationViewModelTests
         Assert.Equal(UtcNow.Date, viewModel.PaymentDate?.Date);
         Assert.Single(viewModel.WorkerHistoryRows, item => item.Principal == "Pago registrado");
 
-        viewModel.RetirementDate = UtcNow;
-        await viewModel.RetireWorkerCommand.ExecuteAsync(null);
-
         Assert.Contains("976", viewModel.ProfileCredit, StringComparison.Ordinal);
-        Assert.Contains("retirado", viewModel.ProfileNextRequiredPayment, StringComparison.OrdinalIgnoreCase);
         Assert.Single((await service.LoadAsync(cancellationToken)).LocalUsePayments);
+        Assert.Null(typeof(LocalUseViewModel).GetProperty("RetirementDate"));
+        Assert.Null(typeof(LocalUseViewModel).GetProperty("RetireWorkerCommand"));
     }
 
     [Fact]
@@ -526,6 +557,31 @@ public sealed class AdministrationViewModelTests
         Assert.False(viewModel.IsError, viewModel.StatusMessage);
     }
 
+    [Fact]
+    public async Task Maintenance_TenConcurrentNavigationRefreshesNeverDuplicatePersistedIds()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
+        var service = new AdministrationService(repository, settingsRepository, timeProvider);
+        MaintenanceRecord pending = MaintenanceRecord.Schedule("Aire", "Limpieza", new DateOnly(2026, 7, 18),
+            Money.FromDecimal(20m), MaintenanceFrequency.Monthly, null, null, UtcNow);
+        MaintenanceRecord completed = MaintenanceRecord.Create("Silla", "Ajuste", new DateOnly(2026, 7, 10),
+            Money.FromDecimal(10m), new DateOnly(2026, 7, 11), Money.FromDecimal(12m), UtcNow);
+        await service.AddAsync(pending, cancellationToken);
+        await service.AddAsync(completed, cancellationToken);
+        var viewModel = new MaintenanceViewModel(service, new GetSettingsUseCase(settingsRepository),
+            new FakeFormDraftStore(), timeProvider);
+
+        await Task.WhenAll(Enumerable.Range(0, 10).Select(_ => viewModel.RefreshAsync()));
+
+        Assert.Equal(viewModel.PendingRecords.Count, viewModel.PendingRecords.Select(row => row.Record.Id).Distinct().Count());
+        Assert.Equal(viewModel.HistoryRecords.Count, viewModel.HistoryRecords.Select(row => row.Record.Id).Distinct().Count());
+        Assert.Single(viewModel.PendingRecords);
+        Assert.Single(viewModel.HistoryRecords);
+    }
+
     private sealed class FakeSettingsRepository(GeneralSettings settings) : ISettingsRepository
     {
         public Task<GeneralSettings> GetAsync(CancellationToken cancellationToken = default) =>
@@ -554,7 +610,9 @@ public sealed class AdministrationViewModelTests
                 Active<Product>(), Active<InventoryMovement>(), Active<MonthlyRestockPlan>(), Active<FinancialEntry>(),
                 Active<Obligation>(), Active<ObligationPayment>(), Active<MaintenanceRecord>(), Active<Collaborator>(),
                 Active<MonthlyClose>(), Active<MonthlyCloseParticipant>(), Active<DistributionPayment>(),
-                Active<Chair>(), Active<PeluqueriaAdmin.Domain.Activity.ActivityRecord>(), Active<UnofficialExpense>()));
+                Active<Chair>(), Active<PeluqueriaAdmin.Domain.Activity.ActivityRecord>(), Active<UnofficialExpense>(),
+                Active<CollaboratorContribution>(), Active<FinancialReserve>(), Active<FinancialCloseExclusion>(),
+                Active<MonthlyPurchaseItem>(), Active<Loan>(), Active<LoanPayment>(), Active<AnnualClose>()));
 
         public Task SaveAsync(
             IReadOnlyCollection<AuditableEntity> additions,

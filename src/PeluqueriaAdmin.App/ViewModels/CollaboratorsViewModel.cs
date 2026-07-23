@@ -70,12 +70,13 @@ public sealed partial class CollaboratorsViewModel(
     [ObservableProperty] private string profileParticipationAmount = string.Empty;
     [ObservableProperty] private CollaboratorDistributionOption? selectedDistributionOption;
     [ObservableProperty] private DateTime? distributionPaymentDate = DateTime.Today;
-    [ObservableProperty] private string distributionPaymentAmount = string.Empty;
+    [ObservableProperty] private string availableFullPayment = "No hay un cierre mensual pendiente de pago.";
     [ObservableProperty] private string distributionPaymentDescription = string.Empty;
     [ObservableProperty] private DateTime? contributionDate = DateTime.Today;
     [ObservableProperty] private string contributionAmount = string.Empty;
     [ObservableProperty] private string contributionDescription = string.Empty;
     [ObservableProperty] private ContributionRow? selectedContributionRow;
+    [ObservableProperty] private OperationRow? selectedHistoryRow;
     [ObservableProperty] private bool isEditingContribution;
     [ObservableProperty] private bool confirmContributionDelete;
     [ObservableProperty] private bool confirmCollaboratorDelete;
@@ -100,11 +101,9 @@ public sealed partial class CollaboratorsViewModel(
             AdministrationData data = await service.GenerateScheduledRecordsAsync(today);
             SettingsDto settings = await getSettings.ExecuteAsync();
             ActivityDateRange range = CurrentRange(today);
-            MonthlySummaryResult currentSummary = AdministrationReports.MonthlySummary(
-                data,
-                Percentage.FromPercent(settings.CollaboratorProfitPercent),
-                YearMonth.From(today));
-            long distributableBase = Math.Max(0, currentSummary.BaseResultMinorUnits);
+            FinancialMonthSnapshot currentSummary = FinancialMonthCalculator.Calculate(
+                data, Percentage.FromPercent(settings.CollaboratorProfitPercent), YearMonth.From(today));
+            long distributableBase = Math.Max(0, currentSummary.DistributableResultMinorUnits);
             YearMonth currentMonth = YearMonth.From(today);
             MonthlyClose? confirmedClose = data.MonthlyCloses
                 .Where(item => item.Month == currentMonth && item.IsConfirmed)
@@ -144,7 +143,7 @@ public sealed partial class CollaboratorsViewModel(
             MissingProfitShare = $"Pendiente: {Math.Max(0m, 100m - assignedBasisPoints / 100m):N2} %";
             TotalProfitFund = $"Fondo total: {ApplicationCurrency.Code} {Money.FromMinorUnits(currentSummary.CollaboratorFundMinorUnits).ToDecimal():N2}";
             AssignedProfitAmount = $"Valor asignado: {ApplicationCurrency.Code} {Money.FromMinorUnits(assignedTotalMinorUnits).ToDecimal():N2}";
-            PendingProfitAmount = $"Dinero pendiente: {ApplicationCurrency.Code} {Money.FromMinorUnits(Math.Max(0, currentSummary.CollaboratorFundMinorUnits - assignedTotalMinorUnits)).ToDecimal():N2}";
+            PendingProfitAmount = string.Empty;
 
             suppressDistributionChanges = true;
             SelectedCollaboratorRow = preservedCollaboratorId.HasValue
@@ -156,7 +155,7 @@ public sealed partial class CollaboratorsViewModel(
                     .ToString("0.##", CultureInfo.CurrentCulture);
             ProfileParticipationAmount = SelectedCollaboratorRow is null
                 ? string.Empty
-                : $"Valor correspondiente este mes: {SelectedCollaboratorRow.AssignedAmount}";
+                : $"Pago del mes: {SelectedCollaboratorRow.AssignedAmount}";
             suppressDistributionChanges = false;
 
             if (IsProfileOpen && profileCollaboratorId.HasValue)
@@ -332,14 +331,13 @@ public sealed partial class CollaboratorsViewModel(
         }
         try
         {
-            Money amount = ParsePositiveMoney(DistributionPaymentAmount, "El pago de ganancias");
+            Money amount = Money.FromMinorUnits(SelectedDistributionOption.PendingMinorUnits);
             await service.RegisterDistributionPaymentAsync(
                 SelectedDistributionOption.Participant.Id,
                 RequiredDate(DistributionPaymentDate, "fecha del pago"),
                 amount,
                 description: DistributionPaymentDescription);
             DistributionPaymentDate = timeProvider.GetLocalNow().DateTime.Date;
-            DistributionPaymentAmount = string.Empty;
             DistributionPaymentDescription = string.Empty;
             SelectedDistributionOption = null;
             StatusMessage = "El pago de ganancias se registró correctamente.";
@@ -478,25 +476,34 @@ public sealed partial class CollaboratorsViewModel(
                     pendingMinorUnits));
             }
             if (!range.Contains(close.Month.LastDay)) continue;
+            int frozenGlobal = participant.GlobalPercentageBasisPoints != 0
+                ? participant.GlobalPercentageBasisPoints : close.CollaboratorPercentageBasisPoints;
+            int frozenIndividual = participant.IndividualPercentageBasisPoints != 0
+                ? participant.IndividualPercentageBasisPoints : collaborator.FundParticipationBasisPoints;
             rows.Add((close.Month.LastDay, participant.CreatedUtc, History(
                 close.Month.LastDay,
-                "Participación calculada",
-                $"Cierre {close.Month}",
+                "Ganancia asignada en cierre",
+                $"Mes {close.Month} · global congelado {frozenGlobal / 100m:N2} % · individual congelado {frozenIndividual / 100m:N2} %",
                 $"{ApplicationCurrency.Code} {participant.Amount.ToDecimal():N2}",
-                "Calculada",
+                pendingMinorUnits == 0 ? "Pagado completo" : "Pendiente de pago completo",
                 participant)));
             foreach (DistributionPayment payment in data.DistributionPayments
                 .Where(item => item.ParticipantId == participant.Id && range.Contains(item.Date)))
             {
                 rows.Add((payment.Date, payment.CreatedUtc, History(
                     payment.Date,
-                    "Pago de distribución",
-                    payment.Description,
+                    "Pago completo al colaborador",
+                    $"Mes {close.Month} · global {frozenGlobal / 100m:N2} % · individual {frozenIndividual / 100m:N2} % · {payment.Description}",
                     $"{ApplicationCurrency.Code} {payment.Amount.ToDecimal():N2}",
                     "Pagado",
                     payment)));
             }
         }
+
+        SelectedDistributionOption = PendingDistributions.OrderBy(item => item.Participant.CreatedUtc).FirstOrDefault();
+        AvailableFullPayment = SelectedDistributionOption is null
+            ? "No hay un cierre mensual pendiente de pago."
+            : $"Pago completo disponible: {SelectedDistributionOption.Display}";
 
         foreach (var activity in data.ActivityRecords.Where(item => item.EntityId == collaboratorId
             && range.Contains(item.ActivityDate)
@@ -519,6 +526,14 @@ public sealed partial class CollaboratorsViewModel(
         {
             HistoryRows.Add(row);
         }
+    }
+
+    partial void OnSelectedHistoryRowChanged(OperationRow? value)
+    {
+        if (value?.Entity is CollaboratorContribution contribution)
+            SelectedContributionRow = Contributions.SingleOrDefault(item => item.Contribution.Id == contribution.Id);
+        else
+            SelectedContributionRow = null;
     }
 
     private static OperationRow History(
@@ -704,7 +719,7 @@ public sealed partial class CollaboratorsViewModel(
             : (value.Collaborator.FundParticipationBasisPoints / 100m).ToString("0.##", CultureInfo.CurrentCulture);
         ProfileParticipationAmount = value is null
             ? string.Empty
-            : $"Valor correspondiente este mes: {value.AssignedAmount}";
+            : $"Pago del mes: {value.AssignedAmount}";
         suppressDistributionChanges = false;
     }
 

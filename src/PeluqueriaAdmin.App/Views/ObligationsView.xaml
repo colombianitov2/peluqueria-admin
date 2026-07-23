@@ -9,10 +9,10 @@
     <Style x:Key="ActionButton" TargetType="Button"><Setter Property="Margin" Value="0,0,8,8" /><Setter Property="Padding" Value="12,7" /><Setter Property="Background" Value="#EEF2FF" /><Setter Property="BorderBrush" Value="#A5B4FC" /></Style>
   </UserControl.Resources>
   <Grid Margin="26" Background="#F5F7FA">
-    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
     <StackPanel Margin="0,0,0,12"><TextBlock FontSize="28" FontWeight="SemiBold" Text="Obligaciones" /><TextBlock Margin="0,5,0,0" Foreground="#5B6575" Text="Catálogo permanente y pagos reales vinculados a cada vencimiento." /></StackPanel>
     <StackPanel Grid.Row="1">
-      <WrapPanel Margin="0,0,0,8"><Button Style="{StaticResource ActionButton}" Command="{Binding ShowAddModeCommand}" Content="Agregar obligación" /><Button Style="{StaticResource ActionButton}" Command="{Binding ShowPaymentModeCommand}" Content="Registrar pago" /></WrapPanel>
+      <WrapPanel Margin="0,0,0,8"><Button Style="{StaticResource ActionButton}" Command="{Binding ShowAddModeCommand}" Content="Agregar obligación" /><Button Style="{StaticResource ActionButton}" Command="{Binding ShowPaymentModeCommand}" Content="Registrar pago" /><Button Style="{StaticResource ActionButton}" Command="{Binding ShowLoanModeCommand}" Content="Préstamos" /></WrapPanel>
       <Border Padding="14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
         <Grid>
           <WrapPanel Visibility="{Binding IsAddMode, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -35,6 +35,27 @@
             <StackPanel Width="320" Margin="0,0,12,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción opcional" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding PaymentDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
             <Button Margin="0,23,0,8" Style="{StaticResource ActionButton}" Command="{Binding RegisterPaymentCommand}" Content="Registrar pago" />
           </WrapPanel>
+          <StackPanel Visibility="{Binding IsLoanMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <TextBlock Margin="0,0,0,8" FontSize="17" FontWeight="SemiBold" Text="Registrar préstamo recibido" />
+            <WrapPanel>
+              <StackPanel Width="200" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Nombre" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding LoanName, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+              <StackPanel Width="155" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Saldo inicial" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding LoanInitialBalance, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+              <StackPanel Width="155" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Cuota habitual" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding LoanUsualInstallment, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+              <StackPanel Width="145" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de inicio" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding LoanStartDate}" /></StackPanel>
+              <StackPanel Width="140" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Frecuencia" /><ComboBox Style="{StaticResource FieldBox}" ItemsSource="{Binding LoanFrequencyOptions}" SelectedItem="{Binding SelectedLoanFrequency}" /></StackPanel>
+              <StackPanel Width="140" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Número de cuotas (opcional)" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding LoanInstallmentCount, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+              <StackPanel Width="155" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Próximo vencimiento" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding LoanNextDueDate}" /></StackPanel>
+              <StackPanel Width="260" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding LoanDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+              <Button Margin="0,23,0,8" Style="{StaticResource ActionButton}" Command="{Binding AddLoanCommand}" Content="Registrar préstamo" />
+            </WrapPanel>
+            <WrapPanel>
+              <StackPanel Width="250" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Préstamo seleccionado" /><ComboBox Style="{StaticResource FieldBox}" ItemsSource="{Binding Loans}" SelectedItem="{Binding SelectedLoan}" DisplayMemberPath="Name" /></StackPanel>
+              <StackPanel Width="145" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de pago" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding LoanPaymentDate}" /></StackPanel>
+              <StackPanel Width="145" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Valor pagado" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding LoanPaymentAmount, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+              <StackPanel Width="260" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding LoanPaymentDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+              <Button Margin="0,23,0,8" Style="{StaticResource ActionButton}" Command="{Binding RegisterLoanPaymentCommand}" Content="Registrar cuota" />
+            </WrapPanel>
+          </StackPanel>
         </Grid>
       </Border>
     </StackPanel>
@@ -51,6 +72,11 @@
         </DataGrid>
       </GroupBox>
     </Grid>
-    <TextBlock Grid.Row="3" Margin="0,8,0,0" Foreground="#0F766E" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+    <Grid Grid.Row="3" Margin="0,12,0,0" Visibility="{Binding IsLoanMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+      <GroupBox Header="Préstamos"><DataGrid MaxHeight="210" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding Loans}" SelectedItem="{Binding SelectedLoan}"><DataGrid.Columns><DataGridTextColumn Width="170" Header="Nombre" Binding="{Binding Name}" /><DataGridTextColumn Width="125" Header="Saldo inicial" Binding="{Binding InitialBalance}" /><DataGridTextColumn Width="125" Header="Saldo pendiente" Binding="{Binding PendingBalance}" /><DataGridTextColumn Width="120" Header="Cuota" Binding="{Binding Installment}" /><DataGridTextColumn Width="110" Header="Próximo pago" Binding="{Binding NextDueDate}" /><DataGridTextColumn Width="90" Header="Estado" Binding="{Binding State}" /></DataGrid.Columns></DataGrid></GroupBox>
+      <GroupBox Grid.Column="2" Header="Historial de cuotas"><DataGrid MaxHeight="210" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding LoanPayments}"><DataGrid.Columns><DataGridTextColumn Width="105" Header="Fecha" Binding="{Binding Date}" /><DataGridTextColumn Width="180" Header="Préstamo" Binding="{Binding Loan}" /><DataGridTextColumn Width="130" Header="Valor" Binding="{Binding Amount}" /><DataGridTextColumn Width="240" Header="Descripción" Binding="{Binding Description}" /></DataGrid.Columns></DataGrid></GroupBox>
+    </Grid>
+    <TextBlock Grid.Row="4" Margin="0,8,0,0" Foreground="#0F766E" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
   </Grid>
 </UserControl>

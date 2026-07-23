@@ -2,9 +2,9 @@
 
 ## Carácter canónico y precedencia
 
-Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.7 del 22 de julio de 2026.
+Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.8 del 22 de julio de 2026.
 
-La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, cobro semanal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 y 4.5 concretan las reglas vigentes de Uso del local, perfil, fechas, sillas, cuenta, historial y pagos anticipados. La Fase 4.7 sustituye la notificación de obligaciones, los porcentajes individuales directos, los planes de reposición, el cierre mensual manual visible y todos los botones `Limpiar formulario`.
+La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, cobro semanal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 y 4.5 concretan las reglas vigentes de Uso del local, perfil, fechas, sillas, cuenta, historial y pagos anticipados. La Fase 4.7 sustituyó la notificación de obligaciones, los porcentajes individuales directos y los planes de reposición. La Fase 4.8 sustituye la regla de cierre automático: el cierre mensual vuelve a ser una acción manual visible únicamente en Resumen mensual y crea reservas, exclusiones y distribuciones congeladas.
 
 Los trabajadores son quienes usan y alquilan las sillas. Los colaboradores son exclusivamente inversionistas y nunca ocupan sillas. La interfaz, los mensajes, Excel y la documentación usan esta distinción.
 
@@ -51,11 +51,10 @@ Datos mínimos previstos:
 
 - nombre;
 - fecha de ingreso;
-- fecha de retiro, cuando corresponda.
 - descripción opcional;
 - silla individual asignada actualmente.
 
-La condición activa o inactiva se calcula internamente a partir de las fechas; no existirá un campo visible de estado.
+No existe una acción visible separada para retirar al trabajador ni una fecha de retiro editable. **Eliminar trabajador** exige confirmación, libera la silla y realiza una eliminación lógica que conserva cuenta, pagos, tarifas e historial. Los estados `Retirado` heredados continúan siendo legibles.
 
 No incluir:
 
@@ -116,7 +115,7 @@ El selector de silla del alta y el selector del perfil son colecciones independi
 
 El perfil se abre por doble clic y reúne datos, cuenta individual, tarifas históricas, pago y silla. Su cabecera permanece fija; solo el historial cronológico, separado visualmente y ordenado de más reciente a más antiguo, se desplaza y virtualiza. El filtro inicial es **Todo el historial**; registrar un pago vuelve a ese filtro para mostrar exactamente un movimiento de inmediato.
 
-Se acepta cualquier pago positivo, incluso anticipado o superior a la deuda acumulada. La deuda acumulada nunca es negativa y el excedente queda como saldo a favor. El crédito cubre las cuotas futuras por orden, sin reiniciar el ciclo semanal anclado al ingreso. La cuenta informa próxima cuota y valor, próximo pago requerido con fecha e importe en la misma tarjeta, y cobertura estimada. No se muestra otra tarjeta que duplique la deuda. Las cuotas causadas conservan su tarifa; las futuras usan la vigente. El retiro detiene nuevas cuotas, conserva el crédito y no genera devolución en esta fase.
+Se acepta cualquier pago positivo, incluso anticipado o superior a la deuda acumulada. La deuda acumulada nunca es negativa y el excedente queda como saldo a favor. El crédito cubre las cuotas futuras por orden, sin reiniciar el ciclo semanal anclado al ingreso. La cuenta informa próxima cuota y valor, próximo pago requerido con fecha e importe en la misma tarjeta, y cobertura estimada. No se muestra otra tarjeta que duplique la deuda. Las cuotas causadas conservan su tarifa; las futuras usan la vigente. La eliminación lógica detiene nuevas cuotas, conserva el crédito y no genera devolución en esta fase.
 
 ## 6.2 Aportes de colaboradores
 
@@ -201,9 +200,9 @@ No incluir:
 
 La necesidad de atención se calcula a partir de las fechas y de la existencia o ausencia de costo y fecha real, sin un campo manual de estado.
 
-## 10. Punto de equilibrio mensual
+## 10. Punto de equilibrio mensual y resultado repartible
 
-El punto de equilibrio se maneja por mes y compara el dinero realmente ingresado contra las obligaciones y gastos del mes mediante un enfoque sencillo de flujo de dinero.
+El punto de equilibrio se maneja por mes y separa ingresos operativos cobrados, cuentas por cobrar, egresos pagados, cuentas por pagar, reservas y financiación. Las deudas de trabajadores no son ingreso hasta cobrarse; préstamos y aportes no son ganancia operativa.
 
 Ingresos del mes:
 
@@ -213,17 +212,20 @@ Ingresos del mes:
 
 Salidas del mes:
 
-- pagos reales de servicios y obligaciones;
+- pagos reales de servicios y obligaciones no cubiertos por una reserva anterior;
 - insumos obligatorios comprados;
 - insumos opcionales realmente comprados o consumidos y registrados;
 - compras de mercancía;
 - costos reales de mantenimientos realizados;
 - gastos imprevistos;
-- otros gastos.
+- otros gastos;
+- nuevas reservas y ajustes de reservas anteriores;
+- cuotas de préstamos y compromisos anteriores no cubiertos.
 
 Reglas:
 
-- Las compras de inventario se cuentan solamente cuando se realizan.
+- Una reserva se descuenta una sola vez. Al pagar, se consume y solo la diferencia entre valor real y reservado afecta el nuevo periodo.
+- Las compras de inventario se cuentan solamente cuando se realizan o mediante su reserva previa, nunca por ambas vías.
 - El inventario sobrante no vuelve a contarse como gasto.
 - No se mezclan ingresos por servicios personales de quienes trabajan en el local.
 
@@ -243,15 +245,18 @@ Los colaboradores forman un grupo distinto de las personas que pagan por utiliza
 - La distribución se integra dentro de **Colaboradores**; no existe una opción lateral independiente de nómina.
 - Cada colaborador guarda una **participación dentro del fondo** entre 0 % y 100 %. La suma de participaciones activas no puede superar 100 %, puede ser inferior y nunca se completa automáticamente.
 - El porcentaje global crea primero el fondo. La participación individual se aplica después sobre ese fondo, no directamente sobre la ganancia neta.
-- Los meses terminados con movimientos se preservan mediante snapshots internos idempotentes; no se muestran controles técnicos de cerrar, reabrir, editar o eliminar cierres.
+- El cierre se confirma manualmente en Resumen mensual. Congela fórmula, valores, reservas, exclusiones, porcentajes y una asignación por colaborador; la reapertura exige confirmación e invalida asignaciones no pagadas.
 
 Fórmulas:
 
 ```text
-resultado base =
-  ingresos del local
-  - gastos y obligaciones correspondientes
-  - gasto opcional real aplicable
+resultado repartible =
+  ingresos operativos realmente cobrados
+  - egresos pagados no provisionados anteriormente
+  - nuevas reservas
+  - ajustes de reservas anteriores
+  - cuotas de préstamos
+  - compromisos anteriores no cubiertos
 ```
 
 Si el resultado base es menor o igual a cero:
@@ -264,8 +269,8 @@ Si el resultado base es positivo:
 
 ```text
 fondo colaboradores = resultado base × porcentaje global configurado
-pago por colaborador = fondo colaboradores × participación interna del colaborador
-ganancia retenida por el local = resultado base - fondo colaboradores
+pago del mes = fondo colaboradores × porcentaje individual congelado
+ganancia retenida por el local = máximo(resultado repartible, 0) - fondo colaboradores
 ```
 
 No se inventará una fórmula circular.
@@ -289,7 +294,7 @@ Los importes de Ajustes se persisten en unidades menores enteras y los porcentaj
 
 ## 13. Balance anual
 
-El balance por año muestra:
+El balance usa únicamente un selector de año, muestra siempre enero a diciembre a partir de snapshots mensuales y permite cerrar el año solo cuando los doce meses están cerrados, incluidos meses en cero. El cierre anual no elimina años anteriores. Muestra:
 
 - ingresos acumulados;
 - gastos acumulados por categoría;
@@ -297,6 +302,7 @@ El balance por año muestra:
 - impuestos u obligaciones anuales;
 - resultado retenido por el local;
 - indicador positivo o negativo.
+- gráfico de ingresos operativos cobrados por mes.
 
 El indicador mensual es negativo cuando todavía falta dinero para cubrir las obligaciones mensuales. El indicador anual es negativo cuando el resultado acumulado, incluidas las obligaciones e impuestos anuales registrados, es inferior a cero.
 
@@ -311,6 +317,7 @@ La página principal muestra exclusivamente:
 - cantidad faltante para alcanzar el punto de equilibrio mensual.
 - precio semanal actual, precio semanal sugerido por silla ocupada y equivalente mensual, con explicación breve.
 - campana de mantenimientos vencidos o para hoy, con acceso a Mantenimiento.
+- movimientos persistidos del día con selector de fecha, hora local, módulo, operación, entidad, importe y estado.
 
 No mostrar allí:
 
@@ -419,3 +426,12 @@ Quedan reemplazadas la moneda configurable, COP, el presupuesto mensual opcional
 ## Decisiones reemplazadas en Fase 4.7
 
 Quedan reemplazados el recibo de obligaciones de Inicio, los porcentajes individuales directos sobre ganancia neta, los planes de reposición, el cierre mensual manual visible, todos los botones `Limpiar formulario`, el formulario combinado de programación/realización de mantenimiento y la tabla única que mezclaba obligaciones con pagos. Todas las tablas usan columnas fijas no redimensionables y barras internas. Inventario se divide en `Inventario`, `Movimientos` y `Agregar`; Obligaciones separa catálogo y pagos; Mantenimiento separa programación, realización, pendientes e historial; y `Notas` es un bloc único SQLite con autoguardado, copia y exportación Excel.
+
+## Decisiones vigentes de Fase 4.8
+
+- La regla de cierre automático anterior queda reemplazada por cierre mensual manual visible en `Resumen mensual`, con lista previa, exclusiones justificadas, reservas y reapertura confirmada.
+- `Uso del local` no ofrece retiro redundante: conserva silla y eliminación lógica con historial.
+- El colaborador recibe únicamente el pago completo congelado de un resultado repartible positivo; nunca asume pérdidas ni pagos parciales arbitrarios.
+- La Lista mensual de compra es una entidad nueva vinculada por identificador; no reutiliza `MonthlyRestockPlans`.
+- Los préstamos se administran dentro de Obligaciones y su desembolso se separa de los ingresos operativos.
+- Inicio añade movimientos generales diarios sin recuperar una notificación independiente de obligaciones.

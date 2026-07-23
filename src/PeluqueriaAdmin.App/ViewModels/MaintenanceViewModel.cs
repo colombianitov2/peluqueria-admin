@@ -22,6 +22,8 @@ public sealed partial class MaintenanceViewModel(
     private const string DraftKey = "Mantenimiento:Fase43:programacion";
     private CancellationTokenSource? draftCancellation;
     private bool suppressChanges;
+    private bool suppressFilterRefresh;
+    private readonly SemaphoreSlim refreshGate = new(1, 1);
 
     public ObservableCollection<string> FrequencyOptions { get; } =
         ["Una vez", "Semanal", "Quincenal", "Mensual", "Cada 2 meses", "Cada 3 meses", "Cada 6 meses", "Anual", "Personalizada"];
@@ -67,6 +69,7 @@ public sealed partial class MaintenanceViewModel(
     [RelayCommand]
     public async Task RefreshAsync()
     {
+        await refreshGate.WaitAsync();
         IsBusy = true;
         try
         {
@@ -77,13 +80,18 @@ public sealed partial class MaintenanceViewModel(
             PendingRecords.Clear();
             PendingCompletionOptions.Clear();
             HistoryRecords.Clear();
-            HistoryAssetOptions.Clear();
-            HistoryAssetOptions.Add("Historial de todos los equipos");
-            foreach (string asset in data.MaintenanceRecords.Select(item => item.Asset).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(item => item))
+            suppressFilterRefresh = true;
+            try
             {
-                HistoryAssetOptions.Add(asset);
+                HistoryAssetOptions.Clear();
+                HistoryAssetOptions.Add("Historial de todos los equipos");
+                foreach (string asset in data.MaintenanceRecords.Select(item => item.Asset).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(item => item))
+                {
+                    HistoryAssetOptions.Add(asset);
+                }
+                if (!HistoryAssetOptions.Contains(SelectedHistoryAsset)) SelectedHistoryAsset = "Historial de todos los equipos";
             }
-            if (!HistoryAssetOptions.Contains(SelectedHistoryAsset)) SelectedHistoryAsset = "Historial de todos los equipos";
+            finally { suppressFilterRefresh = false; }
             foreach (MaintenanceRecord record in data.MaintenanceRecords.OrderBy(item => item.ScheduledDate))
             {
                 var row = ToRow(record);
@@ -108,7 +116,7 @@ public sealed partial class MaintenanceViewModel(
             StatusMessage = $"No fue posible cargar Mantenimiento. {exception.Message}";
             IsError = true;
         }
-        finally { IsBusy = false; }
+        finally { IsBusy = false; refreshGate.Release(); }
     }
 
     [RelayCommand]
@@ -295,10 +303,10 @@ public sealed partial class MaintenanceViewModel(
     partial void OnCustomIntervalTextChanged(string value) => ScheduleDraft();
     partial void OnSelectedCustomUnitChanged(string value) => ScheduleDraft();
     partial void OnDescriptionTextChanged(string value) => ScheduleDraft();
-    partial void OnSelectedPeriodChanged(string value) { ShowCustomPeriod = value == "Rango personalizado"; _ = RefreshAsync(); }
-    partial void OnCustomPeriodFromChanged(DateTime? value) { if (ShowCustomPeriod) _ = RefreshAsync(); }
-    partial void OnCustomPeriodThroughChanged(DateTime? value) { if (ShowCustomPeriod) _ = RefreshAsync(); }
-    partial void OnSelectedHistoryAssetChanged(string value) => _ = RefreshAsync();
+    partial void OnSelectedPeriodChanged(string value) { ShowCustomPeriod = value == "Rango personalizado"; if (!suppressFilterRefresh) _ = RefreshAsync(); }
+    partial void OnCustomPeriodFromChanged(DateTime? value) { if (ShowCustomPeriod && !suppressFilterRefresh) _ = RefreshAsync(); }
+    partial void OnCustomPeriodThroughChanged(DateTime? value) { if (ShowCustomPeriod && !suppressFilterRefresh) _ = RefreshAsync(); }
+    partial void OnSelectedHistoryAssetChanged(string value) { if (!suppressFilterRefresh) _ = RefreshAsync(); }
 
     private ActivityDateRange? CurrentRange()
     {

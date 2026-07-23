@@ -15,6 +15,8 @@ En la validación final consolidada de la Fase 4.6 pasan **159 pruebas únicas**
 
 La Fase 4.7 amplía la suite a **175 pruebas únicas**: 58 de dominio, 42 de aplicación, 19 de infraestructura y 56 de interfaz. La suite completa se ejecuta en Debug y Release, para **350 ejecuciones satisfactorias**. Incluye pruebas específicas del fondo 60/20/10/10, límite de 100 %, flujo real, obligaciones recurrentes sin deriva —también al editar una serie no pagada—, snapshot automático, saldo semanal con reloj controlado, migración desde Fase 4.6, persistencia SQLite/Excel de Notas y contratos XAML globales.
 
+La Fase 4.8 amplía la suite a **209 pruebas únicas**: 65 de dominio, 60 de aplicación, 21 de infraestructura y 63 de interfaz. Cubre el ejemplo exacto `1000 - 500 - 100 - 50 - 80 = 270` y fondo `54`, deuda de trabajador excluida, resultado negativo sin pago, presentación segura de importes negativos, reservas y ajustes `100/110`, exclusiones justificadas, cierre/reapertura, porcentajes congelados, pago completo, préstamos, lista mensual, vinculación manual y automática de compras, migración Fase 4.7→4.8, integridad SQLite, hojas Excel y contratos visuales. La validación final ejecutó las 209 pruebas en Debug y nuevamente en Release: **418 ejecuciones aprobadas, 0 fallos y 0 omitidas**.
+
 ## Cobertura funcional comprobada
 
 - primera cuota, periodos de siete días, retiro, cambio futuro de tarifa e idempotencia;
@@ -59,6 +61,16 @@ La Fase 4.7 amplía la suite a **175 pruebas únicas**: 58 de dominio, 42 de apl
 - obligación única con múltiples pagos, ocurrencia pagada y recurrencia anclada sin deriva;
 - Notas con debounce, guardado forzado, cierre/reapertura SQLite y hoja Excel;
 - columnas bloqueadas, barras internas, campana única, pestañas de Inventario, paneles separados y ausencia global de `Limpiar formulario`.
+- eliminación única del trabajador, liberación de silla y conservación de historial sin acción visible de retiro;
+- registros congelados también con resultado cero, porcentajes históricos y rechazo de pagos parciales arbitrarios;
+- cuentas por cobrar excluidas hasta cobrarse, pagos futuros sin alterar meses anteriores y separación de financiación;
+- mantenimiento futuro fuera del mes, vencido dentro del compromiso y cierre bloqueado ante costo sin resolver;
+- lista mensual por identificador, cantidad por costo, arrastre desde el mes de aplicación y consumo posterior de reserva;
+- cierre mensual manual, motivo obligatorio de exclusión, reapertura y nuevo cierre sin duplicados activos;
+- préstamos recibidos fuera de ingresos, cuotas dentro de compromisos y saldo decreciente;
+- doce cierres requeridos para cierre anual, preservación histórica y meses nuevos en cero;
+- Mantenimiento con diez refrescos simultáneos y una sola fila por identificador persistido;
+- actividad consolidada de Ajustes sin almacenar la ruta privada y movimientos generales exportados con importe/estado.
 
 ## Comandos finales
 
@@ -109,3 +121,13 @@ La Fase 4.6 añade pruebas para USD único y normalización de bases COP sin con
 - integración y validación del logotipo exacto K&V Barber & Beauty, porque el archivo gráfico solicitado no estuvo disponible entre los adjuntos accesibles.
 
 Ninguna prueba automatizada utiliza la base real ni incorpora datos permanentes.
+
+## Cierre de Fase 4.8
+
+- 209 pruebas únicas: 65 Domain, 60 Application, 21 Infrastructure y 63 App.
+- 418 ejecuciones aprobadas al repetir toda la suite en Debug y Release; 0 fallos y 0 omitidas.
+- La copia Fase 4.7 migrada conserva integridad SQLite y cero violaciones de claves foráneas.
+- El arranque Release fue verificado con resultado financiero negativo, reservas, préstamo, compra mensual y cierres históricos dentro de una raíz temporal aislada.
+- La revisión manual cubrió los módulos afectados en disposición amplia y reducida; los contratos responsivos cubren 100 %, 125 % y 150 %. Se detuvo el control visual al detectar entrada del usuario y se dejó la aplicación abierta.
+- Gitleaks 8.30.1 se ejecutó sobre 31 commits y árbol de trabajo con `--redact`; no detectó filtraciones.
+- El paquete Velopack de validación usa `0.1.0-phase48-validation` y no fue instalado ni publicado.

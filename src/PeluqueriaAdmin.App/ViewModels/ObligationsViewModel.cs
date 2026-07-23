@@ -15,8 +15,12 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
     public ObservableCollection<ObligationCatalogRow> Obligations { get; } = [];
     public ObservableCollection<ObligationPaymentListRow> Payments { get; } = [];
     public ObservableCollection<ObligationSeriesOption> PaymentOptions { get; } = [];
+    public ObservableCollection<LoanRow> Loans { get; } = [];
+    public ObservableCollection<LoanPaymentRow> LoanPayments { get; } = [];
+    public ObservableCollection<string> LoanFrequencyOptions { get; } = ["Semanal", "Quincenal", "Mensual"];
 
     [ObservableProperty] private bool isAddMode = true;
+    [ObservableProperty] private bool isLoanMode;
     [ObservableProperty] private string nameText = string.Empty;
     [ObservableProperty] private string selectedType = "Servicio";
     [ObservableProperty] private string selectedRecurrence = "Sin recurrencia";
@@ -33,7 +37,20 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
     [ObservableProperty] private string statusMessage = string.Empty;
     [ObservableProperty] private bool isError;
 
-    public bool IsPaymentMode => !IsAddMode;
+    [ObservableProperty] private string loanName = string.Empty;
+    [ObservableProperty] private string loanInitialBalance = string.Empty;
+    [ObservableProperty] private string loanUsualInstallment = string.Empty;
+    [ObservableProperty] private DateTime? loanStartDate = DateTime.Today;
+    [ObservableProperty] private string selectedLoanFrequency = "Mensual";
+    [ObservableProperty] private string loanInstallmentCount = string.Empty;
+    [ObservableProperty] private DateTime? loanNextDueDate = DateTime.Today;
+    [ObservableProperty] private string loanDescription = string.Empty;
+    [ObservableProperty] private LoanRow? selectedLoan;
+    [ObservableProperty] private DateTime? loanPaymentDate = DateTime.Today;
+    [ObservableProperty] private string loanPaymentAmount = string.Empty;
+    [ObservableProperty] private string loanPaymentDescription = string.Empty;
+
+    public bool IsPaymentMode => !IsAddMode && !IsLoanMode;
 
     public async Task LoadAsync() => await RefreshAsync();
 
@@ -75,13 +92,55 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
                 payment.Description ?? string.Empty));
         }
         SelectedObligation = selectedSeries.HasValue ? Obligations.SingleOrDefault(item => item.SeriesId == selectedSeries) : null;
+        Loans.Clear();
+        foreach (Loan loan in data.Loans.OrderBy(item => item.NextDueDate))
+            Loans.Add(new LoanRow(loan, loan.Name, $"{ApplicationCurrency.Code} {loan.InitialBalance.ToDecimal():N2}",
+                $"{ApplicationCurrency.Code} {loan.PendingBalance.ToDecimal():N2}",
+                $"{ApplicationCurrency.Code} {loan.UsualInstallment.ToDecimal():N2}",
+                loan.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                loan.NextDueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                loan.IsPaid ? "Pagado" : "Pendiente", loan.Description ?? string.Empty));
+        LoanPayments.Clear();
+        foreach (LoanPayment payment in data.LoanPayments.OrderByDescending(item => item.Date))
+            LoanPayments.Add(new LoanPaymentRow(payment.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                data.Loans.SingleOrDefault(item => item.Id == payment.LoanId)?.Name ?? "Préstamo eliminado",
+                $"{ApplicationCurrency.Code} {payment.Amount.ToDecimal():N2}", payment.Description ?? string.Empty));
     }
 
     [RelayCommand]
-    private void ShowAddMode() => IsAddMode = true;
+    private void ShowAddMode() { IsLoanMode = false; IsAddMode = true; }
 
     [RelayCommand]
-    private void ShowPaymentMode() => IsAddMode = false;
+    private void ShowPaymentMode() { IsLoanMode = false; IsAddMode = false; }
+
+    [RelayCommand]
+    private void ShowLoanMode() { IsAddMode = false; IsLoanMode = true; OnPropertyChanged(nameof(IsPaymentMode)); }
+
+    [RelayCommand]
+    private async Task AddLoanAsync()
+    {
+        int? count = string.IsNullOrWhiteSpace(LoanInstallmentCount) ? null
+            : int.TryParse(LoanInstallmentCount, out int parsed) && parsed > 0 ? parsed
+            : throw new ArgumentException("La cantidad de cuotas debe ser un entero positivo.");
+        Loan loan = Loan.Create(LoanName, ParseMoney(LoanInitialBalance), ParseMoney(LoanUsualInstallment),
+            RequiredDate(LoanStartDate, "fecha de inicio"), ParseLoanFrequency(SelectedLoanFrequency), count,
+            RequiredDate(LoanNextDueDate, "próximo vencimiento"), timeProvider.GetUtcNow().UtcDateTime, LoanDescription);
+        await service.AddLoanAsync(loan);
+        LoanName = LoanInitialBalance = LoanUsualInstallment = LoanInstallmentCount = LoanDescription = string.Empty;
+        StatusMessage = "El préstamo se registró como financiación; no incrementa la ganancia.";
+        await RefreshAsync();
+    }
+
+    [RelayCommand]
+    private async Task RegisterLoanPaymentAsync()
+    {
+        if (SelectedLoan is null) throw new InvalidOperationException("Selecciona el préstamo pagado.");
+        await service.RegisterLoanPaymentAsync(SelectedLoan.Loan.Id, RequiredDate(LoanPaymentDate, "fecha de pago"),
+            ParseMoney(LoanPaymentAmount), LoanPaymentDescription);
+        LoanPaymentAmount = LoanPaymentDescription = string.Empty;
+        StatusMessage = "La cuota se registró y redujo el saldo pendiente.";
+        await RefreshAsync();
+    }
 
     [RelayCommand]
     private async Task AddObligationAsync()
@@ -199,6 +258,7 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
     public Task FlushPendingAsync() => Task.CompletedTask;
 
     partial void OnIsAddModeChanged(bool value) => OnPropertyChanged(nameof(IsPaymentMode));
+    partial void OnIsLoanModeChanged(bool value) => OnPropertyChanged(nameof(IsPaymentMode));
 
     private void ResetDefinitionForm()
     {
@@ -237,6 +297,12 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
         "Anual" => RecurrenceFrequency.Annual,
         _ => RecurrenceFrequency.None,
     };
+    private static LoanFrequency ParseLoanFrequency(string value) => value switch
+    {
+        "Semanal" => LoanFrequency.Weekly,
+        "Quincenal" => LoanFrequency.Biweekly,
+        _ => LoanFrequency.Monthly,
+    };
     private static string TypeName(ObligationType value) => value switch
     {
         ObligationType.Tax => "Impuesto",
@@ -256,3 +322,6 @@ public sealed record ObligationCatalogRow(Guid SeriesId, Obligation Definition, 
 public sealed record ObligationPaymentListRow(string Date, string Obligation, string CoveredDueDate,
     string ActualAmount, string Description);
 public sealed record ObligationSeriesOption(Guid SeriesId, string Display);
+public sealed record LoanRow(Loan Loan, string Name, string InitialBalance, string PendingBalance,
+    string Installment, string StartDate, string NextDueDate, string State, string Description);
+public sealed record LoanPaymentRow(string Date, string Loan, string Amount, string Description);

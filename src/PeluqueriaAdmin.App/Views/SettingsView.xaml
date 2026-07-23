@@ -58,7 +58,20 @@
                  ToolTip="Porcentaje entre 0 y 100 con máximo dos decimales." />
       </StackPanel>
 
-      <Border Grid.Row="3" Margin="0,4,0,24" Padding="18" Background="#FFF7ED" CornerRadius="6">
+      <Border Grid.Row="3" Margin="0,4,0,24" Padding="18" Background="#EFF6FF" CornerRadius="6">
+        <StackPanel>
+          <DockPanel Margin="0,0,0,10">
+            <DatePicker DockPanel.Dock="Right" Width="160" SelectedDate="{Binding SelectedFinancialMonth}" />
+            <TextBlock FontSize="20" FontWeight="SemiBold" Text="Resumen financiero del mes" />
+          </DockPanel>
+          <TextBlock Margin="0,0,0,10" Foreground="#4B5563" Text="Proyección antes del cierre; fotografía histórica congelada después del cierre." TextWrapping="Wrap" />
+          <ItemsControl ItemsSource="{Binding FinancialSummaryRows}">
+            <ItemsControl.ItemTemplate><DataTemplate><DockPanel Margin="0,3"><TextBlock DockPanel.Dock="Right" FontWeight="SemiBold" Text="{Binding Amount}" /><TextBlock Text="{Binding Concept}" /></DockPanel></DataTemplate></ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Row="4" Margin="0,4,0,24" Padding="18" Background="#FFF7ED" CornerRadius="6">
         <StackPanel>
           <DockPanel Margin="0,0,0,12">
             <TextBlock DockPanel.Dock="Left" FontSize="20" FontWeight="SemiBold" Text="Gastos extraoficiales" />
@@ -108,7 +121,7 @@
         </StackPanel>
       </Border>
 
-      <Border Grid.Row="4" Margin="0,12,0,24" Padding="18" Background="#F3F4F6" CornerRadius="6">
+      <Border Grid.Row="5" Margin="0,12,0,24" Padding="18" Background="#F3F4F6" CornerRadius="6">
         <StackPanel>
           <TextBlock FontSize="20" FontWeight="SemiBold" Text="Datos" />
           <TextBlock Margin="0,5,0,14"
@@ -159,7 +172,7 @@
         </StackPanel>
       </Border>
 
-      <Border Grid.Row="5" Margin="0,0,0,24" Padding="18" Background="#F3F4F6" CornerRadius="6">
+      <Border Grid.Row="6" Margin="0,0,0,24" Padding="18" Background="#F3F4F6" CornerRadius="6">
         <StackPanel>
           <TextBlock FontSize="20" FontWeight="SemiBold" Text="Actualizaciones" />
           <TextBlock Margin="0,5,0,14"
@@ -178,7 +191,7 @@
         </StackPanel>
       </Border>
 
-      <Border Grid.Row="6"
+      <Border Grid.Row="7"
               Margin="0,2,0,18"
               Padding="12"
               Background="#E8EEF6"

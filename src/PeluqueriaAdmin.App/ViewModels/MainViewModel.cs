@@ -4,8 +4,14 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.Settings;
+using PeluqueriaAdmin.Domain.Collaborators;
 using PeluqueriaAdmin.Domain.Common;
+using PeluqueriaAdmin.Domain.Finance;
+using PeluqueriaAdmin.Domain.Inventory;
+using PeluqueriaAdmin.Domain.LocalUse;
 using PeluqueriaAdmin.Domain.Maintenance;
+using PeluqueriaAdmin.Domain.Obligations;
+using PeluqueriaAdmin.Domain.Reports;
 using PeluqueriaAdmin.Domain.Settings;
 
 namespace PeluqueriaAdmin.App.ViewModels;
@@ -44,6 +50,7 @@ public sealed partial class MainViewModel : ObservableObject
         this.administrationService = administrationService;
         this.getSettings = getSettings;
         this.timeProvider = timeProvider;
+        MovementQueryDate = timeProvider.GetLocalNow().DateTime.Date;
         administrationService.DataChanged += OnAdministrationDataChanged;
         NavigationItems =
         [
@@ -90,6 +97,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     public ObservableCollection<MaintenanceNotificationRow> MaintenanceNotifications { get; } = [];
 
+    public ObservableCollection<DailyMovementRow> DailyMovements { get; } = [];
+
     [ObservableProperty]
     private object? currentPage;
 
@@ -116,6 +125,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private int maintenanceNotificationCount;
     [ObservableProperty] private bool isMaintenanceNotificationsOpen;
+    [ObservableProperty] private DateTime? movementQueryDate = DateTime.Today;
+
+    [RelayCommand]
+    private async Task ConsultDailyMovementsAsync()
+    {
+        AdministrationData data = await administrationService.LoadAsync();
+        PopulateDailyMovements(data);
+    }
 
     [RelayCommand]
     private async Task GoToMaintenanceAsync()
@@ -265,7 +282,10 @@ public sealed partial class MainViewModel : ObservableObject
             ? "Sin personas con deuda"
             : string.Join(Environment.NewLine, debts);
 
-        EstadoPuntoDeEquilibrio = $"{ApplicationCurrency.Code} {dashboard.MissingMinorUnits / 100m:N2}";
+        FinancialMonthSnapshot financial = FinancialMonthCalculator.Calculate(
+            data, Percentage.FromPercent(settings.CollaboratorProfitPercent), month);
+        EstadoPuntoDeEquilibrio = $"{ApplicationCurrency.Code} {financial.ShortfallMinorUnits / 100m:N2}";
+        PopulateDailyMovements(data);
 
         SuggestedChairPrice suggested = SuggestedChairPriceCalculator.Calculate(
             data,
@@ -278,6 +298,37 @@ public sealed partial class MainViewModel : ObservableObject
                 + $"Equivalente mensual sugerido: {ApplicationCurrency.Code} {suggested.SuggestedMonthlyPerChairMinorUnits / 100m:N2}{Environment.NewLine}"
                 + suggested.Explanation
             : suggested.Explanation;
+    }
+
+    private void PopulateDailyMovements(AdministrationData data)
+    {
+        DateOnly date = DateOnly.FromDateTime(MovementQueryDate ?? timeProvider.GetLocalNow().DateTime.Date);
+        DailyMovements.Clear();
+        foreach (var item in data.ActivityRecords.Where(item => item.ActivityDate == date)
+            .OrderByDescending(item => item.OccurredUtc))
+        {
+            long? amount = ActivityAmount(data, item.EntityId);
+            DailyMovements.Add(new DailyMovementRow(item.OccurredUtc.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture),
+                item.Module, item.Action, item.Summary, item.Description ?? string.Empty,
+                amount.HasValue ? $"{ApplicationCurrency.Code} {Money.FromMinorUnits(amount.Value).ToDecimal():N2}" : string.Empty,
+                item.Action == "Eliminación" ? "Eliminado lógicamente" : "Registrado"));
+        }
+    }
+
+    private static long? ActivityAmount(AdministrationData data, Guid? entityId)
+    {
+        if (!entityId.HasValue) return null;
+        Guid id = entityId.Value;
+        if (data.LocalUsePayments.SingleOrDefault(x => x.Id == id) is { } local) return local.Amount.MinorUnits;
+        if (data.InventoryMovements.SingleOrDefault(x => x.Id == id) is { } inventory) return inventory.CashAmount?.MinorUnits;
+        if (data.FinancialEntries.SingleOrDefault(x => x.Id == id) is { } entry) return entry.Amount.MinorUnits;
+        if (data.ObligationPayments.SingleOrDefault(x => x.Id == id) is { } obligation) return obligation.Amount.MinorUnits;
+        if (data.MaintenanceRecords.SingleOrDefault(x => x.Id == id) is { } maintenance) return maintenance.ActualCost?.MinorUnits ?? maintenance.EstimatedCost?.MinorUnits;
+        if (data.DistributionPayments.SingleOrDefault(x => x.Id == id) is { } distribution) return distribution.Amount.MinorUnits;
+        if (data.LoanPayments.SingleOrDefault(x => x.Id == id) is { } loanPayment) return loanPayment.Amount.MinorUnits;
+        if (data.Loans.SingleOrDefault(x => x.Id == id) is { } loan) return loan.InitialBalance.MinorUnits;
+        if (data.FinancialReserves.SingleOrDefault(x => x.Id == id) is { } reserve) return reserve.ReservedAmount.MinorUnits;
+        return null;
     }
 
     public async Task FlushPendingAsync()
@@ -347,3 +398,5 @@ public sealed partial class MainViewModel : ObservableObject
 }
 
 public sealed record MaintenanceNotificationRow(string Asset, string Type, string Date, string Status);
+public sealed record DailyMovementRow(string Time, string Module, string Operation, string Entity,
+    string Detail, string Amount, string State);

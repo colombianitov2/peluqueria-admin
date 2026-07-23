@@ -77,7 +77,6 @@ public sealed partial class LocalUseViewModel(
     [ObservableProperty] private string profileName = string.Empty;
     [ObservableProperty] private string profileDescription = string.Empty;
     [ObservableProperty] private DateTime? profileEntryDate;
-    [ObservableProperty] private DateTime? profileExitDate;
     [ObservableProperty] private string profileChair = "Sin silla asignada";
     [ObservableProperty] private string profileWeeklyRates = string.Empty;
     [ObservableProperty] private string profileDebt = string.Empty;
@@ -91,7 +90,6 @@ public sealed partial class LocalUseViewModel(
     [ObservableProperty] private string paymentAmount = string.Empty;
     [ObservableProperty] private string paymentDescription = string.Empty;
     [ObservableProperty] private EntityOption? workerProfileSelectedChair;
-    [ObservableProperty] private DateTime? retirementDate = timeProvider.GetLocalNow().DateTime.Date;
     [ObservableProperty] private bool confirmWorkerDelete;
     [ObservableProperty] private string chairEditName = string.Empty;
     [ObservableProperty] private DateTime? chairEditCreationDate;
@@ -277,8 +275,6 @@ public sealed partial class LocalUseViewModel(
         ProfileName = SelectedWorkerRow.Worker.Name;
         ProfileDescription = SelectedWorkerRow.Worker.Description ?? string.Empty;
         ProfileEntryDate = SelectedWorkerRow.Worker.EntryDate.ToDateTime(TimeOnly.MinValue);
-        ProfileExitDate = SelectedWorkerRow.Worker.ExitDate?.ToDateTime(TimeOnly.MinValue);
-        RetirementDate = LocalTodayDateTime();
         ProfileTabIndex = 1;
         SelectedWorkerHistoryPeriod = "Todo el historial";
         ShowCustomWorkerHistoryPeriod = false;
@@ -420,19 +416,6 @@ public sealed partial class LocalUseViewModel(
         await RunProfileOperationAsync(
             () => service.AssignChairAsync(SelectedWorkerRow.Worker.Id, null, Today()),
             "Silla retirada correctamente");
-    }
-
-    [RelayCommand]
-    private async Task RetireWorkerAsync()
-    {
-        if (SelectedWorkerRow is null)
-        {
-            return;
-        }
-
-        await RunProfileOperationAsync(() => service.RetireLocalUsePersonAsync(
-            SelectedWorkerRow.Worker.Id,
-            RequiredDate(RetirementDate, "fecha de retiro")));
     }
 
     [RelayCommand]
@@ -865,7 +848,7 @@ public sealed partial class LocalUseViewModel(
             SelectedWorkerRow.Worker.Id,
             ProfileName,
             DateOnly.FromDateTime(ProfileEntryDate.Value),
-            ProfileExitDate.HasValue ? DateOnly.FromDateTime(ProfileExitDate.Value) : null,
+            SelectedWorkerRow.Worker.ExitDate,
             Today(),
             cancellationToken,
             description: ProfileDescription);
@@ -945,7 +928,6 @@ public sealed partial class LocalUseViewModel(
     partial void OnProfileNameChanged(string value) => ScheduleWorkerEdit();
     partial void OnProfileDescriptionChanged(string value) => ScheduleWorkerEdit();
     partial void OnProfileEntryDateChanged(DateTime? value) => ScheduleWorkerEdit();
-    partial void OnProfileExitDateChanged(DateTime? value) => ScheduleWorkerEdit();
 
     partial void OnSelectedChairRowChanged(ChairRow? value)
     {

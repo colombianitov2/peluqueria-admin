@@ -65,3 +65,14 @@ La distribución de residuos de centavos será determinista por identificador es
 - **Inicio:** conserva únicamente la campana de mantenimiento; las obligaciones siguen en el bloque normal.
 - **Notas:** bloc único persistente en SQLite, incluido en copias, restauración y Excel.
 - **Formularios:** no existe una acción visible de limpieza; el éxito limpia los campos correspondientes y el error conserva la entrada.
+
+## Decisiones resueltas en la Fase 4.8 (22 de julio de 2026)
+
+- **Resultado repartible:** usa cobros operativos, egresos no provisionados, reservas, ajustes, cuotas de préstamos y compromisos anteriores; cuentas por cobrar y financiación quedan separadas.
+- **Pérdidas:** el fondo y cada pago de colaborador son cero; ningún colaborador queda debiendo dinero.
+- **Cierre mensual:** es manual y visible solo en Resumen mensual; congela cifras, reservas, exclusiones y porcentajes.
+- **Pago a colaboradores:** se paga completo contra la asignación congelada; no admite importe arbitrario parcial.
+- **Uso del local:** se elimina el retiro redundante visible; la eliminación lógica libera silla y conserva historia.
+- **Inventario:** la Lista mensual de compra es una entidad nueva y no reutiliza planes de reposición.
+- **Préstamos:** se administran dentro de Obligaciones y el desembolso se clasifica como financiación.
+- **Balance anual:** muestra enero a diciembre y solo puede cerrarse con doce cierres mensuales.

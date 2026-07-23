@@ -12,8 +12,10 @@ using PeluqueriaAdmin.Application.Drafts;
 using PeluqueriaAdmin.Application.Exporting;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Application.Updates;
+using PeluqueriaAdmin.Domain.Common;
 using PeluqueriaAdmin.Domain.Drafts;
 using PeluqueriaAdmin.Domain.Finance;
+using PeluqueriaAdmin.Domain.Reports;
 using PeluqueriaAdmin.Domain.Settings;
 
 namespace PeluqueriaAdmin.App.ViewModels;
@@ -36,6 +38,7 @@ public sealed partial class SettingsViewModel(
     private CancellationTokenSource? unofficialEditCancellation;
     private bool trackingEnabled;
     private bool loadingUnofficialExpense;
+    private bool subscribedToFinancialChanges;
     [ObservableProperty]
     private string weeklyUsageFee = string.Empty;
 
@@ -91,6 +94,9 @@ public sealed partial class SettingsViewModel(
     [ObservableProperty]
     private bool isBusy;
 
+    [ObservableProperty]
+    private DateTime? selectedFinancialMonth = timeProvider.GetLocalNow().DateTime.Date;
+
     public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
 
     public ObservableCollection<string> ActivityPeriodOptions { get; } =
@@ -99,6 +105,8 @@ public sealed partial class SettingsViewModel(
     public ObservableCollection<OperationRow> UnofficialExpenses { get; } = [];
 
     public ObservableCollection<OperationRow> UnofficialExpenseActivity { get; } = [];
+
+    public ObservableCollection<FinancialSummaryRow> FinancialSummaryRows { get; } = [];
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -123,6 +131,12 @@ public sealed partial class SettingsViewModel(
                 UnofficialExpenseEffectiveFrom = LocalTodayText();
             }
             await LoadUnofficialExpensesAsync(cancellationToken);
+            if (!subscribedToFinancialChanges)
+            {
+                administrationService.DataChanged += OnAdministrationDataChanged;
+                subscribedToFinancialChanges = true;
+            }
+            await RefreshFinancialSummaryAsync(cancellationToken);
             IsError = false;
         }
         finally
@@ -130,6 +144,35 @@ public sealed partial class SettingsViewModel(
             IsBusy = false;
         }
     }
+
+    private void OnAdministrationDataChanged(object? sender, EventArgs eventArgs) => _ = RefreshFinancialSummaryAsync();
+
+    private async Task RefreshFinancialSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        if (!SelectedFinancialMonth.HasValue) return;
+        FinancialMonthSnapshot summary = await administrationService.CalculateFinancialMonthAsync(
+            YearMonth.From(DateOnly.FromDateTime(SelectedFinancialMonth.Value)), cancellationToken);
+        FinancialSummaryRows.Clear();
+        AddFinancialRow("Ingresos operativos cobrados", summary.CollectedOperatingIncomeMinorUnits);
+        AddFinancialRow("Cuentas por cobrar", summary.AccountsReceivableMinorUnits);
+        AddFinancialRow("Egresos pagados", summary.PaidOutflowsMinorUnits);
+        AddFinancialRow("Cuentas por pagar", summary.AccountsPayableMinorUnits);
+        AddFinancialRow("Reservas nuevas", summary.NewReservesMinorUnits);
+        AddFinancialRow("Reservas arrastradas", summary.CarriedReservesMinorUnits);
+        AddFinancialRow("Ajustes de reservas", summary.ReserveAdjustmentsMinorUnits);
+        AddFinancialRow("Cuotas de préstamos", summary.LoanPaymentsMinorUnits);
+        AddFinancialRow("Financiación recibida (no es ganancia)", summary.FinancingReceivedMinorUnits);
+        AddFinancialRow("Resultado distribuible", summary.DistributableResultMinorUnits);
+        AddFinancialRow("Punto de equilibrio", summary.BreakEvenMinorUnits);
+        AddFinancialRow("Faltante", summary.ShortfallMinorUnits);
+        AddFinancialRow("Fondo de colaboradores", summary.CollaboratorFundMinorUnits);
+        AddFinancialRow("Retenido por el local", summary.RetainedLocalMinorUnits);
+    }
+
+    private void AddFinancialRow(string concept, long minorUnits) => FinancialSummaryRows.Add(
+        FinancialSummaryRow.Create(concept, ApplicationCurrency.Code, minorUnits));
+
+    partial void OnSelectedFinancialMonthChanged(DateTime? value) => _ = RefreshFinancialSummaryAsync();
 
     public async Task CheckForUpdatesOnStartupAsync()
     {
@@ -799,4 +842,10 @@ public sealed partial class SettingsViewModel(
 
     private string LocalTodayText() => DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime)
         .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+}
+
+public sealed record FinancialSummaryRow(string Concept, string Amount)
+{
+    public static FinancialSummaryRow Create(string concept, string currencyCode, long minorUnits) =>
+        new(concept, $"{currencyCode} {minorUnits / 100m:N2}");
 }

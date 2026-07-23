@@ -64,6 +64,30 @@
       </WrapPanel>
       <TextBlock Grid.Row="2" Margin="0,0,0,8" Foreground="#64748B" Text="{Binding HistoricalRecordsWithoutTime}" TextWrapping="Wrap" />
 
+      <Border Grid.Row="3" Margin="0,0,0,14" Padding="16" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7" Visibility="{Binding ShowFinancialClose, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <StackPanel>
+          <DockPanel Margin="0,0,0,10">
+            <WrapPanel DockPanel.Dock="Right"><DatePicker Width="155" Margin="0,0,8,0" SelectedDate="{Binding SpecificDate}" /><Button Style="{StaticResource ActionButton}" Command="{Binding ConsultFinancialMonthCommand}" Content="Consultar mes" /></WrapPanel>
+            <StackPanel><TextBlock FontSize="20" FontWeight="SemiBold" Text="Cierre mensual" /><TextBlock Foreground="#475569" Text="{Binding FinancialCloseState}" TextWrapping="Wrap" /></StackPanel>
+          </DockPanel>
+          <ItemsControl ItemsSource="{Binding FinancialMonthRows}">
+            <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate><DataTemplate><Border Margin="3" Padding="8" Background="#F8FAFC" CornerRadius="4"><StackPanel><TextBlock FontSize="11" Foreground="#64748B" Text="{Binding Concept}" TextWrapping="Wrap" /><TextBlock FontWeight="SemiBold" Text="{Binding Amount}" /></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Margin="0,12,0,6" FontSize="16" FontWeight="SemiBold" Text="Compromisos considerados para el cierre" />
+          <DataGrid MaxHeight="230" AutoGenerateColumns="False" CanUserAddRows="False" ItemsSource="{Binding FinancialCommitmentRows}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Width="130" IsReadOnly="True" Header="Origen" Binding="{Binding Origin}" /><DataGridTextColumn Width="210" IsReadOnly="True" Header="Nombre" Binding="{Binding Name}" /><DataGridTextColumn Width="105" IsReadOnly="True" Header="Fecha" Binding="{Binding DueDate}" /><DataGridTextColumn Width="120" IsReadOnly="True" Header="Esperado" Binding="{Binding Expected}" /><DataGridTextColumn Width="120" IsReadOnly="True" Header="Real" Binding="{Binding Actual}" /><DataGridTextColumn Width="100" IsReadOnly="True" Header="Estado" Binding="{Binding State}" /><DataGridCheckBoxColumn Width="75" Header="Ignorar" Binding="{Binding IsIgnored}" /><DataGridTextColumn Width="250" Header="Motivo obligatorio" Binding="{Binding ExclusionReason, UpdateSourceTrigger=PropertyChanged}" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <WrapPanel Margin="0,10,0,0"><Button Style="{StaticResource ActionButton}" Command="{Binding SaveFinancialExclusionsCommand}" Content="Guardar exclusiones" /><Button Style="{StaticResource ActionButton}" Command="{Binding CloseFinancialMonthCommand}" Content="Cerrar mes" /><CheckBox Margin="8,8,8,0" IsChecked="{Binding ConfirmReopenMonth}" Content="Confirmo reabrir" /><Button Style="{StaticResource ActionButton}" Command="{Binding ReopenFinancialMonthCommand}" Content="Reabrir mes" /></WrapPanel>
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Row="3" Margin="0,0,0,14" Padding="16" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7" Visibility="{Binding ShowAnnualClose, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <StackPanel><DockPanel><WrapPanel DockPanel.Dock="Right"><CheckBox Margin="0,8,8,0" IsChecked="{Binding ConfirmCloseYear}" Content="Confirmo cerrar año" /><Button Style="{StaticResource ActionButton}" Command="{Binding CloseYearCommand}" Content="Cerrar año" /></WrapPanel><StackPanel><TextBlock FontSize="20" FontWeight="SemiBold" Text="Cierre anual" /><TextBlock Foreground="#475569" Text="{Binding FinancialCloseState}" /></StackPanel></DockPanel><oxy:PlotView Height="260" Margin="0,12,0,0" Model="{Binding AnnualIncomeChart}" /></StackPanel>
+      </Border>
+
       <WrapPanel Grid.Row="3" Margin="0,0,0,14"
                  Visibility="{Binding ShowLocalUseSummary, Converter={StaticResource BooleanToVisibilityConverter}}">
         <Border Width="190" Margin="0,0,12,0" Padding="16" Background="#EFF6FF" CornerRadius="7">

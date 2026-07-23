@@ -22,6 +22,7 @@ public sealed partial class InventoryViewModel(
     public ObservableCollection<InventoryCurrentRow> CurrentInventory { get; } = [];
     public ObservableCollection<InventoryMovementRow> MovementHistory { get; } = [];
     public ObservableCollection<InventoryCurrentRow> RecentProducts { get; } = [];
+    public ObservableCollection<MonthlyPurchaseRow> MonthlyPurchaseRows { get; } = [];
     public ObservableCollection<string> PeriodOptions { get; } =
         ["Hoy", "Esta semana", "Este mes", "Últimos 3 meses", "Últimos 6 meses", "Este año", "Todos", "Rango personalizado"];
 
@@ -31,6 +32,14 @@ public sealed partial class InventoryViewModel(
     [ObservableProperty] private bool showCustomPeriod;
     [ObservableProperty] private InventoryCurrentRow? selectedCurrentRow;
     [ObservableProperty] private InventoryMovementRow? selectedMovementRow;
+    [ObservableProperty] private InventoryCurrentRow? selectedMonthlyPurchaseProduct;
+    [ObservableProperty] private MonthlyPurchaseRow? selectedMonthlyPurchaseRow;
+    [ObservableProperty] private DateTime? monthlyPurchaseMonth = timeProvider.GetLocalNow().DateTime.Date;
+    [ObservableProperty] private string monthlyPurchaseQuantity = string.Empty;
+    [ObservableProperty] private string monthlyPurchaseUnitCost = string.Empty;
+    [ObservableProperty] private bool monthlyPurchaseActive = true;
+    [ObservableProperty] private bool monthlyPurchaseReserveAtZero;
+    [ObservableProperty] private string monthlyPurchaseDescription = string.Empty;
     [ObservableProperty] private string statusMessage = string.Empty;
     [ObservableProperty] private bool isError;
 
@@ -72,6 +81,19 @@ public sealed partial class InventoryViewModel(
                 RecentProducts.Add(row);
             }
 
+            MonthlyPurchaseRows.Clear();
+            foreach (MonthlyPurchaseItem item in data.MonthlyPurchaseItems.OrderByDescending(item => item.Month.Year).ThenByDescending(item => item.Month.Month))
+            {
+                Product? product = data.Products.SingleOrDefault(value => value.Id == item.ProductId);
+                MonthlyPurchaseRows.Add(new MonthlyPurchaseRow(item, product?.Name ?? "Producto eliminado",
+                    product is null ? string.Empty : SpanishText.For(product.Category), item.Month.ToString(),
+                    item.Quantity.ToString("0.###", CultureInfo.CurrentCulture),
+                    $"{ApplicationCurrency.Code} {item.ExpectedUnitCost.ToDecimal():N2}",
+                    $"{ApplicationCurrency.Code} {Money.FromMinorUnits(item.ExpectedTotalMinorUnits).ToDecimal():N2}",
+                    item.IsActive ? "Activa" : "Inactiva", item.ReserveWhenOutOfStock ? "Sí" : "No",
+                    item.PurchaseMovementId.HasValue ? "Compra vinculada" : "Pendiente", item.Description ?? string.Empty));
+            }
+
             ActivityDateRange? range = CurrentRange();
             MovementHistory.Clear();
             foreach (InventoryMovement movement in data.InventoryMovements
@@ -105,6 +127,42 @@ public sealed partial class InventoryViewModel(
     private async Task SaveAsync()
     {
         await Editor.SaveCommand.ExecuteAsync(null);
+        await RefreshAsync();
+    }
+
+    [RelayCommand]
+    private async Task AddMonthlyPurchaseAsync()
+    {
+        if (SelectedMonthlyPurchaseProduct is null || !MonthlyPurchaseMonth.HasValue)
+            throw new ArgumentException("Selecciona el producto y el mes de la lista.");
+        if (!decimal.TryParse(MonthlyPurchaseQuantity, NumberStyles.Number, CultureInfo.CurrentCulture, out decimal quantity)
+            && !decimal.TryParse(MonthlyPurchaseQuantity, NumberStyles.Number, CultureInfo.InvariantCulture, out quantity))
+            throw new ArgumentException("La cantidad mensual no es válida.");
+        if (!decimal.TryParse(MonthlyPurchaseUnitCost, NumberStyles.Number, CultureInfo.CurrentCulture, out decimal cost)
+            && !decimal.TryParse(MonthlyPurchaseUnitCost, NumberStyles.Number, CultureInfo.InvariantCulture, out cost))
+            throw new ArgumentException("El costo esperado no es válido.");
+        AdministrationData data = await service.LoadAsync();
+        YearMonth month = YearMonth.From(DateOnly.FromDateTime(MonthlyPurchaseMonth.Value));
+        if (data.MonthlyPurchaseItems.Any(item => item.ProductId == SelectedMonthlyPurchaseProduct.Product.Id && item.Month == month))
+            throw new InvalidOperationException("El producto ya está en la lista mensual seleccionada.");
+        var item = MonthlyPurchaseItem.Create(SelectedMonthlyPurchaseProduct.Product.Id, month, quantity,
+            Money.FromDecimal(cost), MonthlyPurchaseActive, MonthlyPurchaseReserveAtZero,
+            timeProvider.GetUtcNow().UtcDateTime, MonthlyPurchaseDescription);
+        await service.AddMonthlyPurchaseItemAsync(item);
+        MonthlyPurchaseQuantity = MonthlyPurchaseUnitCost = MonthlyPurchaseDescription = string.Empty;
+        StatusMessage = "El producto se agregó a la lista mensual de compra.";
+        await RefreshAsync();
+    }
+
+    [RelayCommand]
+    private async Task ToggleMonthlyPurchaseAsync()
+    {
+        if (SelectedMonthlyPurchaseRow is null) throw new InvalidOperationException("Selecciona un artículo mensual.");
+        MonthlyPurchaseItem item = SelectedMonthlyPurchaseRow.Item;
+        item.Update(item.Quantity, item.ExpectedUnitCost, !item.IsActive, item.ReserveWhenOutOfStock,
+            timeProvider.GetUtcNow().UtcDateTime, item.Description);
+        await service.UpdateMonthlyPurchaseItemAsync(item);
+        StatusMessage = item.IsActive ? "El artículo mensual quedó activo." : "El artículo mensual quedó inactivo; su historial se conserva.";
         await RefreshAsync();
     }
 
@@ -147,6 +205,12 @@ public sealed partial class InventoryViewModel(
         if (value is null) return;
         SelectedCurrentRow = null;
         SelectEditorEntity(value.Movement);
+    }
+    partial void OnSelectedMonthlyPurchaseProductChanged(InventoryCurrentRow? value)
+    {
+        if (value is null) return;
+        MonthlyPurchaseReserveAtZero = value.Product.Category is ProductCategory.Cleaning or ProductCategory.LocalSupply;
+        MonthlyPurchaseUnitCost = value.Product.DefaultUnitCost?.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture) ?? string.Empty;
     }
     partial void OnSelectedPeriodChanged(string value) { ShowCustomPeriod = value == "Rango personalizado"; _ = RefreshAsync(); }
     partial void OnCustomPeriodFromChanged(DateTime? value) { if (ShowCustomPeriod) _ = RefreshAsync(); }
@@ -203,3 +267,5 @@ public sealed record InventoryCurrentRow(Product Product, string Name, string Ca
     string AverageUnitCost, string DefaultSalePrice, string Description, string LastUpdate);
 public sealed record InventoryMovementRow(InventoryMovement Movement, string Date, string Type, string Product,
     string QuantityIn, string QuantityOut, string UnitCost, string TotalValue, string Description);
+public sealed record MonthlyPurchaseRow(MonthlyPurchaseItem Item, string Product, string Category, string Month,
+    string Quantity, string UnitCost, string Total, string Active, string ReserveAtZero, string State, string Description);

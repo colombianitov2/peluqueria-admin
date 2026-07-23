@@ -9,11 +9,14 @@
              d:DesignWidth="960"
              Language="es-ES"
              mc:Ignorable="d">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Grid Margin="32">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="20" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="16" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="16" />
             <RowDefinition Height="*" />
             <RowDefinition Height="16" />
@@ -75,5 +78,13 @@
             <TextBlock Text="{Binding PrecioSugeridoPorSilla}"
                        TextWrapping="Wrap" />
         </GroupBox>
+        <GroupBox Grid.Row="10" Padding="12" Header="Movimientos del día">
+          <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <WrapPanel Margin="0,0,0,8" HorizontalAlignment="Right"><DatePicker Width="155" Margin="0,0,8,0" SelectedDate="{Binding MovementQueryDate}" /><Button Padding="12,6" Command="{Binding ConsultDailyMovementsCommand}" Content="Consultar" /></WrapPanel>
+            <DataGrid Grid.Row="1" MinHeight="180" MaxHeight="320" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding DailyMovements}"><DataGrid.Columns><DataGridTextColumn Width="80" Header="Hora" Binding="{Binding Time}" /><DataGridTextColumn Width="140" Header="Módulo" Binding="{Binding Module}" /><DataGridTextColumn Width="130" Header="Operación" Binding="{Binding Operation}" /><DataGridTextColumn Width="190" Header="Entidad" Binding="{Binding Entity}" /><DataGridTextColumn Width="300" Header="Detalle" Binding="{Binding Detail}" /><DataGridTextColumn Width="120" Header="Valor" Binding="{Binding Amount}" /><DataGridTextColumn Width="100" Header="Estado" Binding="{Binding State}" /></DataGrid.Columns></DataGrid>
+          </Grid>
+        </GroupBox>
     </Grid>
+    </ScrollViewer>
 </UserControl>

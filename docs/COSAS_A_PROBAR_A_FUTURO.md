@@ -20,9 +20,9 @@ Esta lista reúne comportamientos que dependen del paso real del tiempo o de cru
 - [ ] Confirmar en fechas futuras la próxima cuota y el próximo pago requerido, con su fecha e importe.
 - [ ] Programar un cambio de tarifa con fecha de vigencia y verificar tarifa histórica en periodos causados y tarifa nueva solo en los futuros.
 
-## Retiro y aplicación abierta
+## Eliminación lógica y aplicación abierta
 
-- [ ] Retirar un trabajador y consultar después su historial completo, pagos y saldo conservado.
+- [ ] Eliminar lógicamente un trabajador y consultar después su historial completo, pagos y saldo conservado.
 - [ ] Mantener la aplicación abierta durante un cambio de día y comprobar que fecha local, filtros y generación programada se actualizan al volver al módulo o pulsar **Actualizar**.
 
 Para cada comprobación se debe usar una raíz de datos temporal, anotar fecha/hora local, zona horaria, versión, resultado esperado y resultado observado. No debe utilizarse la base real para estas pruebas.
@@ -35,3 +35,11 @@ Para cada comprobación se debe usar una raíz de datos temporal, anotar fecha/h
 - Probar una carpeta de exportación de red temporalmente desconectada: debe mostrarse el error y no debe aparecer un archivo parcial ni cambiarse de carpeta silenciosamente.
 - Con datos temporales, escribir una nota, esperar menos y más que el debounce, cerrar de forma normal y abrupta y confirmar la recuperación razonable.
 - Confirmar visualmente obligaciones/pagos y mantenimiento pendiente/historial con nombres muy largos y suficientes filas para activar ambas barras internas.
+
+## Comprobaciones posteriores a Fase 4.8
+
+- Mantener reservas abiertas durante varios cambios reales de mes y verificar consumo, liberación y diferencia adicional sin doble descuento.
+- Validar un préstamo real durante toda su secuencia de cuotas, incluida la última cuota menor que el valor habitual.
+- Revisar cierres mensuales y anual con doce meses reales, reaperturas y cambios históricos de porcentajes.
+- Repetir la revisión visual de Inicio, Uso del local, Colaboradores, Inventario, Obligaciones, Mantenimiento, Resumen mensual, Balance anual y Ajustes a 100 %, 125 % y 150 % en el segundo monitor.
+- Confirmar la migración y el rendimiento con una copia futura de gran tamaño; las pruebas actuales usan bases aisladas pequeñas y controladas.

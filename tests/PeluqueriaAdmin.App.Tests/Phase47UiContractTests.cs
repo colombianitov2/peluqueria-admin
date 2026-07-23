@@ -41,10 +41,12 @@ public sealed class Phase47UiContractTests
     public void InventoryNotesObligationsAndMaintenance_FollowPhase47Layout()
     {
         string inventory = RepositoryFiles.Read("src", "PeluqueriaAdmin.App", "Views", "InventoryView.xaml");
-        Assert.True(inventory.IndexOf("Header=\"Inventario\"", StringComparison.Ordinal)
+        Assert.True(inventory.IndexOf("Header=\"Inventario actual\"", StringComparison.Ordinal)
             < inventory.IndexOf("Header=\"Movimientos\"", StringComparison.Ordinal));
         Assert.True(inventory.IndexOf("Header=\"Movimientos\"", StringComparison.Ordinal)
-            < inventory.IndexOf("Header=\"Agregar\"", StringComparison.Ordinal));
+            < inventory.IndexOf("Header=\"Agregar al inventario\"", StringComparison.Ordinal));
+        Assert.True(inventory.IndexOf("Header=\"Agregar al inventario\"", StringComparison.Ordinal)
+            < inventory.IndexOf("Header=\"Lista mensual de compra\"", StringComparison.Ordinal));
         Assert.Contains("SelectedIndex=\"0\"", inventory, StringComparison.Ordinal);
         Assert.Contains("Productos agregados recientemente", inventory, StringComparison.Ordinal);
         Assert.DoesNotContain("Planes de reposición", inventory, StringComparison.OrdinalIgnoreCase);

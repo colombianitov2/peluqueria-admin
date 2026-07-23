@@ -179,7 +179,6 @@
                 <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,6"><TextBlock Style="{StaticResource FieldLabel}" Text="Nombre" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ProfileName, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
                 <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,6"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ProfileDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
                 <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,0"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de ingreso" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding ProfileEntryDate}" /></StackPanel>
-                <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,0"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de retiro" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding ProfileExitDate}" /></StackPanel>
                 <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Margin="0,4,0,0" FontSize="10" Foreground="#475569"
                            Text="{Binding ProfileWeeklyRates, StringFormat=Tarifas históricas: {0}}" TextWrapping="Wrap" />
               </Grid>
@@ -195,7 +194,7 @@
                 <TextBlock Foreground="#475569" Text="Puedes registrar pagos anticipados. El excedente quedará como saldo a favor y se aplicará a las próximas cuotas." TextWrapping="Wrap" />
               </StackPanel>
             </TabItem>
-            <TabItem Header="Silla y retiro">
+            <TabItem Header="Silla">
               <StackPanel Margin="8,7">
                 <WrapPanel>
                   <ComboBox Width="205" Margin="0,0,8,4" Style="{StaticResource FieldBox}" DisplayMemberPath="Display" ItemsSource="{Binding WorkerProfileChairOptions}" SelectedItem="{Binding WorkerProfileSelectedChair}" />
@@ -203,8 +202,6 @@
                   <Button Style="{StaticResource ActionButton}" Command="{Binding UnassignProfileChairCommand}" Content="Retirar silla" />
                 </WrapPanel>
                 <WrapPanel>
-                  <DatePicker Width="140" Margin="0,0,8,4" Style="{StaticResource FieldBox}" SelectedDate="{Binding RetirementDate}" />
-                  <Button Style="{StaticResource ActionButton}" Command="{Binding RetireWorkerCommand}" Content="Retirar trabajador del local" />
                   <CheckBox Margin="8,8,8,0" IsChecked="{Binding ConfirmWorkerDelete}" Content="Confirmo eliminar" />
                   <Button Style="{StaticResource ActionButton}" Command="{Binding DeleteWorkerCommand}" Content="Eliminar trabajador" />
                 </WrapPanel>
