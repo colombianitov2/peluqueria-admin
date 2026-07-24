@@ -1,0 +1,191 @@
+<UserControl x:Class="PeluqueriaAdmin.App.Views.InventoryView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:d="http://schemas.microsoft.com/expression/blend/2008" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:viewModels="clr-namespace:PeluqueriaAdmin.App.ViewModels" d:DataContext="{d:DesignInstance Type=viewModels:InventoryViewModel, IsDesignTimeCreatable=False}"
+ d:DesignHeight="760" d:DesignWidth="990" Language="es-ES" mc:Ignorable="d">
+  <UserControl.Resources>
+    <Style x:Key="FieldBox" TargetType="Control"><Setter Property="MinHeight" Value="36" /><Setter Property="Padding" Value="9,6" /></Style>
+    <Style x:Key="FormLabel" TargetType="TextBlock"><Setter Property="Height" Value="42" /><Setter Property="Margin" Value="0,0,0,5" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="#273449" /><Setter Property="TextWrapping" Value="Wrap" /><Setter Property="VerticalAlignment" Value="Bottom" /></Style>
+  </UserControl.Resources>
+  <Grid Margin="26" Background="#F5F7FA">
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+    <StackPanel Margin="0,0,0,14">
+      <TextBlock FontSize="28" FontWeight="SemiBold" Text="Inventario" />
+      <TextBlock Margin="0,5,0,0" Foreground="#5B6575" Text="Existencias, movimientos y operaciones en áreas separadas." />
+    </StackPanel>
+    <TextBlock Grid.Row="1" Margin="2,0,0,10" AutomationProperties.LiveSetting="Polite"
+               Text="{Binding StatusMessage}" TextWrapping="Wrap">
+      <TextBlock.Style>
+        <Style TargetType="TextBlock">
+          <Setter Property="Foreground" Value="#0F766E" />
+          <Style.Triggers><DataTrigger Binding="{Binding IsError}" Value="True"><Setter Property="Foreground" Value="#B91C1C" /></DataTrigger></Style.Triggers>
+        </Style>
+      </TextBlock.Style>
+    </TextBlock>
+    <TabControl x:Name="InventoryTabs" Grid.Row="2" SelectedIndex="0">
+      <TabItem Header="Inventario actual">
+        <Grid Margin="8">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+          <Border Margin="0,0,0,10" Padding="12" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
+            <StackPanel>
+              <TextBlock Margin="0,0,0,7" FontSize="16" FontWeight="SemiBold" Text="Editar producto seleccionado" />
+              <WrapPanel>
+                <StackPanel Width="220" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Nombre" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding Editor.PrimaryText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                <StackPanel Width="210" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Categoría" /><ComboBox Style="{StaticResource FieldBox}" IsEditable="True" ItemsSource="{Binding ProductCategoryOptions}" SelectedItem="{Binding Editor.SecondaryText}" /></StackPanel>
+                <StackPanel Width="165" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Costo configurado" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding Editor.AmountText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                <StackPanel Width="175" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Precio de venta" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding Editor.SecondaryAmountText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                <StackPanel Width="300" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Descripción" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding Editor.OptionalDescriptionText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+              </WrapPanel>
+              <WrapPanel>
+                <Button Margin="0,0,8,6" Padding="13,7" Command="{Binding LoadSelectedCommand}" Content="Editar" />
+                <Button Margin="0,0,8,6" Padding="13,7" Command="{Binding SaveEditCommand}" Content="Guardar" />
+                <CheckBox Margin="8,8,8,6" IsChecked="{Binding Editor.ConfirmDelete}" Content="Confirmo eliminar" />
+                <Button Margin="0,0,0,6" Padding="13,7" Command="{Binding DeleteCommand}" Content="Eliminar" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+          <DataGrid Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding CurrentInventory}" SelectedItem="{Binding SelectedCurrentRow}">
+            <DataGrid.Columns><DataGridTextColumn Width="190" Binding="{Binding Name}" Header="Producto" /><DataGridTextColumn Width="200" Binding="{Binding Category}" Header="Categoría" /><DataGridTextColumn Width="120" Binding="{Binding CurrentQuantity}" Header="Cantidad" /><DataGridTextColumn Width="155" Binding="{Binding AverageUnitCost}" Header="Costo configurado" /><DataGridTextColumn Width="155" Binding="{Binding DefaultSalePrice}" Header="Precio de venta" /><DataGridTextColumn Width="300" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Description}" Header="Descripción" /><DataGridTextColumn Width="155" Binding="{Binding LastUpdate}" Header="Última actualización" /></DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+      <TabItem Header="Movimientos">
+        <Grid Margin="8">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+          <Border Margin="0,0,0,10" Padding="12" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
+            <StackPanel>
+              <TextBlock Margin="0,0,0,7" FontSize="16" FontWeight="SemiBold" Text="Corregir movimiento seleccionado" />
+              <WrapPanel>
+                <StackPanel Width="155" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Fecha" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding Editor.FormDate}" /></StackPanel>
+                <StackPanel Width="175" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Variación de cantidad" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding Editor.QuantityText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                <StackPanel Width="165" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Movimiento de caja" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding Editor.AmountText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                <StackPanel Width="165" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Costo estimado" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding Editor.SecondaryAmountText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                <StackPanel Width="300" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Descripción" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding Editor.OptionalDescriptionText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+              </WrapPanel>
+              <WrapPanel>
+                <Button Margin="0,0,8,6" Padding="13,7" Command="{Binding LoadSelectedCommand}" Content="Editar" />
+                <Button Margin="0,0,8,6" Padding="13,7" Command="{Binding SaveEditCommand}" Content="Guardar" />
+                <CheckBox Margin="8,8,8,6" IsChecked="{Binding Editor.ConfirmDelete}" Content="Confirmo eliminar" />
+                <Button Margin="0,0,0,6" Padding="13,7" Command="{Binding DeleteCommand}" Content="Eliminar" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+          <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,8">
+            <TextBlock Margin="0,8,8,0" FontWeight="SemiBold" Text="Periodo" />
+            <ComboBox Width="185" Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" />
+            <DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodFrom}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            <DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodThrough}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" />
+          </StackPanel>
+          <DataGrid Grid.Row="2" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding MovementHistory}" SelectedItem="{Binding SelectedMovementRow}">
+            <DataGrid.Columns><DataGridTextColumn Width="110" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="190" Binding="{Binding Product}" Header="Producto" /><DataGridTextColumn Width="180" Binding="{Binding Type}" Header="Movimiento" /><DataGridTextColumn Width="120" Binding="{Binding QuantityIn}" Header="Entrada" /><DataGridTextColumn Width="120" Binding="{Binding QuantityOut}" Header="Salida" /><DataGridTextColumn Width="145" Binding="{Binding UnitCost}" Header="Costo unitario" /><DataGridTextColumn Width="145" Binding="{Binding TotalValue}" Header="Valor total" /><DataGridTextColumn Width="300" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Description}" Header="Descripción" /></DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+      <TabItem Header="Agregar al inventario">
+        <ScrollViewer x:Name="PurchaseEntryScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Margin="14">
+            <Border Padding="16" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
+              <StackPanel>
+                <TextBlock Margin="0,0,0,10" FontSize="18" FontWeight="SemiBold" Text="Registrar compra" />
+                <WrapPanel>
+                  <StackPanel Width="420">
+                    <TextBlock Style="{StaticResource FormLabel}" Text="Buscar producto en la lista mensual de compra" />
+                    <Grid>
+                      <ComboBox Style="{StaticResource FieldBox}" IsEditable="True"
+                                IsTextSearchEnabled="False" StaysOpenOnEdit="True"
+                                AutomationProperties.Name="Buscar producto en la lista mensual de compra"
+                                TextSearch.TextPath="Product"
+                                ItemsSource="{Binding PendingMonthlyPurchaseRows}"
+                                SelectedItem="{Binding SelectedPendingMonthlyPurchaseRow, Mode=TwoWay}"
+                                Text="{Binding MonthlyPurchaseSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                IsDropDownOpen="{Binding IsMonthlyPurchaseDropDownOpen, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate>
+                            <StackPanel>
+                              <TextBlock FontWeight="SemiBold" Text="{Binding Product}" />
+                              <TextBlock FontSize="11" Foreground="#64748B">
+                                <Run Text="{Binding Category}" /><Run Text=" · " /><Run Text="{Binding Month}" />
+                              </TextBlock>
+                            </StackPanel>
+                          </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
+                      <Path Width="16" Height="16" Margin="0,0,31,0"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Stretch="Uniform" Stroke="#64748B" StrokeThickness="1.8"
+                            IsHitTestVisible="False"
+                            Data="M 7,1 A 6,6 0 1 0 7,13 A 6,6 0 1 0 7,1 M 11.2,11.2 L 16,16" />
+                    </Grid>
+                    <TextBlock Margin="2,5,0,0" Foreground="#B91C1C"
+                               AutomationProperties.LiveSetting="Polite"
+                               Text="No se encontraron compras mensuales pendientes"
+                               Visibility="{Binding HasNoPendingMonthlyPurchases, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                  </StackPanel>
+                  <StackPanel Width="175" Margin="14,0,14,12">
+                    <TextBlock Style="{StaticResource FormLabel}" Text="Fecha de compra" />
+                    <DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding Editor.FormDate}" />
+                  </StackPanel>
+                  <StackPanel Width="170" Margin="0,0,14,12">
+                    <TextBlock Style="{StaticResource FormLabel}" Text="Cantidad comprada" />
+                    <TextBox Style="{StaticResource FieldBox}" Text="{Binding Editor.QuantityText, UpdateSourceTrigger=PropertyChanged}" />
+                  </StackPanel>
+                  <StackPanel Width="250" Margin="0,0,14,12">
+                    <TextBlock Style="{StaticResource FormLabel}" Text="Precio de venta por unidad o paquete" />
+                    <TextBox Style="{StaticResource FieldBox}"
+                             IsEnabled="{Binding SelectedPendingMonthlyPurchaseRow.RequiresSalePrice, TargetNullValue=False, FallbackValue=False}"
+                             Text="{Binding Editor.AmountText, UpdateSourceTrigger=PropertyChanged}" />
+                  </StackPanel>
+                  <StackPanel Width="300" Margin="0,0,14,12">
+                    <TextBlock Style="{StaticResource FormLabel}" Text="Descripción" />
+                    <TextBox MinHeight="55" Padding="9,6" TextWrapping="Wrap"
+                             Text="{Binding Editor.OptionalDescriptionText, UpdateSourceTrigger=PropertyChanged}" />
+                  </StackPanel>
+                </WrapPanel>
+                <TextBlock Margin="0,0,0,10" Foreground="#475569"
+                           Text="{Binding SelectedMonthlyPurchaseCostText}" TextWrapping="Wrap" />
+                <Button Margin="0,0,9,8" Padding="15,8" HorizontalAlignment="Left"
+                        Background="#2E5BFF" Foreground="White"
+                        Command="{Binding RegisterMonthlyPurchaseCommand}" Content="Registrar compra" />
+              </StackPanel>
+            </Border>
+            <TextBlock Margin="0,16,0,7" FontSize="18" FontWeight="SemiBold" Text="Productos agregados recientemente" />
+            <DataGrid Height="240" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding RecentProducts}" SelectedItem="{Binding SelectedCurrentRow}">
+              <DataGrid.Columns><DataGridTextColumn Width="200" Binding="{Binding Name}" Header="Producto" /><DataGridTextColumn Width="210" Binding="{Binding Category}" Header="Categoría" /><DataGridTextColumn Width="130" Binding="{Binding CurrentQuantity}" Header="Cantidad" /><DataGridTextColumn Width="160" Binding="{Binding AverageUnitCost}" Header="Costo" /><DataGridTextColumn Width="160" Binding="{Binding DefaultSalePrice}" Header="Precio" /><DataGridTextColumn Width="300" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Description}" Header="Descripción" /></DataGrid.Columns>
+            </DataGrid>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem Header="Lista mensual de compra">
+        <Grid Margin="12">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+          <ScrollViewer MaxHeight="180" Margin="0,0,0,12"
+                        VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <Border Padding="14" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
+              <StackPanel>
+              <TextBlock Margin="0,0,0,8" FontSize="17" FontWeight="SemiBold" Text="Agregar producto a la lista mensual" />
+              <WrapPanel>
+                <StackPanel Width="220" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Nombre del producto" /><ComboBox Style="{StaticResource FieldBox}" IsEditable="True" IsTextSearchEnabled="True" ItemsSource="{Binding CurrentInventory}" SelectedItem="{Binding SelectedMonthlyPurchaseProduct}" DisplayMemberPath="Name" Text="{Binding MonthlyPurchaseName, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                <StackPanel Width="210" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Categoría" /><ComboBox Style="{StaticResource FieldBox}" IsEditable="True" ItemsSource="{Binding ProductCategoryOptions}" SelectedItem="{Binding SelectedMonthlyPurchaseCategory}" /></StackPanel>
+                <StackPanel Width="145" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Mes" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding MonthlyPurchaseMonth}" /></StackPanel>
+                <StackPanel Width="130" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Cantidad" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding MonthlyPurchaseQuantity, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                <StackPanel Width="175" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Costo esperado unitario o por paquete" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding MonthlyPurchaseUnitCost, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                <StackPanel Width="250" Margin="0,0,10,8"><TextBlock Style="{StaticResource FormLabel}" Text="Descripción" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding MonthlyPurchaseDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+              </WrapPanel>
+              <WrapPanel>
+                <Button Margin="0,0,8,8" Padding="13,7" Command="{Binding AddMonthlyPurchaseCommand}" Content="Agregar" />
+                <Button Margin="0,0,8,8" Padding="13,7" Command="{Binding EditMonthlyPurchaseCommand}" Content="Editar" />
+                <Button Margin="0,0,8,8" Padding="13,7" Command="{Binding SaveMonthlyPurchaseEditCommand}" Content="Guardar" />
+                <CheckBox Margin="8,8,8,8" IsChecked="{Binding ConfirmMonthlyPurchaseDelete}" Content="Confirmo eliminar" />
+                <Button Margin="0,0,0,8" Padding="13,7" Command="{Binding DeleteMonthlyPurchaseCommand}" Content="Eliminar" />
+              </WrapPanel>
+              </StackPanel>
+            </Border>
+          </ScrollViewer>
+          <DataGrid x:Name="MonthlyPurchaseGrid" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding MonthlyPurchaseRows}" SelectedItem="{Binding SelectedMonthlyPurchaseRow}">
+            <DataGrid.Columns><DataGridTextColumn Width="180" Header="Producto" Binding="{Binding Product}" /><DataGridTextColumn Width="150" Header="Categoría" Binding="{Binding Category}" /><DataGridTextColumn Width="90" Header="Mes" Binding="{Binding Month}" /><DataGridTextColumn Width="90" Header="Cantidad" Binding="{Binding Quantity}" /><DataGridTextColumn Width="130" Header="Costo esperado" Binding="{Binding UnitCost}" /><DataGridTextColumn Width="130" Header="Total" Binding="{Binding Total}" /><DataGridTextColumn Width="130" Header="Estado" Binding="{Binding State}" /><DataGridTextColumn Width="220" Header="Descripción" Binding="{Binding Description}" /></DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+    </TabControl>
+  </Grid>
+</UserControl>

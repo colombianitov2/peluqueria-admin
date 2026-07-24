@@ -58,6 +58,12 @@ public abstract class AuditableEntity
         return value.Trim();
     }
 
+    protected static string? NormalizeOptionalText(string? value)
+    {
+        string? normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
     protected static void EnsureUtc(DateTime value)
     {
         if (value.Kind != DateTimeKind.Utc)

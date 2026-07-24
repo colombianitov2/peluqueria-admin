@@ -1,0 +1,104 @@
+<UserControl x:Class="PeluqueriaAdmin.App.Views.CollaboratorsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:PeluqueriaAdmin.App.ViewModels"
+             d:DataContext="{d:DesignInstance Type=viewModels:CollaboratorsViewModel, IsDesignTimeCreatable=False}"
+             d:DesignHeight="760" d:DesignWidth="990" Language="es-ES" mc:Ignorable="d">
+  <UserControl.Resources>
+    <Style x:Key="FieldLabel" TargetType="TextBlock"><Setter Property="Margin" Value="0,0,0,5" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="#273449" /></Style>
+    <Style x:Key="FieldBox" TargetType="Control"><Setter Property="MinHeight" Value="36" /><Setter Property="Padding" Value="9,6" /></Style>
+    <Style x:Key="ActionButton" TargetType="Button"><Setter Property="Margin" Value="0,0,8,8" /><Setter Property="Padding" Value="12,7" /><Setter Property="Background" Value="#EEF2FF" /><Setter Property="BorderBrush" Value="#A5B4FC" /></Style>
+  </UserControl.Resources>
+  <Grid Background="#F5F7FA">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <ScrollViewer.Style>
+        <Style TargetType="ScrollViewer"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding IsProfileOpen}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style>
+      </ScrollViewer.Style>
+      <StackPanel Margin="26">
+        <DockPanel Margin="0,0,0,14">
+          <StackPanel DockPanel.Dock="Right" MinWidth="190">
+            <TextBlock HorizontalAlignment="Right" Style="{StaticResource FieldLabel}" Text="Periodo a mostrar" />
+            <ComboBox Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" />
+            <WrapPanel Margin="0,6,0,0" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}"><DatePicker Width="138" Margin="0,0,6,0" SelectedDate="{Binding CustomPeriodFrom}" /><DatePicker Width="138" SelectedDate="{Binding CustomPeriodThrough}" /></WrapPanel>
+          </StackPanel>
+          <StackPanel><TextBlock FontSize="28" FontWeight="SemiBold" Text="Colaboradores" /><TextBlock Margin="0,5,0,0" Foreground="#5B6575" Text="Inversionistas, aportes de capital y distribuciones; nunca ocupan sillas." /></StackPanel>
+        </DockPanel>
+        <Border Margin="0,0,0,16" Padding="16" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
+          <StackPanel>
+            <TextBlock Margin="0,5,0,12" FontSize="18" FontWeight="SemiBold" Text="Añadir colaborador" />
+            <WrapPanel>
+              <StackPanel Width="230" Margin="0,0,12,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Nombre" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+              <StackPanel Width="165" Margin="0,0,12,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de ingreso" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding NewStartDate}" /></StackPanel>
+              <StackPanel Width="165" Margin="0,0,12,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha de retiro" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding NewExitDate}" /></StackPanel>
+              <StackPanel Width="300" Margin="0,0,12,10"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción opcional" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding NewDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+            </WrapPanel>
+            <Button Width="165" HorizontalAlignment="Left" Style="{StaticResource ActionButton}" Command="{Binding AddCollaboratorCommand}" Content="Añadir colaborador" />
+          </StackPanel>
+        </Border>
+        <Border Margin="0,0,0,16" Padding="16" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7">
+          <StackPanel>
+            <TextBlock Margin="0,0,0,10" FontSize="18" FontWeight="SemiBold" Text="Distribución de ganancias" />
+            <WrapPanel>
+              <TextBlock Margin="0,4,18,6" FontWeight="SemiBold" Text="{Binding GlobalProfitShare}" />
+              <TextBlock Margin="0,4,18,6" FontWeight="SemiBold" Text="{Binding TotalProfitFund}" />
+            </WrapPanel>
+            <TextBlock Margin="0,4,0,8" Foreground="#5B6575" Text="Haz doble clic en un colaborador para editar su porcentaje de ganancia, registrar aportes o pagar el cierre mensual completo." TextWrapping="Wrap" />
+            <Button Width="190" HorizontalAlignment="Left" Style="{StaticResource ActionButton}" Command="{Binding OpenSelectedProfileCommand}" Content="Abrir perfil seleccionado" />
+            <DataGrid Height="300" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" BorderThickness="0" ItemsSource="{Binding Collaborators}" SelectedItem="{Binding SelectedCollaboratorRow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MouseDoubleClick="OnCollaboratorDoubleClick">
+              <DataGrid.Columns><DataGridTextColumn Width="200" Binding="{Binding Name}" Header="Colaborador" /><DataGridTextColumn Width="170" Binding="{Binding ProfitShare}" Header="Porcentaje de ganancia" /><DataGridTextColumn Width="170" Binding="{Binding AssignedAmount}" Header="Pago del mes" /><DataGridTextColumn Width="150" Binding="{Binding TotalContributed}" Header="Total aportado" /><DataGridTextColumn Width="130" Binding="{Binding PaymentState}" Header="Estado del mes" /><DataGridTextColumn Width="110" Binding="{Binding StartDate}" Header="Ingreso" /><DataGridTextColumn Width="110" Binding="{Binding ExitDate}" Header="Retiro" /><DataGridTextColumn Width="260" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Description}" Header="Descripción" /></DataGrid.Columns>
+            </DataGrid>
+          </StackPanel>
+        </Border>
+        <TextBlock Margin="0,12,0,0" Foreground="#0F766E" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+      </StackPanel>
+    </ScrollViewer>
+
+    <Grid Margin="26">
+      <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsProfileOpen}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Grid.Style>
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+      <StackPanel Grid.Row="0">
+        <DockPanel Margin="0,0,0,10">
+          <Button DockPanel.Dock="Right" Style="{StaticResource ActionButton}" Command="{Binding CloseProfileCommand}" Content="Cerrar perfil" />
+          <StackPanel><TextBlock FontSize="26" FontWeight="SemiBold" Text="Perfil del colaborador" /><TextBlock Foreground="#5B6575" Text="Los datos existentes se autoguardan; los aportes requieren confirmación explícita." /></StackPanel>
+        </DockPanel>
+        <WrapPanel>
+          <StackPanel Width="220" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Nombre" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ProfileName, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+          <StackPanel Width="155" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Ingreso" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding ProfileStartDate}" /></StackPanel>
+          <StackPanel Width="155" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Retiro" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding ProfileExitDate}" /></StackPanel>
+          <StackPanel Width="300" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ProfileDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+          <StackPanel Width="340" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Porcentaje de ganancia asignado al colaborador (%)" TextWrapping="Wrap" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding SelectedProfitShareText, UpdateSourceTrigger=PropertyChanged}" /><TextBlock Margin="0,4,0,0" Foreground="#475569" Text="{Binding ProfileParticipationAmount}" TextWrapping="Wrap" /></StackPanel>
+        </WrapPanel>
+        <WrapPanel>
+          <StackPanel Width="150" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha del aporte" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding ContributionDate}" /></StackPanel>
+          <StackPanel Width="150" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Valor" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ContributionAmount, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+          <StackPanel Width="260" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción opcional" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ContributionDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+          <Button Margin="0,23,8,8" Style="{StaticResource ActionButton}" Command="{Binding SaveContributionCommand}" Content="Añadir aporte" />
+          <Button Margin="0,23,8,8" Style="{StaticResource ActionButton}" Command="{Binding EditSelectedContributionCommand}" Content="Editar aporte seleccionado" />
+          <CheckBox Margin="8,31,8,0" IsChecked="{Binding ConfirmContributionDelete}" Content="Confirmo eliminar" />
+          <Button Margin="0,23,0,8" Style="{StaticResource ActionButton}" Command="{Binding DeleteSelectedContributionCommand}" Content="Eliminar aporte" />
+        </WrapPanel>
+        <WrapPanel Margin="0,0,0,8">
+          <TextBlock Width="310" Margin="0,8,10,8" Foreground="#475569" Text="{Binding AvailableFullPayment}" TextWrapping="Wrap" />
+          <StackPanel Width="150" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha del pago" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding DistributionPaymentDate}" /></StackPanel>
+          <StackPanel Width="230" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción opcional" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding DistributionPaymentDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+          <Button Margin="0,23,0,8" Style="{StaticResource ActionButton}" Command="{Binding RegisterDistributionPaymentCommand}" Content="Pagar ganancia completa" />
+        </WrapPanel>
+        <WrapPanel Margin="0,0,0,8">
+          <CheckBox Margin="0,8,12,0" IsChecked="{Binding ConfirmCollaboratorDelete}" Content="Confirmo eliminar al colaborador" />
+          <Button Style="{StaticResource ActionButton}" Command="{Binding DeleteCollaboratorCommand}" Content="Eliminar colaborador" />
+          <TextBlock Margin="8,7,0,0" Foreground="#9A3412" Text="Se conservarán aportes, cierres, distribuciones y pagos históricos." TextWrapping="Wrap" />
+        </WrapPanel>
+        <TextBlock Margin="0,0,0,6" Foreground="#0F766E" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+      </StackPanel>
+      <Grid Grid.Row="1" Margin="0,10,0,0">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+        <DockPanel Margin="0,0,0,6"><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><ComboBox Width="190" Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" /><DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodFrom}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" /><DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodThrough}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" /></StackPanel><TextBlock FontSize="18" FontWeight="SemiBold" Text="Historial cronológico" /></DockPanel>
+        <DataGrid Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.VerticalScrollBarVisibility="Auto" ItemsSource="{Binding HistoryRows}" SelectedItem="{Binding SelectedHistoryRow}">
+          <DataGrid.Columns><DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="185" Binding="{Binding Principal}" Header="Mes u operación" /><DataGridTextColumn Width="360" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Detail}" Header="Porcentajes y descripción" /><DataGridTextColumn Width="140" Binding="{Binding Amount}" Header="Valor asignado o pagado" /><DataGridTextColumn Width="160" Binding="{Binding Status}" Header="Estado" /></DataGrid.Columns>
+        </DataGrid>
+      </Grid>
+    </Grid>
+  </Grid>
+</UserControl>

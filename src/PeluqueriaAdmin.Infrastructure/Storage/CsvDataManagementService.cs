@@ -58,7 +58,11 @@ public sealed class CsvDataManagementService(
             cancellationToken));
         files.Add(await WriteAsync(
             $"deudas-uso-local-{stamp}.csv",
-            BuildDebts(data, settings.CurrencyCode.Value),
+            BuildDebts(data, ApplicationCurrency.Code),
+            cancellationToken));
+        files.Add(await WriteAsync(
+            $"aportes-colaboradores-{stamp}.csv",
+            BuildContributions(data, ApplicationCurrency.Code),
             cancellationToken));
         return files;
     }
@@ -73,10 +77,10 @@ public sealed class CsvDataManagementService(
         {
             var month = new YearMonth(year, monthNumber);
             MonthlySummaryResult result = AdministrationReports.MonthlySummary(
-                data, settings.OptionalSuppliesMonthlyBudget, settings.CollaboratorProfit, month);
+                data, settings.CollaboratorProfit, month);
             csv.Add(
                 month.ToString(),
-                settings.CurrencyCode.Value,
+                ApplicationCurrency.Code,
                 Decimal(result.IncomeMinorUnits),
                 Decimal(result.GoalMinorUnits),
                 Decimal(result.MissingMinorUnits),
@@ -91,22 +95,23 @@ public sealed class CsvDataManagementService(
     private string BuildAnnualBalance(AdministrationData data, GeneralSettings settings, int year)
     {
         AnnualAdministrationReport report = AdministrationReports.Annual(
-            data, settings.OptionalSuppliesMonthlyBudget, settings.CollaboratorProfit, year);
+            data, settings.CollaboratorProfit, year);
         AnnualBalanceResult result = report.Balance;
         MonthlyExpenseBreakdown expenses = report.Expenses;
         var csv = new CsvBuilder(
             "Año", "Moneda", "Ingresos", "Gastos/meta", "Servicios", "Impuestos",
-            "Otras obligaciones", "Mercancía para venta", "Insumos obligatorios",
+            "Créditos", "Otras obligaciones", "Mercancía para venta", "Insumos obligatorios",
             "Insumos opcionales", "Mantenimiento", "Imprevistos", "Otros gastos",
             "Planes de reposición", "Ajuste histórico", "Distribuciones pagadas",
             "Resultado retenido", "Pendientes", "Faltante", "Indicador");
         csv.Add(
             year.ToString(CultureInfo.InvariantCulture),
-            settings.CurrencyCode.Value,
+            ApplicationCurrency.Code,
             Decimal(result.IncomeMinorUnits),
             Decimal(result.ExpenseMinorUnits),
             Decimal(expenses.ServicesMinorUnits),
             Decimal(expenses.TaxesMinorUnits),
+            Decimal(expenses.CreditsMinorUnits),
             Decimal(expenses.OtherObligationsMinorUnits),
             Decimal(expenses.MerchandiseMinorUnits),
             Decimal(expenses.MandatorySuppliesMinorUnits),
@@ -150,7 +155,7 @@ public sealed class CsvDataManagementService(
             .Select(item => new CashMovement(
                 item.CompletedDate!.Value, "Mantenimiento", item.Asset, -item.ActualCost!.Value.MinorUnits)));
         rows.AddRange(data.DistributionPayments.Where(item => validParticipantIds.Contains(item.ParticipantId)).Select(item =>
-            new CashMovement(item.Date, "Nómina de colaboradores", "Distribución", -item.Amount.MinorUnits)));
+            new CashMovement(item.Date, "Pagos a colaboradores", "Distribución", -item.Amount.MinorUnits)));
 
         var csv = new CsvBuilder("Fecha", "Categoría", "Concepto", "Entrada", "Salida");
         foreach (CashMovement row in rows.OrderBy(item => item.Date))
@@ -168,7 +173,7 @@ public sealed class CsvDataManagementService(
 
     private static string BuildInventory(AdministrationData data)
     {
-        var csv = new CsvBuilder("Producto", "Categoría", "Unidad", "Existencia", "Costo unitario promedio");
+        var csv = new CsvBuilder("Producto", "Categoría", "Existencia", "Costo unitario promedio");
         foreach (Product product in data.Products)
         {
             InventoryMovement[] movements = data.InventoryMovements
@@ -177,9 +182,27 @@ public sealed class CsvDataManagementService(
             csv.Add(
                 product.Name,
                 SpanishText.For(product.Category),
-                product.UnitOfMeasure,
                 InventoryCalculator.CurrentQuantity(movements).ToString("0.###", CultureInfo.InvariantCulture),
                 InventoryCalculator.AverageUnitCost(movements).ToDecimal().ToString("0.00", CultureInfo.InvariantCulture));
+        }
+
+        return csv.ToString();
+    }
+
+    private static string BuildContributions(AdministrationData data, string currency)
+    {
+        var csv = new CsvBuilder("Fecha", "Colaborador", "Moneda", "Valor", "Descripción", "Clasificación");
+        foreach (var contribution in data.CollaboratorContributions.OrderBy(item => item.Date).ThenBy(item => item.CreatedUtc))
+        {
+            string collaborator = data.Collaborators
+                .SingleOrDefault(item => item.Id == contribution.CollaboratorId)?.Name ?? "Colaborador no disponible";
+            csv.Add(
+                contribution.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                collaborator,
+                currency,
+                Decimal(contribution.Amount.MinorUnits),
+                contribution.Description ?? string.Empty,
+                "Capital / inversión no operativa");
         }
 
         return csv.ToString();

@@ -2,7 +2,11 @@
 
 ## Carácter canónico y precedencia
 
-Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 3.1 del 18 de julio de 2026.
+Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.10 del 23 de julio de 2026.
+
+La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, cobro semanal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 y 4.5 concretan las reglas vigentes de Uso del local, perfil, fechas, sillas, cuenta, historial y pagos anticipados. La Fase 4.7 sustituyó la notificación de obligaciones, los porcentajes individuales directos y los planes de reposición visibles. La Fase 4.8 sustituye la regla de cierre automático: el cierre mensual vuelve a ser una acción manual visible únicamente en Resumen mensual y crea reservas, exclusiones y distribuciones congeladas. La Fase 4.9 sustituye las etiquetas ambiguas de actividad, el anticipo congelado, la lista mensual dependiente del inventario, el préstamo sin calendario exacto y el balance anual limitado a cierres. La Fase 4.10 sustituye el formulario genérico de alta de inventario, los controles de activación/reserva de la lista mensual, la lista incompleta de tipos y recurrencias de obligaciones y el Manual pendiente.
+
+Los trabajadores son quienes usan y alquilan las sillas. Los colaboradores son exclusivamente inversionistas y nunca ocupan sillas. La interfaz, los mensajes, Excel y la documentación usan esta distinción.
 
 - Cuando exista contradicción con ideas iniciales de `Programa para peluquería.txt`, prevalece este documento.
 - `Instrucciones codex.txt` conserva las normas de trabajo y seguridad del proyecto, excepto cuando contradiga expresamente la solicitud vigente.
@@ -34,8 +38,8 @@ La aplicación:
 - El dinero que estas personas cobran a sus clientes por sus servicios no pertenece al local y no se registra como ingreso del local.
 - Cada persona paga actualmente USD 12 semanales por utilizar el local y guardar sus pertenencias de trabajo.
 - Los USD 12 constituyen un valor general configurable en Ajustes, no una tarifa individual.
-- No está definido que el cobro sea los sábados y no se asumirá ningún día de cobro.
-- La primera cuota se genera al ingreso y las posteriores cada siete días exactos; cada periodo iniciado se cobra completo y conserva su tarifa histórica.
+- El día habitual de pago es sábado.
+- Al ingresar la deuda es cero. Cada cuota corresponde a siete días completos; vence el primer sábado igual o posterior al final del periodo, no se cobra un periodo incompleto y se conserva la tarifa histórica.
 - Los pagos registrados reducen la deuda de cada persona.
 - La página principal muestra el nombre de cada persona con deuda y el importe adeudado.
 
@@ -47,19 +51,17 @@ Datos mínimos previstos:
 
 - nombre;
 - fecha de ingreso;
-- fecha de retiro, cuando corresponda.
+- descripción opcional;
+- silla individual asignada actualmente.
 
-La condición activa o inactiva se calcula internamente a partir de las fechas; no existirá un campo visible de estado.
+No existe una acción visible separada para retirar al trabajador ni una fecha de retiro editable. **Eliminar trabajador** exige confirmación, libera la silla y realiza una eliminación lógica que conserva cuenta, pagos, tarifas e historial. Los estados `Retirado` heredados continúan siendo legibles.
 
 No incluir:
 
 - fotografía;
-- silla asignada;
 - espacio de almacenamiento asignado;
 - tarifa semanal individual;
-- día habitual de pago;
 - campo visible activo/inactivo;
-- observaciones;
 - semanas pagadas por anticipado;
 - semanas perdonadas;
 - semanas suspendidas;
@@ -68,21 +70,18 @@ No incluir:
 - recibos internos;
 - estados vencido, exonerado o anulado;
 - medio de pago;
-- búsquedas especializadas por persona, semana, mes o año.
+- consultas periódicas constantes.
 
 El registro de un pago será simple y contendrá únicamente:
 
 - persona;
 - fecha;
 - monto.
+- descripción opcional.
 
 ## 4. Sillas y capacidad
 
-Manejar solamente:
-
-- cantidad total de sillas;
-- cantidad de personas que pagan por utilizar el local;
-- cantidad de sillas disponibles.
+Cada silla es un registro individual con nombre o número, fecha de creación, descripción opcional y, si corresponde, un único trabajador vigente asignado. Los colaboradores son inversionistas y nunca ocupan sillas. Se muestran total de sillas, trabajadores vigentes y sillas disponibles.
 
 No incluir:
 
@@ -104,12 +103,33 @@ Los servicios prestados directamente por las personas a sus clientes no se regis
 
 ## 6. Inventario
 
-El inventario diferencia, como mínimo:
+El inventario usa exclusivamente estas categorías: Alimento o bebida para venta, Otro producto para venta, Cortesía para clientes, Aseo, Insumo del local y Otro producto del local. No se expone el antiguo atributo técnico de unidades en interfaz, Excel ni formularios.
 
-- productos para la venta;
-- insumos obligatorios del local, como papel higiénico y productos de aseo;
-- insumos opcionales ofrecidos al cliente, como café, té, alimentos o bebidas de cortesía;
-- equipos o bienes duraderos del local.
+Los productos destinados a venta aparecen inmediatamente en Ventas, pueden buscarse por nombre sin distinguir mayúsculas y muestran existencia y precio predeterminado. Cambiar a una categoría no vendible los retira del selector; cambiar a una categoría vendible los incorpora tras guardar, sin reiniciar.
+
+La pestaña **Lista mensual de compra** permite agregar, editar, guardar y eliminar lógicamente filas con nombre, categoría, mes, cantidad, costo esperado y descripción. No presenta controles **Activa**, **Reservar cuando el inventario llegue a cero** ni **Activar o desactivar**. Los indicadores técnicos heredados se conservan solo para leer y documentar bases anteriores, pero no deciden si una fila vigente afecta los cálculos.
+
+La pestaña **Agregar al inventario** registra siempre una compra; no muestra un selector de operación ni crea existencias iniciales o productos sueltos. Una búsqueda con icono de lupa filtra por nombre, categoría o mes las filas mensuales todavía no compradas. Después de seleccionar una fila solicita únicamente fecha de compra, cantidad realmente comprada, precio de venta al público cuando la categoría sea vendible y descripción opcional. El costo de adquisición procede del costo esperado de la fila mensual:
+
+```text
+costo real de la compra = costo esperado unitario × cantidad realmente comprada
+```
+
+Guardar crea o vincula el producto, crea un único movimiento `Compra`, actualiza el precio de venta cuando corresponde y marca la fila mensual como comprada en la misma transacción. El precio de venta no se interpreta como costo de adquisición.
+
+## 6.1 Uso del local y perfiles
+
+Uso del local conserva las tres tarjetas y usa tablas independientes de trabajadores y sillas. El selector **Acción** contiene únicamente **Añadir silla** y **Añadir trabajador**. La silla inicial del trabajador es opcional; la ausencia de sillas vacías no bloquea su alta. La fecha visible se persiste exactamente, cambiar de acción o terminar un alta prepara la fecha local actual y un borrador recuperado muestra un aviso junto con su fecha antes de guardar. El formulario no expone una acción visible para limpiar, pero conserva el borrador interno.
+
+El selector de silla del alta y el selector del perfil son colecciones independientes. El perfil ofrece únicamente sillas activas vacías más la silla actual, permite asignar, cambiar o retirar en una transacción y mantiene al trabajador aunque quede sin silla. Seleccionar la silla actual no genera eventos duplicados.
+
+El perfil se abre por doble clic y reúne datos, cuenta individual, tarifas históricas, pago y silla. Su cabecera permanece fija; solo el historial cronológico, separado visualmente y ordenado de más reciente a más antiguo, se desplaza y virtualiza. El filtro inicial es **Todo el historial**; registrar un pago vuelve a ese filtro para mostrar exactamente un movimiento de inmediato.
+
+Se acepta cualquier pago positivo, incluso anticipado o superior a la deuda acumulada. La deuda acumulada nunca es negativa y el excedente queda como saldo a favor. El crédito cubre las cuotas futuras por orden, sin reiniciar el ciclo semanal anclado al ingreso. La cuenta informa próxima cuota y valor, próximo pago requerido con fecha e importe en la misma tarjeta, y cobertura estimada. No se muestra otra tarjeta que duplique la deuda. Las cuotas causadas conservan su tarifa; las futuras usan la vigente. La eliminación lógica detiene nuevas cuotas, conserva el crédito y no genera devolución en esta fase.
+
+## 6.2 Aportes de colaboradores
+
+Cada colaborador dispone de un perfil con aportes de capital, participaciones de cierres y distribuciones. Los aportes son inversión no operativa: no son ventas ni otros ingresos, no aumentan la ganancia neta, no generan un nuevo porcentaje y no alteran el punto de equilibrio. Se conservan mediante eliminación lógica y se incluyen en copias, Excel e historial.
 
 Los productos personales de quienes trabajan en el local no pertenecen al inventario.
 
@@ -128,7 +148,7 @@ Reglas:
 - El sobrante no se registra nuevamente como compra ni como gasto.
 - Una compra afecta el dinero disponible solamente en el mes en que realmente se pagó.
 - El conteo mensual no crea un gasto.
-- La reposición se calcula con base en lo que realmente falta, sin repetir los productos que todavía existen.
+- Los planes o sugerencias de reposición quedan obsoletos. Las compras reales continúan como movimientos y gastos; los registros históricos de planes pueden permanecer solo por compatibilidad de esquema.
 
 No incluir en productos o ventas:
 
@@ -138,7 +158,7 @@ No incluir en productos o ventas:
 - vencimiento;
 - stock mínimo;
 - estado activo/inactivo;
-- observaciones.
+- campos adicionales distintos de la descripción opcional autorizada.
 
 No incluir en ninguna sección proveedor, medio de pago ni comprobante.
 
@@ -159,9 +179,12 @@ Los gastos imprevistos pueden añadirse en cualquier mes para daños, reparacion
 ## 8. Servicios, obligaciones e impuestos
 
 - Los servicios y obligaciones se registran manualmente con sus fechas y valores.
+- Los tipos disponibles son **Servicio**, **Impuesto**, **Crédito** y **Otra obligación**.
+- Las recurrencias disponibles son **Sin recurrencia**, **Semanal**, **Mensual** y **Anual**. La semanal conserva el vencimiento ancla y avanza exactamente siete días.
 - Los impuestos son únicamente recordatorios y gastos internos.
 - La aplicación no calcula obligaciones legales ni prepara declaraciones.
-- La página principal muestra solamente la fecha y el nombre de los servicios o impuestos pendientes de pago, junto con los demás elementos expresamente permitidos para esa página.
+- La página principal muestra la fecha, el nombre y el saldo de las obligaciones pendientes —incluidos créditos— y de las compras mensuales conocidas que correspondan al periodo, junto con los demás elementos expresamente permitidos para esa página.
+- Registrar un pago confirma una ocurrencia con el valor real. Una ocurrencia confirmada queda sin saldo pendiente aun cuando el valor real difiera del esperado; los reportes usan ese valor real una sola vez.
 
 ## 9. Mantenimiento
 
@@ -186,13 +209,13 @@ No incluir:
 - estado manual;
 - técnico;
 - proveedor;
-- observaciones.
+- campos adicionales distintos de la descripción opcional autorizada.
 
 La necesidad de atención se calcula a partir de las fechas y de la existencia o ausencia de costo y fecha real, sin un campo manual de estado.
 
-## 10. Punto de equilibrio mensual
+## 10. Punto de equilibrio mensual y resultado repartible
 
-El punto de equilibrio se maneja por mes y compara el dinero realmente ingresado contra las obligaciones y gastos del mes mediante un enfoque sencillo de flujo de dinero.
+El punto de equilibrio se maneja por mes y separa ingresos operativos cobrados, cuentas por cobrar, egresos pagados, cuentas por pagar, reservas y financiación. Las deudas de trabajadores no son ingreso hasta cobrarse; préstamos y aportes no son ganancia operativa.
 
 Ingresos del mes:
 
@@ -202,17 +225,20 @@ Ingresos del mes:
 
 Salidas del mes:
 
-- servicios y obligaciones pagados o presupuestados, según corresponda;
+- pagos reales de servicios y obligaciones no cubiertos por una reserva anterior;
 - insumos obligatorios comprados;
-- insumos opcionales comprados o presupuesto opcional configurado;
+- insumos opcionales realmente comprados o consumidos y registrados;
 - compras de mercancía;
-- mantenimiento;
+- costos reales de mantenimientos realizados;
 - gastos imprevistos;
-- otros gastos.
+- otros gastos;
+- nuevas reservas y ajustes de reservas anteriores;
+- cuotas de préstamos y compromisos anteriores no cubiertos.
 
 Reglas:
 
-- Las compras de inventario se cuentan solamente cuando se realizan.
+- Una reserva se descuenta una sola vez. Al pagar, se consume y solo la diferencia entre valor real y reservado afecta el nuevo periodo.
+- Las compras de inventario se cuentan solamente cuando se realizan o mediante su reserva previa, nunca por ambas vías.
 - El inventario sobrante no vuelve a contarse como gasto.
 - No se mezclan ingresos por servicios personales de quienes trabajan en el local.
 
@@ -229,15 +255,21 @@ Los colaboradores forman un grupo distinto de las personas que pagan por utiliza
 
 - Porcentaje inicial: 20 %.
 - El porcentaje es configurable en Ajustes con el nombre **Ganancia colaboradores**.
-- La sección puede llamarse **Nómina de colaboradores**, pero no se trata como nómina laboral ni aplica normas laborales.
+- La distribución se integra dentro de **Colaboradores**; no existe una opción lateral independiente de nómina.
+- Cada colaborador guarda una **participación dentro del fondo** entre 0 % y 100 %. La suma de participaciones activas no puede superar 100 %, puede ser inferior y nunca se completa automáticamente.
+- El porcentaje global crea primero el fondo. La participación individual se aplica después sobre ese fondo, no directamente sobre la ganancia neta.
+- El cierre se confirma manualmente en Resumen mensual. Congela fórmula, valores, reservas, exclusiones, porcentajes y una asignación por colaborador; la reapertura exige confirmación e invalida asignaciones no pagadas.
 
 Fórmulas:
 
 ```text
-resultado base =
-  ingresos del local
-  - gastos y obligaciones correspondientes
-  - presupuesto o gasto opcional aplicable
+resultado repartible =
+  ingresos operativos realmente cobrados
+  - egresos pagados no provisionados anteriormente
+  - nuevas reservas
+  - ajustes de reservas anteriores
+  - cuotas de préstamos
+  - compromisos anteriores no cubiertos
 ```
 
 Si el resultado base es menor o igual a cero:
@@ -249,9 +281,9 @@ Si el resultado base es menor o igual a cero:
 Si el resultado base es positivo:
 
 ```text
-fondo colaboradores = resultado base × porcentaje configurado
-pago por colaborador = fondo colaboradores ÷ cantidad de colaboradores correspondientes
-resultado retenido por el local = resultado base - fondo colaboradores
+fondo colaboradores = resultado base × porcentaje global configurado
+pago del mes = fondo colaboradores × porcentaje individual congelado
+ganancia retenida por el local = máximo(resultado repartible, 0) - fondo colaboradores
 ```
 
 No se inventará una fórmula circular.
@@ -264,19 +296,18 @@ Configurar, como mínimo:
 
 - valor semanal general por uso del local, inicialmente USD 12;
 - porcentaje de ganancia de colaboradores, inicialmente 20 %;
-- presupuesto mensual para insumos opcionales ofrecidos a clientes;
-- cantidad total de sillas;
-- moneda principal, inicialmente USD.
+- carpeta de exportación, con el Escritorio como valor predeterminado.
+- gastos extraoficiales separados, que solo intervienen en el precio sugerido por silla.
 
 No se crean ajustes individuales que contradigan la tarifa semanal general.
 
-La moneda es única para todo el local y se guarda como un código ISO de tres letras en mayúsculas. No existen conversiones, tasas de cambio ni varias monedas simultáneas. Cambiar el código no convierte los importes existentes.
+La moneda única e invariable del programa es USD. Las bases antiguas configuradas en COP se normalizan a USD sin multiplicar, dividir ni convertir ningún valor numérico. El antiguo presupuesto mensual opcional queda obsoleto, se normaliza a cero y no interviene en cálculos.
 
 Los importes de Ajustes se persisten en unidades menores enteras y los porcentajes en puntos básicos. No se usa punto flotante binario ni se aceptan silenciosamente más de dos decimales.
 
 ## 13. Balance anual
 
-El balance por año muestra:
+El balance usa únicamente un selector de año, muestra siempre enero a diciembre a partir de snapshots mensuales y permite cerrar el año solo cuando los doce meses están cerrados, incluidos meses en cero. El cierre anual no elimina años anteriores. Muestra:
 
 - ingresos acumulados;
 - gastos acumulados por categoría;
@@ -284,6 +315,7 @@ El balance por año muestra:
 - impuestos u obligaciones anuales;
 - resultado retenido por el local;
 - indicador positivo o negativo.
+- gráfico de ingresos operativos cobrados por mes.
 
 El indicador mensual es negativo cuando todavía falta dinero para cubrir las obligaciones mensuales. El indicador anual es negativo cuando el resultado acumulado, incluidas las obligaciones e impuestos anuales registrados, es inferior a cero.
 
@@ -292,19 +324,23 @@ El indicador mensual es negativo cuando todavía falta dinero para cubrir las ob
 La página principal muestra exclusivamente:
 
 - fecha actual o mes seleccionado;
-- fecha y nombre de servicios e impuestos pendientes de pago;
+- fecha, nombre y saldo de obligaciones pendientes, incluidos servicios, impuestos, créditos y otras obligaciones;
+- compras de la lista mensual que siguen pendientes y corresponden al periodo consultado;
 - nombre de cada persona que debe pagos por uso del local;
 - monto adeudado por cada persona;
 - cantidad faltante para alcanzar el punto de equilibrio mensual.
+- precio semanal actual, precio semanal sugerido por silla ocupada y equivalente mensual, con explicación breve.
+- campana de mantenimientos vencidos o para hoy, con acceso a Mantenimiento.
+- movimientos persistidos del día con selector de fecha, hora local, módulo, operación, entidad, importe y estado.
 
 No mostrar allí:
 
 - gráficos;
-- inventario;
-- alertas de inventario;
+- existencias o tablas de inventario;
+- alertas de existencias, distintas del compromiso económico de una compra mensual;
 - ventas;
-- mantenimiento;
-- cantidad de sillas;
+- icono, insignia o panel emergente de obligaciones;
+- elementos distintos del precio sugerido expresamente autorizado.
 - nómina de colaboradores;
 - tarjetas o indicadores adicionales.
 
@@ -322,7 +358,8 @@ Copias y exportación:
 - máximo una copia automática diaria cuando la base cambió y retención de las 30 automáticas más recientes;
 - copia diferenciada antes de migrar un esquema existente y antes de restaurar;
 - restauración manual después de validar compatibilidad y con recuperación de la base anterior ante fallo;
-- exportación CSV UTF-8 de resumen mensual, balance anual, flujo de caja, inventario y deudas por Uso del local.
+- una única exportación `.xlsx` con todas las hojas lógicas, Notas, historial, futuro conocido, eliminados y borradores; incluye tarifas semanales históricas, lista mensual vigente, compatibilidad heredada de inventario, obligaciones/créditos, recurrencias, saldos y los demás datos persistidos; no ofrece CSV en la interfaz.
+- la carpeta del `.xlsx` es configurable, persistente y nunca cambia silenciosamente si ocurre un error.
 
 La arquitectura debe contemplar:
 
@@ -367,6 +404,8 @@ El ejecutable nunca debe incluir un token personal de GitHub ni otra credencial 
 
 La primera alpha es x64, sin certificado y puede activar una advertencia de SmartScreen. Windows 11 es la plataforma principal de validación; Windows 10 x64 sigue siendo un objetivo no verificado en un equipo real. No se declara verificada una actualización entre Releases hasta disponer de dos versiones publicadas.
 
+La incorporación del logotipo de la empresa y la comprobación del salto real entre versiones mediante GitHub quedan expresamente para una actualización posterior. La Fase 4.10 no publica `alpha.2`, no crea un Release y no modifica el mecanismo de actualización.
+
 ## 17. Correcciones de aceptación de la Fase 3.1
 
 - Editar y eliminar son acciones separadas: la confirmación se exige solo para eliminar y se reinicia después de usarla.
@@ -375,10 +414,61 @@ La primera alpha es x64, sin certificado y puede activar una advertencia de Smar
 - Un cambio de ingreso o retiro que invalide cuotas con pagos se rechaza. Sin pagos, las cuotas incompatibles pueden invalidarse de forma lógica y transaccional.
 - Reabrir un cierre con pagos de distribución se rechaza. Sin pagos, la reapertura invalida sus asignaciones calculadas; un cierre nuevo crea una sola distribución activa cuya suma coincide exactamente con el fondo.
 - Solo las asignaciones de cierres confirmados se pueden pagar o mostrar como pendientes.
-- Un cierre confirmado es una fotografía histórica para el resumen mensual, el balance anual y los CSV. Un mes reabierto vuelve al cálculo dinámico.
-- Inicio muestra exclusivamente servicios e impuestos pendientes vencidos o del mes actual, deudas por Uso del local y el faltante mensual.
+- Un cierre confirmado es una fotografía histórica para el resumen mensual, el balance anual y Excel. Un mes reabierto vuelve al cálculo dinámico.
+- Inicio muestra **Pagos pendientes** con servicios, impuestos, otras obligaciones y cuotas de préstamos vencidas o del mes actual; mantenimiento conserva su campana separada. También muestra deudas por Uso del local y el faltante mensual.
 - La capacidad de sillas se muestra únicamente en Uso del local, incluyendo total, personas vigentes, disponibles y sobrecupo explícito.
-- El balance anual y su CSV desglosan las categorías aprobadas y muestran un indicador explícito `Positivo` o `Negativo`.
+- El balance anual y su hoja de Excel desglosan las categorías aprobadas y muestran un indicador explícito `Positivo` o `Negativo`.
 - Las correcciones de inventario conservan las invariantes de cantidad, dinero y existencia cronológica no negativa. Los nombres activos de productos son únicos sin distinguir mayúsculas.
 - No se permite eliminar padres con historial dependiente ni registros calculados como cierres o asignaciones. Los datos históricos huérfanos heredados se muestran con una descripción segura en vez de cerrar la pantalla.
 - Los estados y categorías visibles y exportados se presentan en español.
+
+## 18. Correcciones de aceptación de la Fase 4.1
+
+- Todas las páginas operativas muestran actividad no editable con periodo Hoy por defecto, semana, mes, 3 meses, 6 meses, año y rango personalizado. El cambio de día se detecta al actualizar por navegación, periodo u operación; no existe sondeo constante.
+- Las operaciones confirmadas crean su actividad en la misma transacción. Los estados actuales y selectores no dependen del filtro de actividad.
+- La recuperación de formularios es silenciosa y no existe ningún botón visible `Limpiar formulario`; una operación válida limpia solo sus campos, mientras un error conserva la entrada y los borradores inválidos siguen protegidos.
+- Ventas selecciona por identificador un producto de venta, usa su precio predeterminado y rechaza inventario negativo. Las compras reutilizan productos existentes y calculan su total.
+- Ingresos, gastos, imprevistos, obligaciones y mantenimiento usan acciones directas; no existe un desplegable genérico Acción.
+- Los colaboradores no ocupan sillas y su historial financiero se deriva únicamente de cierres, participaciones y pagos reales.
+- Resumen mensual añade gráficos 2D de barras, composición y evolución con los mismos cálculos que las cifras.
+- Flujo de caja permanece fuera de la navegación y las pantallas; Excel incluye una hoja de trazabilidad construida a partir de las operaciones fuente.
+- La exportación Excel incluye sillas, asignaciones, actividad, descripciones, gastos extraoficiales, precio sugerido e historial financiero de colaboradores.
+
+## Decisiones reemplazadas en Fase 4.6
+
+Quedan reemplazadas la moneda configurable, COP, el presupuesto mensual opcional, la nómina como sección independiente, el reparto igualitario automático y la exportación CSV múltiple. Ventas recalcula cantidad por precio editable en USD y nunca permite superar la existencia. Las gráficas responden realmente a hoy, semana, mes, tres meses, seis meses, año, fecha específica y año específico; un registro antiguo sin hora operativa verificable se incluye en totales pero no se asigna a una hora inventada.
+- La decisión de Fase 4.6 mantenía el Manual como requisito pendiente; queda expresamente reemplazada por la implementación de Fase 4.10.
+
+## Decisiones reemplazadas en Fase 4.7
+
+Quedan reemplazados el recibo de obligaciones de Inicio, los porcentajes individuales directos sobre ganancia neta, los planes de reposición, el cierre mensual manual visible, todos los botones `Limpiar formulario`, el formulario combinado de programación/realización de mantenimiento y la tabla única que mezclaba obligaciones con pagos. Todas las tablas usan columnas fijas no redimensionables y barras internas. Inventario se divide en `Inventario`, `Movimientos` y `Agregar`; Obligaciones separa catálogo y pagos; Mantenimiento separa programación, realización, pendientes e historial; y `Notas` es un bloc único SQLite con autoguardado, copia y exportación Excel.
+
+## Decisiones vigentes de Fase 4.8
+
+- La regla de cierre automático anterior queda reemplazada por cierre mensual manual visible en `Resumen mensual`, con lista previa, exclusiones justificadas, reservas y reapertura confirmada.
+- `Uso del local` no ofrece retiro redundante: conserva silla y eliminación lógica con historial.
+- El colaborador recibe únicamente el pago completo congelado de un resultado repartible positivo; nunca asume pérdidas ni pagos parciales arbitrarios.
+- La Lista mensual de compra es una entidad nueva vinculada por identificador; no reutiliza `MonthlyRestockPlans`.
+- Los préstamos se administran dentro de Obligaciones y su desembolso se separa de los ingresos operativos.
+
+## Decisiones vigentes de Fase 4.9
+
+- Movimientos del día filtra por fecha local usando `OccurredUtc`, limpia la colección y ordena de más reciente a más antiguo; las operaciones nuevas usan una acción exacta.
+- Cada sábado vencido genera una cuota con su tarifa histórica. Los pagos se aplican cronológicamente: el sobrante es saldo a favor, el faltante es deuda, el próximo cobro es el siguiente sábado y el próximo pago requerido es el primero no cubierto.
+- Los eventos de aportes son inmutables. La eliminación lógica excluye el aporte del total vigente, pero conserva creación, edición, valores anterior/nuevo y eliminación.
+- La Lista mensual de compra admite nombre y categoría libres, `ProductId` nulo y vínculo atómico posterior con inventario. Conteo físico y consumo no se ofrecen en Agregar al inventario; los históricos se conservan.
+- Un préstamo nuevo usa exclusivamente amortización fija sobre saldo o cantidad final acordada. El calendario mensual, capital, interés, saldo y pago asociado se persisten en unidades menores enteras.
+- Balance anual consulta solo el año, combina snapshots mensuales confirmados con meses abiertos en vivo, grafica 12 meses y congela un snapshot anual con arrastres separados.
+- Resumen financiero vive únicamente en Resumen mensual. Los gastos extraoficiales son configuraciones persistentes sin filtro temporal y admiten edición explícita.
+- Inicio añade movimientos generales diarios sin recuperar una notificación independiente de obligaciones.
+
+## Decisiones vigentes de Fase 4.10
+
+- **Agregar al inventario** registra siempre una compra procedente de una fila pendiente de la Lista mensual; no ofrece un selector de operación. La lupa busca por producto, categoría o mes.
+- La compra solicita fecha, cantidad real, precio de venta si corresponde y descripción. El costo de caja es `costo esperado unitario × cantidad real`; el precio de venta nunca sustituye el costo de adquisición.
+- La Lista mensual ofrece agregar, editar, guardar y eliminar. Los indicadores heredados de activación y reserva no se muestran ni alteran compromisos, Inicio, punto de equilibrio, cierres o reportes.
+- Obligaciones incorpora **Crédito** y recurrencia **Semanal**. Una ocurrencia pagada usa el valor real y queda con saldo cero; una pendiente conserva el saldo esperado.
+- Inicio, Resumen mensual, precio sugerido por silla, Balance anual y Excel consumen las mismas reglas compartidas para no duplicar ni omitir compras u obligaciones.
+- **Manual** aparece debajo de Notas y explica detalladamente cada módulo, cálculos, cierres, seguridad, copias, Excel y actualizaciones. Es contenido estático del programa y no una operación de usuario.
+- Excel conserva una fotografía completa y consistente de datos actuales, históricos, futuros, eliminados, borradores y estructuras heredadas que todavía existan en SQLite.
+- El logotipo y la prueba del actualizador mediante una versión posterior en GitHub no forman parte de esta entrega. No se publica `alpha.2`.

@@ -40,12 +40,12 @@
         <TextBlock FontSize="26" FontWeight="SemiBold" Text="Ajustes" />
         <TextBlock Margin="0,6,0,0"
                    Foreground="#4B5563"
-                   Text="Configuración general para todo el local. Cambiar la moneda no convierte los valores existentes."
+                   Text="Los cambios válidos se guardan automáticamente. Si un valor está incompleto o no es válido, los campos escritos se conservan para continuar después."
                    TextWrapping="Wrap" />
       </StackPanel>
 
       <StackPanel Grid.Row="1">
-        <TextBlock Style="{StaticResource FieldLabel}" Text="Valor semanal general por uso del local" />
+        <TextBlock Style="{StaticResource FieldLabel}" Text="Valor semanal general por uso del local (USD)" />
         <TextBox MaxLength="18"
                  Text="{Binding WeeklyUsageFee, UpdateSourceTrigger=PropertyChanged}"
                  ToolTip="Importe no negativo con máximo dos decimales." />
@@ -58,42 +58,79 @@
                  ToolTip="Porcentaje entre 0 y 100 con máximo dos decimales." />
       </StackPanel>
 
-      <StackPanel Grid.Row="3">
-        <TextBlock Style="{StaticResource FieldLabel}" Text="Presupuesto mensual para insumos opcionales" />
-        <TextBox MaxLength="18"
-                 Text="{Binding OptionalSuppliesMonthlyBudget, UpdateSourceTrigger=PropertyChanged}"
-                 ToolTip="Importe no negativo con máximo dos decimales." />
-      </StackPanel>
+      <Border Grid.Row="4" Margin="0,4,0,24" Padding="18" Background="#FFF7ED" CornerRadius="6">
+        <StackPanel>
+          <TextBlock Margin="0,0,0,12" FontSize="20" FontWeight="SemiBold" Text="Gastos extraoficiales" />
+          <TextBlock Margin="0,0,0,12"
+                     Foreground="#4B5563"
+                     Text="Se usan únicamente para el precio sugerido por silla y no forman parte del Balance anual oficial."
+                     TextWrapping="Wrap" />
+          <TextBlock Style="{StaticResource FieldLabel}" Text="Nombre" />
+          <TextBox Text="{Binding UnofficialExpenseName, UpdateSourceTrigger=PropertyChanged}" />
+          <TextBlock Style="{StaticResource FieldLabel}" Text="Valor mensual (USD)" />
+          <TextBox Text="{Binding UnofficialExpenseAmount, UpdateSourceTrigger=PropertyChanged}" />
+          <TextBlock Style="{StaticResource FieldLabel}" Text="Fecha desde la que aplica (AAAA-MM-DD)" />
+          <TextBox Text="{Binding UnofficialExpenseEffectiveFrom, UpdateSourceTrigger=PropertyChanged}" />
+          <TextBlock Style="{StaticResource FieldLabel}" Text="Descripción opcional" />
+          <TextBox MinHeight="58"
+                   AcceptsReturn="True"
+                   Text="{Binding UnofficialExpenseDescription, UpdateSourceTrigger=PropertyChanged}"
+                   TextWrapping="Wrap" />
+          <WrapPanel Margin="0,0,0,12">
+            <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding AddUnofficialExpenseCommand}" Content="Agregar" />
+            <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding EditUnofficialExpenseCommand}" Content="Editar seleccionado" />
+            <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding SaveUnofficialExpenseEditCommand}" Content="Guardar edición" />
+            <CheckBox Margin="4,0,8,8" VerticalAlignment="Center" IsChecked="{Binding ConfirmUnofficialExpenseDelete}" Content="Confirmo eliminar" />
+            <Button Padding="12,8" Command="{Binding DeleteUnofficialExpenseCommand}" Content="Eliminar seleccionado" />
+          </WrapPanel>
+          <DataGrid MinHeight="150"
+                    AutoGenerateColumns="False"
+                    IsReadOnly="True"
+                    ItemsSource="{Binding UnofficialExpenses}"
+                    SelectedItem="{Binding SelectedUnofficialExpense}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Width="110" Header="Desde" Binding="{Binding Date}" />
+              <DataGridTextColumn Width="220" Header="Nombre" Binding="{Binding Principal}" />
+              <DataGridTextColumn Width="140" Header="Valor mensual (USD)" Binding="{Binding Amount}" />
+              <DataGridTextColumn Width="340" ElementStyle="{StaticResource WrappingCellText}" Header="Descripción" Binding="{Binding Detail}" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </StackPanel>
+      </Border>
 
-      <StackPanel Grid.Row="4">
-        <TextBlock Style="{StaticResource FieldLabel}" Text="Cantidad total de sillas" />
-        <TextBox MaxLength="9"
-                 Text="{Binding TotalChairs, UpdateSourceTrigger=PropertyChanged}"
-                 ToolTip="Número entero no negativo." />
-      </StackPanel>
-
-      <StackPanel Grid.Row="5">
-        <TextBlock Style="{StaticResource FieldLabel}" Text="Código de moneda" />
-        <TextBox MaxLength="3"
-                 CharacterCasing="Upper"
-                 Text="{Binding CurrencyCode, UpdateSourceTrigger=PropertyChanged}"
-                 ToolTip="Código ISO de exactamente tres letras, por ejemplo USD." />
-      </StackPanel>
-
-      <Border Grid.Row="6" Margin="0,12,0,24" Padding="18" Background="#F3F4F6" CornerRadius="6">
+      <Border Grid.Row="5" Margin="0,12,0,24" Padding="18" Background="#F3F4F6" CornerRadius="6">
         <StackPanel>
           <TextBlock FontSize="20" FontWeight="SemiBold" Text="Datos" />
           <TextBlock Margin="0,5,0,14"
                      Foreground="#4B5563"
-                     Text="Crea copias locales, restaura una copia compatible o exporta reportes CSV. Antes de restaurar se guarda automáticamente el estado actual."
+                     Text="Crea copias locales, restaura una copia compatible o exporta toda la información. Antes de restaurar se guarda automáticamente el estado actual."
                      TextWrapping="Wrap" />
 
-          <WrapPanel Margin="0,0,0,14">
+          <WrapPanel Margin="0,0,0,10">
             <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding CreateBackupCommand}" Content="Crear copia ahora" />
             <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding OpenBackupsCommand}" Content="Abrir copias" />
-            <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding ExportDataCommand}" Content="Exportar CSV" />
-            <Button Margin="0,0,0,8" Padding="12,8" Command="{Binding OpenExportsCommand}" Content="Abrir exportaciones" />
           </WrapPanel>
+
+          <Border Margin="0,2,0,16" Padding="14" Background="White" BorderBrush="#D8DEE9" BorderThickness="1" CornerRadius="5">
+            <StackPanel>
+              <TextBlock FontWeight="SemiBold" Text="Exportación completa a Excel" />
+              <TextBlock Margin="0,4,0,10"
+                         Foreground="#4B5563"
+                         Text="Crea un único libro .xlsx con datos actuales, históricos, futuros, eliminados y borradores separados."
+                         TextWrapping="Wrap" />
+              <TextBlock FontWeight="SemiBold" Text="Carpeta de exportación" />
+              <DockPanel Margin="0,5,0,10" LastChildFill="True">
+                <Button DockPanel.Dock="Right" Margin="8,0,0,0" Padding="12,7" Click="SelectExportFolder_Click" Content="Cambiar carpeta…" />
+                <Button DockPanel.Dock="Right" Margin="8,0,0,0" Padding="12,7" Command="{Binding ResetExportDirectoryCommand}" Content="Restablecer al Escritorio" />
+                <TextBox Margin="0" MinWidth="300" IsReadOnly="True" Text="{Binding ExportDirectory}" />
+              </DockPanel>
+              <WrapPanel>
+                <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding ExportAllToExcelCommand}" Content="Exportar toda la información a Excel" />
+                <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding OpenExcelFileCommand}" Content="Abrir archivo" />
+                <Button Margin="0,0,0,8" Padding="12,8" Command="{Binding OpenExcelFolderCommand}" Content="Abrir carpeta" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
 
           <TextBlock Style="{StaticResource FieldLabel}" Text="Archivo de copia para restaurar" />
           <DockPanel LastChildFill="True">
@@ -112,7 +149,7 @@
         </StackPanel>
       </Border>
 
-      <Border Grid.Row="7" Margin="0,0,0,24" Padding="18" Background="#F3F4F6" CornerRadius="6">
+      <Border Grid.Row="6" Margin="0,0,0,24" Padding="18" Background="#F3F4F6" CornerRadius="6">
         <StackPanel>
           <TextBlock FontSize="20" FontWeight="SemiBold" Text="Actualizaciones" />
           <TextBlock Margin="0,5,0,14"
@@ -131,7 +168,7 @@
         </StackPanel>
       </Border>
 
-      <Border Grid.Row="8"
+      <Border Grid.Row="7"
               Margin="0,2,0,18"
               Padding="12"
               Background="#E8EEF6"
@@ -150,12 +187,6 @@
         </TextBlock>
       </Border>
 
-      <Button Grid.Row="9"
-              Width="132"
-              Padding="14,9"
-              HorizontalAlignment="Left"
-              Command="{Binding SaveCommand}"
-              Content="Guardar ajustes" />
     </Grid>
   </ScrollViewer>
 </UserControl>

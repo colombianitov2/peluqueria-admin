@@ -63,6 +63,10 @@ internal sealed class GeneralSettingsConfiguration : IEntityTypeConfiguration<Ge
             .IsFixedLength()
             .IsRequired();
 
+        builder.Property(settings => settings.ExportDirectory)
+            .HasMaxLength(1024)
+            .IsRequired();
+
         builder.Property(settings => settings.CreatedUtc)
             .HasConversion(
                 value => value.Ticks,

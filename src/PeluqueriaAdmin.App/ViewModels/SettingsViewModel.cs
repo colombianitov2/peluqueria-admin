@@ -1,11 +1,22 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PeluqueriaAdmin.Application.Activity;
+using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.DataManagement;
+using PeluqueriaAdmin.Application.Drafts;
+using PeluqueriaAdmin.Application.Exporting;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Application.Updates;
+using PeluqueriaAdmin.Domain.Common;
+using PeluqueriaAdmin.Domain.Drafts;
+using PeluqueriaAdmin.Domain.Finance;
+using PeluqueriaAdmin.Domain.Reports;
+using PeluqueriaAdmin.Domain.Settings;
 
 namespace PeluqueriaAdmin.App.ViewModels;
 
@@ -13,8 +24,19 @@ public sealed partial class SettingsViewModel(
     GetSettingsUseCase getSettings,
     SaveSettingsUseCase saveSettings,
     IDataManagementService dataManagement,
-    IUpdateService updateService) : ObservableObject
+    IExcelExportService excelExport,
+    IUpdateService updateService,
+    IFormDraftStore formDraftStore,
+    TimeProvider timeProvider,
+    AdministrationService administrationService,
+    IUserDesktopPath userDesktopPath) : ObservableObject
 {
+    private const string SettingsDraftKey = "Ajustes:Edicion:settings";
+    private string? lastExcelPath;
+    private readonly SemaphoreSlim autosaveLock = new(1, 1);
+    private CancellationTokenSource? autosaveCancellation;
+    private bool trackingEnabled;
+    private bool loadingUnofficialExpense;
     [ObservableProperty]
     private string weeklyUsageFee = string.Empty;
 
@@ -22,13 +44,28 @@ public sealed partial class SettingsViewModel(
     private string collaboratorProfitPercent = string.Empty;
 
     [ObservableProperty]
-    private string optionalSuppliesMonthlyBudget = string.Empty;
+    private string exportDirectory = string.Empty;
 
     [ObservableProperty]
-    private string totalChairs = string.Empty;
+    private string unofficialExpenseName = string.Empty;
 
     [ObservableProperty]
-    private string currencyCode = string.Empty;
+    private string unofficialExpenseAmount = string.Empty;
+
+    [ObservableProperty]
+    private string unofficialExpenseEffectiveFrom = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    [ObservableProperty]
+    private string unofficialExpenseDescription = string.Empty;
+
+    [ObservableProperty]
+    private OperationRow? selectedUnofficialExpense;
+
+    [ObservableProperty]
+    private bool confirmUnofficialExpenseDelete;
+
+    [ObservableProperty]
+    private bool isEditingUnofficialExpense;
 
     [ObservableProperty]
     private string restorePath = string.Empty;
@@ -48,6 +85,10 @@ public sealed partial class SettingsViewModel(
 
     public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
 
+    public ObservableCollection<OperationRow> UnofficialExpenses { get; } = [];
+
+    public ObservableCollection<OperationRow> UnofficialExpenseActivity { get; } = [];
+
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
         IsBusy = true;
@@ -55,7 +96,22 @@ public sealed partial class SettingsViewModel(
         {
             SettingsDto settings = await getSettings.ExecuteAsync(cancellationToken);
             Apply(settings);
-            StatusMessage = string.Empty;
+            FormDraft? draft = await formDraftStore.FindAsync(SettingsDraftKey, cancellationToken);
+            if (draft is not null)
+            {
+                SettingsDraft? values = JsonSerializer.Deserialize<SettingsDraft>(draft.PayloadJson);
+                if (values is not null)
+                {
+                    ApplyDraft(values);
+                    StatusMessage = string.Empty;
+                }
+            }
+            trackingEnabled = true;
+            if (string.IsNullOrWhiteSpace(UnofficialExpenseEffectiveFrom))
+            {
+                UnofficialExpenseEffectiveFrom = LocalTodayText();
+            }
+            await LoadUnofficialExpensesAsync(cancellationToken);
             IsError = false;
         }
         finally
@@ -98,8 +154,10 @@ public sealed partial class SettingsViewModel(
         IsBusy = true;
         try
         {
-            SettingsDto settings = await saveSettings.ExecuteAsync(request);
+            SettingsDto settings = await saveSettings.ExecuteAsync(request, completedDraftKey: SettingsDraftKey);
+            trackingEnabled = false;
             Apply(settings);
+            trackingEnabled = true;
             StatusMessage = "Los ajustes se guardaron correctamente.";
         }
         catch (ArgumentException exception)
@@ -148,19 +206,41 @@ public sealed partial class SettingsViewModel(
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]
-    private async Task ExportDataAsync()
+    private async Task ExportAllToExcelAsync()
     {
-        await RunDataOperationAsync(
-            dataManagement.ExportAsync,
-            files => $"Se exportaron {files.Count} archivos CSV en:{Environment.NewLine}{dataManagement.ExportsDirectory}",
-            "No fue posible exportar los datos.");
+        IsBusy = true;
+        StatusMessage = "Preparando la fotografía completa de los datos…";
+        IsError = false;
+        try
+        {
+            ExcelExportResult result = await excelExport.ExportAsync();
+            lastExcelPath = result.FilePath;
+            StatusMessage = $"Excel exportado correctamente:{Environment.NewLine}{result.FilePath}";
+            OpenExcelFileCommand.NotifyCanExecuteChanged();
+            OpenExcelFolderCommand.NotifyCanExecuteChanged();
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = $"No fue posible exportar la información a Excel. No se dejó un archivo parcial. {exception.Message}";
+            IsError = true;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
+
+    [RelayCommand(CanExecute = nameof(CanOpenExcel))]
+    private void OpenExcelFile() => OpenPath(lastExcelPath!, "No fue posible abrir el archivo Excel.");
+
+    [RelayCommand(CanExecute = nameof(CanOpenExcel))]
+    private void OpenExcelFolder() => OpenDirectory(Path.GetDirectoryName(lastExcelPath!)!);
 
     [RelayCommand]
     private void OpenBackups() => OpenDirectory(dataManagement.BackupsDirectory);
 
     [RelayCommand]
-    private void OpenExports() => OpenDirectory(dataManagement.ExportsDirectory);
+    private void ResetExportDirectory() => ExportDirectory = userDesktopPath.GetDesktopPath();
 
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task CheckForUpdatesAsync()
@@ -209,16 +289,94 @@ public sealed partial class SettingsViewModel(
 
     private bool CanSave() => !IsBusy;
 
+    private bool CanOpenExcel() => !IsBusy && !string.IsNullOrWhiteSpace(lastExcelPath) && File.Exists(lastExcelPath);
+
     private bool CanRestore() => !IsBusy && !string.IsNullOrWhiteSpace(RestorePath);
 
     private bool CanApplyUpdate() => !IsBusy && UpdateReady;
+
+    public async Task FlushPendingAsync()
+    {
+        autosaveCancellation?.Cancel();
+        await autosaveLock.WaitAsync();
+        autosaveLock.Release();
+    }
+
+    private void TrackSettingsChange()
+    {
+        if (!trackingEnabled) return;
+        _ = PersistSettingsDraftAsync();
+        autosaveCancellation?.Cancel();
+        autosaveCancellation = new CancellationTokenSource();
+        _ = AutosaveSettingsAsync(autosaveCancellation.Token);
+    }
+
+    private async Task PersistSettingsDraftAsync()
+    {
+        await autosaveLock.WaitAsync();
+        try
+        {
+            await formDraftStore.UpsertAsync(FormDraft.Create(
+                SettingsDraftKey,
+                "Ajustes",
+                "Edición automática",
+                JsonSerializer.Serialize(CurrentDraft()),
+                null,
+                true,
+                timeProvider.GetUtcNow().UtcDateTime));
+        }
+        catch (Exception exception)
+        {
+            SetDataError("No fue posible conservar temporalmente los cambios de Ajustes.", exception);
+        }
+        finally
+        {
+            autosaveLock.Release();
+        }
+    }
+
+    private async Task AutosaveSettingsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(650, cancellationToken);
+            if (!TryCreateRequest(out SaveSettingsRequest request, out string validationMessage))
+            {
+                StatusMessage = validationMessage;
+                IsError = true;
+                return;
+            }
+
+            await autosaveLock.WaitAsync(cancellationToken);
+            autosaveLock.Release();
+            SettingsDto settings = await saveSettings.ExecuteAsync(request, cancellationToken, SettingsDraftKey);
+            trackingEnabled = false;
+            Apply(settings);
+            trackingEnabled = true;
+            StatusMessage = "Ajustes guardados automáticamente.";
+            IsError = false;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            SetDataError("No fue posible autoguardar los Ajustes; los campos escritos se conservaron.", exception);
+        }
+    }
+
+    partial void OnWeeklyUsageFeeChanged(string value) => TrackSettingsChange();
+    partial void OnCollaboratorProfitPercentChanged(string value) => TrackSettingsChange();
+    partial void OnExportDirectoryChanged(string value) => TrackSettingsChange();
 
     partial void OnIsBusyChanged(bool value)
     {
         SaveCommand.NotifyCanExecuteChanged();
         CreateBackupCommand.NotifyCanExecuteChanged();
         RestoreBackupCommand.NotifyCanExecuteChanged();
-        ExportDataCommand.NotifyCanExecuteChanged();
+        ExportAllToExcelCommand.NotifyCanExecuteChanged();
+        OpenExcelFileCommand.NotifyCanExecuteChanged();
+        OpenExcelFolderCommand.NotifyCanExecuteChanged();
         CheckForUpdatesCommand.NotifyCanExecuteChanged();
         ApplyUpdateCommand.NotifyCanExecuteChanged();
     }
@@ -226,6 +384,190 @@ public sealed partial class SettingsViewModel(
     partial void OnRestorePathChanged(string value) => RestoreBackupCommand.NotifyCanExecuteChanged();
 
     partial void OnUpdateReadyChanged(bool value) => ApplyUpdateCommand.NotifyCanExecuteChanged();
+
+    private SettingsDraft CurrentDraft() => new(
+        WeeklyUsageFee,
+        CollaboratorProfitPercent,
+        ExportDirectory);
+
+    private void ApplyDraft(SettingsDraft draft)
+    {
+        WeeklyUsageFee = draft.WeeklyUsageFee;
+        CollaboratorProfitPercent = draft.CollaboratorProfitPercent;
+        ExportDirectory = draft.ExportDirectory;
+    }
+
+    private sealed record SettingsDraft(
+        string WeeklyUsageFee,
+        string CollaboratorProfitPercent,
+        string ExportDirectory);
+
+    [RelayCommand]
+    private async Task AddUnofficialExpenseAsync()
+    {
+        try
+        {
+            UnofficialExpense expense = UnofficialExpense.Create(
+                UnofficialExpenseName,
+                Money.FromDecimal(ParseUnofficialAmount()),
+                ParseUnofficialDate(),
+                UnofficialExpenseDescription,
+                timeProvider.GetUtcNow().UtcDateTime);
+            await administrationService.AddUnofficialExpenseAsync(expense);
+            ClearUnofficialExpenseForm();
+            await LoadUnofficialExpensesAsync();
+            StatusMessage = "Gasto extraoficial agregado correctamente.";
+            IsError = false;
+        }
+        catch (Exception exception)
+        {
+            SetDataError("No fue posible agregar el gasto extraoficial.", exception);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDeleteUnofficialExpense))]
+    private async Task DeleteUnofficialExpenseAsync()
+    {
+        if (SelectedUnofficialExpense?.Entity is not UnofficialExpense expense) return;
+        try
+        {
+            await administrationService.DeleteAsync(expense);
+            ClearUnofficialExpenseForm();
+            await LoadUnofficialExpensesAsync();
+            StatusMessage = "Gasto extraoficial eliminado del estado vigente; su historial se conservó.";
+            IsError = false;
+        }
+        catch (Exception exception)
+        {
+            SetDataError("No fue posible eliminar el gasto extraoficial.", exception);
+        }
+    }
+
+    private bool HasSelectedUnofficialExpense() => SelectedUnofficialExpense?.Entity is UnofficialExpense;
+
+    private bool CanDeleteUnofficialExpense() => HasSelectedUnofficialExpense() && ConfirmUnofficialExpenseDelete;
+
+    partial void OnSelectedUnofficialExpenseChanged(OperationRow? value)
+    {
+        DeleteUnofficialExpenseCommand.NotifyCanExecuteChanged();
+        EditUnofficialExpenseCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelectedUnofficialExpense))]
+    private void EditUnofficialExpense()
+    {
+        if (SelectedUnofficialExpense?.Entity is not UnofficialExpense expense) return;
+        loadingUnofficialExpense = true;
+        UnofficialExpenseName = expense.Name;
+        UnofficialExpenseAmount = expense.MonthlyAmount.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture);
+        UnofficialExpenseEffectiveFrom = expense.EffectiveFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        UnofficialExpenseDescription = expense.Description ?? string.Empty;
+        IsEditingUnofficialExpense = true;
+        loadingUnofficialExpense = false;
+    }
+
+    [RelayCommand]
+    private async Task SaveUnofficialExpenseEditAsync() => await PersistUnofficialExpenseEditAsync();
+
+    partial void OnConfirmUnofficialExpenseDeleteChanged(bool value) =>
+        DeleteUnofficialExpenseCommand.NotifyCanExecuteChanged();
+
+    private async Task LoadUnofficialExpensesAsync(CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await administrationService.LoadAsync(cancellationToken);
+        UnofficialExpenses.Clear();
+        foreach (UnofficialExpense item in data.UnofficialExpenses.OrderBy(item => item.EffectiveFrom).ThenBy(item => item.Name))
+        {
+            UnofficialExpenses.Add(new OperationRow(
+                item.EffectiveFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                item.Name,
+                item.Description ?? string.Empty,
+                string.Empty,
+                $"{ApplicationCurrency.Code} {item.MonthlyAmount.ToDecimal():N2}",
+                "Extraoficial",
+                item));
+        }
+
+        UnofficialExpenseActivity.Clear();
+        foreach (var item in data.ActivityRecords
+            .Where(item => item.Module == "Ajustes")
+            .OrderByDescending(item => item.OccurredUtc))
+        {
+            UnofficialExpenseActivity.Add(new OperationRow(
+                item.ActivityDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                item.Summary,
+                item.Description ?? string.Empty,
+                string.Empty,
+                string.Empty,
+                item.Action,
+                null));
+        }
+    }
+
+    private decimal ParseUnofficialAmount() => TryParseDecimal(UnofficialExpenseAmount, out decimal amount)
+        ? amount
+        : throw new ArgumentException("El valor mensual debe ser un número válido.");
+
+    private DateOnly ParseUnofficialDate() => DateOnly.TryParseExact(
+        UnofficialExpenseEffectiveFrom,
+        "yyyy-MM-dd",
+        CultureInfo.InvariantCulture,
+        DateTimeStyles.None,
+        out DateOnly date)
+        ? date
+        : throw new ArgumentException("La fecha debe usar el formato AAAA-MM-DD.");
+
+    private void ClearUnofficialExpenseForm()
+    {
+        loadingUnofficialExpense = true;
+        SelectedUnofficialExpense = null;
+        UnofficialExpenseName = string.Empty;
+        UnofficialExpenseAmount = string.Empty;
+        UnofficialExpenseEffectiveFrom = LocalTodayText();
+        UnofficialExpenseDescription = string.Empty;
+        ConfirmUnofficialExpenseDelete = false;
+        IsEditingUnofficialExpense = false;
+        loadingUnofficialExpense = false;
+    }
+
+    private async Task PersistUnofficialExpenseEditAsync(CancellationToken cancellationToken = default)
+    {
+        if (loadingUnofficialExpense || !IsEditingUnofficialExpense
+            || SelectedUnofficialExpense?.Entity is not UnofficialExpense expense)
+        {
+            return;
+        }
+
+        try
+        {
+            string name = UnofficialExpenseName.Trim();
+            if (string.IsNullOrWhiteSpace(name)
+                || !TryParseDecimal(UnofficialExpenseAmount, out decimal amount)
+                || amount < 0
+                || !DateOnly.TryParseExact(UnofficialExpenseEffectiveFrom, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly date))
+            {
+                StatusMessage = "Edición pendiente: completa valores válidos antes de guardar.";
+                IsError = false;
+                return;
+            }
+
+            expense.Update(name, Money.FromDecimal(amount), date, UnofficialExpenseDescription, timeProvider.GetUtcNow().UtcDateTime);
+            await administrationService.UpdateAsync(expense, cancellationToken);
+            Guid id = expense.Id;
+            await LoadUnofficialExpensesAsync(cancellationToken);
+            loadingUnofficialExpense = true;
+            SelectedUnofficialExpense = UnofficialExpenses.SingleOrDefault(item => item.Entity?.Id == id);
+            loadingUnofficialExpense = false;
+            IsEditingUnofficialExpense = false;
+            StatusMessage = "Gasto extraoficial actualizado correctamente.";
+            IsError = false;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            StatusMessage = exception.Message;
+            IsError = true;
+        }
+    }
 
     private async Task RunDataOperationAsync<T>(
         Func<CancellationToken, Task<T>> operation,
@@ -301,6 +643,18 @@ public sealed partial class SettingsViewModel(
         }
     }
 
+    private void OpenPath(string path, string errorMessage)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
+        }
+        catch (Exception exception)
+        {
+            SetDataError(errorMessage, exception);
+        }
+    }
+
     private bool TryCreateRequest(
         out SaveSettingsRequest request,
         out string validationMessage)
@@ -319,25 +673,21 @@ public sealed partial class SettingsViewModel(
             errors.Add("La ganancia de colaboradores debe ser un número válido.");
         }
 
-        bool budgetIsValid = TryParseDecimal(OptionalSuppliesMonthlyBudget, out decimal budget);
-        if (!budgetIsValid)
+        string exportPath = ExportDirectory.Trim();
+        if (string.IsNullOrWhiteSpace(exportPath))
         {
-            errors.Add("El presupuesto mensual debe ser un número válido.");
+            errors.Add("Selecciona una carpeta de exportación.");
         }
-
-        bool chairsAreValid = int.TryParse(
-            TotalChairs,
-            NumberStyles.None,
-            CultureInfo.CurrentCulture,
-            out int chairs);
-        if (!chairsAreValid)
+        else
         {
-            errors.Add("La cantidad total de sillas debe ser un número entero.");
-        }
-
-        if (string.IsNullOrWhiteSpace(CurrencyCode))
-        {
-            errors.Add("El código de moneda es obligatorio.");
+            try
+            {
+                exportPath = Path.GetFullPath(exportPath);
+            }
+            catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                errors.Add("La carpeta de exportación no es válida.");
+            }
         }
 
         if (errors.Count > 0)
@@ -347,7 +697,7 @@ public sealed partial class SettingsViewModel(
             return false;
         }
 
-        request = new SaveSettingsRequest(weeklyFee, profit, budget, chairs, CurrencyCode);
+        request = new SaveSettingsRequest(weeklyFee, profit, exportPath);
         validationMessage = string.Empty;
         return true;
     }
@@ -367,8 +717,17 @@ public sealed partial class SettingsViewModel(
     {
         WeeklyUsageFee = settings.WeeklyUsageFee.ToString("0.00", CultureInfo.CurrentCulture);
         CollaboratorProfitPercent = settings.CollaboratorProfitPercent.ToString("0.00", CultureInfo.CurrentCulture);
-        OptionalSuppliesMonthlyBudget = settings.OptionalSuppliesMonthlyBudget.ToString("0.00", CultureInfo.CurrentCulture);
-        TotalChairs = settings.TotalChairs.ToString(CultureInfo.CurrentCulture);
-        CurrencyCode = settings.CurrencyCode;
+        ExportDirectory = string.IsNullOrWhiteSpace(settings.ExportDirectory)
+            ? userDesktopPath.GetDesktopPath()
+            : settings.ExportDirectory;
     }
+
+    private string LocalTodayText() => DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime)
+        .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+}
+
+public sealed record FinancialSummaryRow(string Concept, string Amount)
+{
+    public static FinancialSummaryRow Create(string concept, string currencyCode, long minorUnits) =>
+        new(concept, $"{currencyCode} {minorUnits / 100m:N2}");
 }

@@ -1,0 +1,252 @@
+using System.Collections.ObjectModel;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using PeluqueriaAdmin.App.Views;
+
+namespace PeluqueriaAdmin.App.Tests;
+
+public sealed class ResponsiveLayoutTests
+{
+    [Fact]
+    public void Phase43Views_FitAt1366x768EquivalentFor100125And150Percent()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var app = new PeluqueriaAdmin.App.App();
+                app.InitializeComponent();
+                foreach ((double scale, double width, double height) in new[]
+                {
+                    (1.00, 1_136d, 768d),
+                    (1.25, 863d, 614d),
+                    (1.50, 681d, 512d),
+                })
+                {
+                    var administration = new AdministrationView
+                    {
+                        DataContext = new LayoutContext(),
+                    };
+                    AssertFits(administration, width, height, scale);
+
+                    var settings = new SettingsView
+                    {
+                        DataContext = new LayoutContext(),
+                    };
+                    AssertFits(settings, width, height, scale);
+
+                    var localUse = new LocalUseView { DataContext = new LayoutContext() };
+                    AssertFits(localUse, width, height, scale);
+                    foreach (int profileTab in new[] { 0, 1, 2 })
+                    {
+                        var localUseProfile = new LocalUseView
+                        {
+                            DataContext = new LayoutContext
+                            {
+                                IsWorkerProfileOpen = true,
+                                ProfileTabIndex = profileTab,
+                            },
+                        };
+                        AssertFits(localUseProfile, width, height, scale);
+                        AssertProfileKeepsHeaderAndHistoryVisible(localUseProfile, height, scale);
+                    }
+
+                    var collaborators = new CollaboratorsView { DataContext = new LayoutContext() };
+                    AssertFits(collaborators, width, height, scale);
+                    var collaboratorProfile = new CollaboratorsView
+                    {
+                        DataContext = new LayoutContext { IsProfileOpen = true },
+                    };
+                    AssertFits(collaboratorProfile, width, height, scale);
+
+                    var sales = new SalesView { DataContext = new LayoutContext() };
+                    AssertFits(sales, width, height, scale);
+
+                    foreach (int inventoryTab in new[] { 0, 1, 2, 3 })
+                    {
+                        var inventory = new InventoryView { DataContext = new LayoutContext() };
+                        var tabs = Assert.IsType<TabControl>(inventory.FindName("InventoryTabs"));
+                        tabs.SelectedIndex = inventoryTab;
+                        AssertFits(inventory, width, height, scale, inspectDescendants: true);
+                        AssertInventoryTabRemainsUsable(inventory, inventoryTab, scale);
+                    }
+
+                    var maintenance = new MaintenanceView { DataContext = new LayoutContext() };
+                    AssertFits(maintenance, width, height, scale);
+
+                    var manual = new ManualView();
+                    AssertFits(manual, width, height, scale);
+                }
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) throw new Xunit.Sdk.XunitException(failure.ToString());
+    }
+
+    private static void AssertFits(
+        FrameworkElement element,
+        double width,
+        double height,
+        double scale,
+        bool inspectDescendants = false)
+    {
+        element.Measure(new Size(width, height));
+        element.Arrange(new Rect(0, 0, width, height));
+        element.UpdateLayout();
+        Assert.True(element.ActualWidth <= width + 0.5, $"Ancho excedido a {scale:P0}.");
+        Assert.True(element.ActualHeight <= height + 0.5, $"Alto excedido a {scale:P0}.");
+        if (inspectDescendants)
+        {
+            AssertNoInvalidBounds(element, element, scale);
+        }
+    }
+
+    private static void AssertNoInvalidBounds(Visual root, DependencyObject current, double scale)
+    {
+        int children = VisualTreeHelper.GetChildrenCount(current);
+        for (int index = 0; index < children; index++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(current, index);
+            if (child is FrameworkElement framework && framework.Visibility == Visibility.Visible)
+            {
+                Rect bounds = framework.TransformToAncestor(root).TransformBounds(
+                    new Rect(0, 0, framework.ActualWidth, framework.ActualHeight));
+                Assert.False(double.IsNaN(bounds.Width) || double.IsInfinity(bounds.Width), $"Control inválido a {scale:P0}.");
+                Assert.True(bounds.Width >= 0 && bounds.Height >= 0, $"Control con tamaño negativo a {scale:P0}.");
+                if (!IsInsideScrollableContent(framework, root) && framework.ActualWidth > 0 && framework.ActualHeight > 2)
+                {
+                    Assert.True(
+                        bounds.Right >= -0.5 && bounds.Bottom >= -0.5
+                        && bounds.Left <= ((FrameworkElement)root).ActualWidth + 0.5
+                        && bounds.Top <= ((FrameworkElement)root).ActualHeight + 0.5,
+                        $"Control completamente fuera del área visible a {scale:P0} en "
+                        + $"{root.GetType().Name}: {framework.GetType().Name} '{framework.Name}', "
+                        + $"límites {bounds}; ancestros {AncestorPath(framework, root)}.");
+                }
+            }
+            AssertNoInvalidBounds(root, child, scale);
+        }
+    }
+
+    private static bool IsInsideScrollableContent(DependencyObject element, Visual root)
+    {
+        DependencyObject? current = VisualTreeHelper.GetParent(element);
+        while (current is not null && current != root)
+        {
+            if (current is ScrollViewer) return true;
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return false;
+    }
+
+    private static string AncestorPath(DependencyObject element, Visual root)
+    {
+        var parts = new List<string>();
+        DependencyObject? current = element;
+        while (current is not null && current != root)
+        {
+            string name = current is FrameworkElement framework && !string.IsNullOrWhiteSpace(framework.Name)
+                ? $"#{framework.Name}"
+                : string.Empty;
+            parts.Add($"{current.GetType().Name}{name}");
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return string.Join(" <- ", parts);
+    }
+
+    private static void AssertInventoryTabRemainsUsable(
+        InventoryView inventory,
+        int selectedTab,
+        double scale)
+    {
+        if (selectedTab == 2)
+        {
+            var scroll = Assert.IsType<ScrollViewer>(inventory.FindName("PurchaseEntryScroll"));
+            Assert.True(scroll.ActualWidth > 120 && scroll.ActualHeight > 80,
+                $"Registrar compra quedó sin área desplazable a {scale:P0}.");
+        }
+        else if (selectedTab == 3)
+        {
+            var grid = Assert.IsType<DataGrid>(inventory.FindName("MonthlyPurchaseGrid"));
+            Assert.True(grid.ActualWidth > 120 && grid.ActualHeight > 60,
+                $"La lista mensual quedó sin área de tabla a {scale:P0}.");
+        }
+    }
+
+    private static void AssertProfileKeepsHeaderAndHistoryVisible(
+        FrameworkElement profile,
+        double availableHeight,
+        double scale)
+    {
+        var header = Assert.IsType<StackPanel>(profile.FindName("WorkerProfileHeader"));
+        var historyBand = Assert.IsType<Border>(profile.FindName("WorkerHistoryBand"));
+        var history = Assert.IsType<DataGrid>(profile.FindName("WorkerHistoryGrid"));
+        Assert.True(header.ActualHeight > 0, $"La cabecera desapareció a {scale:P0}.");
+        Assert.True(historyBand.ActualHeight >= 32, $"La banda del historial se recortó a {scale:P0}.");
+        Assert.True(history.ActualHeight >= 80,
+            $"El historial quedó sin área desplazable a {scale:P0}; cabecera {header.ActualHeight:N0} de {availableHeight:N0}.");
+    }
+
+    private sealed class LayoutContext
+    {
+        public string Title => "Mantenimiento";
+        public string Description => "Descripción de validación visual en una escala aumentada.";
+        public ObservableCollection<object> Rows { get; } = [];
+        public ObservableCollection<string> ActionOptions { get; } = ["Agregar mantenimiento"];
+        public ObservableCollection<string> PrimaryOptions { get; } = [];
+        public ObservableCollection<string> SecondaryOptions { get; } = [];
+        public ObservableCollection<string> ExtraOptions { get; } = [];
+        public string SelectedAction { get; set; } = "Agregar mantenimiento";
+        public object? SelectedRow { get; set; }
+        public string PrimaryLabel => "Equipo o bien";
+        public string SecondaryLabel => "Tipo de mantenimiento";
+        public string ExtraLabel => "Unidad de medida";
+        public string DateLabel => "Fecha programada";
+        public string EndDateLabel => "Fecha realizada (opcional)";
+        public string AmountLabel => "Costo estimado (opcional)";
+        public string SecondaryAmountLabel => "Costo real (opcional)";
+        public string QuantityLabel => "Cantidad";
+        public bool ShowPrimary => true;
+        public bool ShowSecondary => true;
+        public bool ShowExtra => true;
+        public bool ShowDate => true;
+        public bool ShowEndDate => true;
+        public bool ShowAmount => true;
+        public bool ShowSecondaryAmount => true;
+        public bool ShowQuantity => true;
+        public bool ShowCommitAction => true;
+        public bool ShowActionSelector => true;
+        public bool ShowRecordActions => true;
+        public bool HasRecoveredDraft => true;
+        public bool HasStatusMessage => true;
+        public bool IsError => false;
+        public bool ConfirmDelete { get; set; }
+        public bool UpdateReady => false;
+        public string StatusMessage => "Borrador recuperado para validar texto largo.";
+        public DateTime? FormDate { get; set; } = DateTime.Today;
+        public DateTime? FormEndDate { get; set; }
+        public string PrimaryText { get; set; } = string.Empty;
+        public string SecondaryText { get; set; } = string.Empty;
+        public string ExtraText { get; set; } = string.Empty;
+        public string AmountText { get; set; } = string.Empty;
+        public string SecondaryAmountText { get; set; } = string.Empty;
+        public string QuantityText { get; set; } = string.Empty;
+        public string WeeklyUsageFee { get; set; } = "12000,00";
+        public string CollaboratorProfitPercent { get; set; } = "20,00";
+        public string OptionalSuppliesMonthlyBudget { get; set; } = "100000,00";
+        public string TotalChairs { get; set; } = "10";
+        public string CurrencyCode { get; set; } = "COP";
+        public string RestorePath { get; set; } = string.Empty;
+        public bool IsWorkerProfileOpen { get; set; }
+        public int ProfileTabIndex { get; set; } = 1;
+        public bool IsProfileOpen { get; set; }
+    }
+}

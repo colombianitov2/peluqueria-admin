@@ -1,14 +1,11 @@
 namespace PeluqueriaAdmin.Domain.Reports;
 
 public sealed record MonthlySummaryInput(
-    long LocalUseIncomeMinorUnits,
+    long LocalUseEarnedIncomeMinorUnits,
     long GrossSalesMinorUnits,
     long OtherIncomeMinorUnits,
-    long ObligationGoalMinorUnits,
-    long MerchandisePurchasesMinorUnits,
-    long MandatoryExpensesMinorUnits,
-    long OptionalSuppliesActualMinorUnits,
-    long OptionalSuppliesBudgetMinorUnits,
+    long InventoryPurchasesMinorUnits,
+    long RegisteredExpensesMinorUnits,
     long UnexpectedExpensesMinorUnits,
-    long MaintenanceGoalMinorUnits,
-    long PendingApprovedPlansMinorUnits);
+    long ObligationPaymentsMinorUnits,
+    long CompletedMaintenanceMinorUnits);

@@ -1,4 +1,5 @@
 using PeluqueriaAdmin.Domain.Common;
+using PeluqueriaAdmin.Domain.Settings;
 
 namespace PeluqueriaAdmin.Domain.Collaborators;
 
@@ -13,12 +14,14 @@ public sealed class Collaborator : AuditableEntity
         string name,
         DateOnly startDate,
         DateOnly? exitDate,
-        DateTime utcNow) : base(id, utcNow)
+        DateTime utcNow,
+        string? description = null) : base(id, utcNow)
     {
         Name = NormalizeRequiredText(name, nameof(name));
         StartDate = startDate;
         ValidateExit(startDate, exitDate);
         ExitDate = exitDate;
+        Description = NormalizeOptionalText(description);
     }
 
     public string Name { get; private set; } = string.Empty;
@@ -27,21 +30,46 @@ public sealed class Collaborator : AuditableEntity
 
     public DateOnly? ExitDate { get; private set; }
 
+    public string? Description { get; private set; }
+
+    public int ProfitShareBasisPoints { get; private set; }
+
+    public int FundParticipationBasisPoints { get; private set; }
+
     public static Collaborator Create(
         string name,
         DateOnly startDate,
         DateOnly? exitDate,
-        DateTime utcNow) => new(Guid.NewGuid(), name, startDate, exitDate, utcNow);
+        DateTime utcNow,
+        string? description = null) => new(Guid.NewGuid(), name, startDate, exitDate, utcNow, description);
 
     public bool IsCurrentOn(DateOnly date) =>
-        !IsDeleted && StartDate <= date && (!ExitDate.HasValue || ExitDate.Value >= date);
+        !IsDeleted && StartDate <= date && (!ExitDate.HasValue || date < ExitDate.Value);
 
-    public void Update(string name, DateOnly startDate, DateOnly? exitDate, DateTime utcNow)
+    public void Update(
+        string name,
+        DateOnly startDate,
+        DateOnly? exitDate,
+        DateTime utcNow,
+        string? description = null)
     {
         ValidateExit(startDate, exitDate);
         Name = NormalizeRequiredText(name, nameof(name));
         StartDate = startDate;
         ExitDate = exitDate;
+        Description = NormalizeOptionalText(description);
+        MarkUpdated(utcNow);
+    }
+
+    public void UpdateProfitShare(Percentage share, DateTime utcNow)
+    {
+        ProfitShareBasisPoints = share.BasisPoints;
+        MarkUpdated(utcNow);
+    }
+
+    public void UpdateFundParticipation(Percentage participation, DateTime utcNow)
+    {
+        FundParticipationBasisPoints = participation.BasisPoints;
         MarkUpdated(utcNow);
     }
 

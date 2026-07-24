@@ -17,7 +17,8 @@ public sealed class Obligation : AuditableEntity
         DateOnly dueDate,
         Money expectedAmount,
         RecurrenceFrequency recurrence,
-        DateTime utcNow) : base(id, utcNow)
+        DateTime utcNow,
+        string? description = null) : base(id, utcNow)
     {
         SeriesId = seriesId;
         Name = NormalizeRequiredText(name, nameof(name));
@@ -27,6 +28,7 @@ public sealed class Obligation : AuditableEntity
             ? expectedAmount
             : throw new ArgumentOutOfRangeException(nameof(expectedAmount), "El importe esperado debe ser mayor que cero.");
         Recurrence = recurrence;
+        Description = NormalizeOptionalText(description);
     }
 
     public Guid SeriesId { get; private set; }
@@ -41,14 +43,19 @@ public sealed class Obligation : AuditableEntity
 
     public RecurrenceFrequency Recurrence { get; private set; }
 
+    public string? Description { get; private set; }
+
+    public bool IsSettled { get; private set; }
+
     public static Obligation Create(
         string name,
         ObligationType type,
         DateOnly dueDate,
         Money expectedAmount,
         RecurrenceFrequency recurrence,
-        DateTime utcNow) => new(
-            Guid.NewGuid(), Guid.NewGuid(), name, type, dueDate, expectedAmount, recurrence, utcNow);
+        DateTime utcNow,
+        string? description = null) => new(
+            Guid.NewGuid(), Guid.NewGuid(), name, type, dueDate, expectedAmount, recurrence, utcNow, description);
 
     public void Update(
         string name,
@@ -56,7 +63,8 @@ public sealed class Obligation : AuditableEntity
         DateOnly dueDate,
         Money expectedAmount,
         RecurrenceFrequency recurrence,
-        DateTime utcNow)
+        DateTime utcNow,
+        string? description = null)
     {
         if (expectedAmount.MinorUnits == 0)
         {
@@ -68,6 +76,7 @@ public sealed class Obligation : AuditableEntity
         DueDate = dueDate;
         ExpectedAmount = expectedAmount;
         Recurrence = recurrence;
+        Description = NormalizeOptionalText(description);
         MarkUpdated(utcNow);
     }
 
@@ -80,20 +89,34 @@ public sealed class Obligation : AuditableEntity
             dueDate,
             template.ExpectedAmount,
             template.Recurrence,
-            utcNow);
+            utcNow,
+            template.Description);
+
+    public void MarkSettled(DateTime utcNow)
+    {
+        IsSettled = true;
+        MarkUpdated(utcNow);
+    }
 
     public Money GoalAmount(IEnumerable<ObligationPayment> payments)
     {
         long paid = TotalPaidMinorUnits(payments);
-        return paid >= ExpectedAmount.MinorUnits
+        return IsSettled || paid >= ExpectedAmount.MinorUnits
             ? Money.FromMinorUnits(paid)
             : ExpectedAmount;
+    }
+
+    public Money OutstandingAmount(IEnumerable<ObligationPayment> payments)
+    {
+        long paid = TotalPaidMinorUnits(payments);
+        return Money.FromMinorUnits(
+            IsSettled ? 0 : Math.Max(0, ExpectedAmount.MinorUnits - paid));
     }
 
     public ObligationStatus Status(IEnumerable<ObligationPayment> payments, DateOnly today)
     {
         long paid = TotalPaidMinorUnits(payments);
-        if (paid >= ExpectedAmount.MinorUnits)
+        if (IsSettled || paid >= ExpectedAmount.MinorUnits)
         {
             return ObligationStatus.Paid;
         }

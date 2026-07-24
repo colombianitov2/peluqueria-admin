@@ -55,3 +55,36 @@ La distribución de residuos de centavos será determinista por identificador es
 - Compatibilidad comprobada en equipos Windows 10 reales; por ahora solo se declara como objetivo.
 - Certificado y proveedor de firma para una versión estable futura.
 - Verificación de actualización entre dos Releases reales; no puede probarse sin publicar deliberadamente dos versiones.
+- Incorporación del logotipo de la empresa y uso de esa actualización posterior para comprobar conservación de instalación y datos. No pertenece a Fase 4.10 y no autoriza publicar `alpha.2`.
+
+## Decisiones resueltas en la Fase 4.7 (22 de julio de 2026)
+
+- **Resumen real:** solo usa cuotas devengadas y cubiertas, ventas, otros ingresos, compras reales, gastos, imprevistos, pagos de obligaciones y mantenimientos realizados.
+- **Fondo de colaboradores:** el porcentaje global crea el fondo; cada porcentaje individual representa una parte interna de máximo 100 % del fondo.
+- **Histórico:** los meses terminados con movimientos se preservan automáticamente una sola vez, sin controles técnicos visibles.
+- **Inventario:** `MonthlyRestockPlans` queda solo como compatibilidad histórica y no aparece ni afecta cálculos o Excel.
+- **Inicio:** conserva únicamente la campana de mantenimiento; las obligaciones siguen en el bloque normal.
+- **Notas:** bloc único persistente en SQLite, incluido en copias, restauración y Excel.
+- **Formularios:** no existe una acción visible de limpieza; el éxito limpia los campos correspondientes y el error conserva la entrada.
+
+## Decisiones resueltas en la Fase 4.8 (22 de julio de 2026)
+
+- **Resultado repartible:** usa cobros operativos, egresos no provisionados, reservas, ajustes, cuotas de préstamos y compromisos anteriores; cuentas por cobrar y financiación quedan separadas.
+- **Pérdidas:** el fondo y cada pago de colaborador son cero; ningún colaborador queda debiendo dinero.
+- **Cierre mensual:** es manual y visible solo en Resumen mensual; congela cifras, reservas, exclusiones y porcentajes.
+- **Pago a colaboradores:** se paga completo contra la asignación congelada; no admite importe arbitrario parcial.
+- **Uso del local:** se elimina el retiro redundante visible; la eliminación lógica libera silla y conserva historia.
+- **Inventario:** la Lista mensual de compra es una entidad nueva y no reutiliza planes de reposición.
+- **Préstamos:** se administran dentro de Obligaciones y el desembolso se clasifica como financiación.
+- **Balance anual:** muestra enero a diciembre y solo puede cerrarse con doce cierres mensuales.
+
+## Decisiones resueltas en la Fase 4.10 (23 de julio de 2026)
+
+- **Compra mensual:** toda fila vigente y no comprada representa un compromiso conocido para su mes. Los indicadores heredados de activación y reserva dejan de gobernar interfaz y cálculos.
+- **Registro de compra:** Agregar al inventario no ofrece tipos de operación; busca una fila mensual pendiente y registra una compra con fecha, cantidad real, precio de venta cuando corresponda y descripción.
+- **Separación de importes:** el costo de caja es el costo esperado unitario de la fila por la cantidad real. El precio de venta se guarda en el producto y no se interpreta como costo.
+- **Obligaciones:** se añaden el tipo Crédito y la recurrencia Semanal. Una ocurrencia confirmada usa su pago real y queda con saldo cero.
+- **Consistencia:** Inicio, punto de equilibrio, cierres, precio sugerido, reportes y Excel utilizan la misma política de compromisos.
+- **Manual:** se incorpora debajo de Notas como ayuda estática y detallada, sin persistencia ni movimientos.
+- **Datos completos:** Excel incluye las entidades vigentes y la compatibilidad heredada todavía presente, claramente separada de las operaciones actuales.
+- **Publicación posterior:** logotipo y validación real del actualizador se reservan para otro cambio. No se modifica el actualizador ni se publica `alpha.2` en esta fase.

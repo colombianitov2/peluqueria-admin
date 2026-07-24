@@ -9,32 +9,65 @@
              d:DesignWidth="960"
              Language="es-ES"
              mc:Ignorable="d">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Grid Margin="32">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="20" />
             <RowDefinition Height="*" />
             <RowDefinition Height="16" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="16" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="16" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="16" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0">
+        <Grid Grid.Row="0">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <StackPanel>
             <TextBlock FontSize="14"
                        FontWeight="SemiBold"
                        Text="Fecha actual" />
             <TextBlock Margin="0,4,0,0"
                        FontSize="20"
                        Text="{Binding FechaActual}" />
-        </StackPanel>
+          </StackPanel>
+          <Grid Grid.Column="1">
+              <ToggleButton x:Name="MaintenanceBell" Width="46" Height="42" ToolTip="Mantenimientos para hoy o vencidos" AutomationProperties.Name="Notificaciones de mantenimiento" IsChecked="{Binding IsMaintenanceNotificationsOpen}">
+                <Grid><Path Width="20" Height="22" Stretch="Uniform" Stroke="#334155" StrokeThickness="1.8" Data="M 4,16 L 16,16 L 14.5,13 L 14.5,8 A 4.5,4.5 0 0 0 5.5,8 L 5.5,13 Z M 8,18 A 2,2 0 0 0 12,18" /></Grid>
+              </ToggleButton>
+              <Border Margin="30,-5,-5,0" Padding="5,1" HorizontalAlignment="Right" VerticalAlignment="Top" Background="#DC2626" CornerRadius="9"><TextBlock Foreground="White" FontSize="11" Text="{Binding MaintenanceNotificationCount}" /></Border>
+              <Popup PlacementTarget="{Binding ElementName=MaintenanceBell}" Placement="Bottom" StaysOpen="False" IsOpen="{Binding IsMaintenanceNotificationsOpen}">
+                <Border Width="660" MaxHeight="360" Padding="12" Background="White" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6">
+                  <StackPanel><TextBlock Margin="0,0,0,8" FontWeight="SemiBold" Text="Mantenimientos pendientes" /><DataGrid MaxHeight="255" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding MaintenanceNotifications}"><DataGrid.Columns><DataGridTextColumn Width="220" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Asset}" Header="Equipo" /><DataGridTextColumn Width="220" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Type}" Header="Tipo" /><DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="90" Binding="{Binding Status}" Header="Estado" /></DataGrid.Columns></DataGrid><Button Margin="0,8,0,0" Padding="10,5" HorizontalAlignment="Right" Command="{Binding GoToMaintenanceCommand}" Content="Ir a Mantenimiento" /></StackPanel>
+                </Border>
+              </Popup>
+          </Grid>
+        </Grid>
 
         <GroupBox Grid.Row="2"
                   Padding="16"
-                  Header="Servicios e impuestos pendientes">
-            <TextBlock VerticalAlignment="Center"
-                       Text="{Binding EstadoServiciosEImpuestos}"
-                       TextWrapping="Wrap" />
+                  Header="Pagos pendientes">
+            <Grid>
+              <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+              <TextBlock Margin="0,0,0,8" VerticalAlignment="Center"
+                         Text="{Binding EstadoServiciosEImpuestos}"
+                         TextWrapping="Wrap" />
+              <DataGrid Grid.Row="1" MaxHeight="230" AutoGenerateColumns="False" CanUserAddRows="False"
+                        IsReadOnly="True" ItemsSource="{Binding PendingPayments}">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Width="105" Binding="{Binding DueDate}" Header="Fecha" />
+                  <DataGridTextColumn Width="190" Binding="{Binding Name}" Header="Nombre" />
+                  <DataGridTextColumn Width="145" Binding="{Binding Type}" Header="Tipo" />
+                  <DataGridTextColumn Width="125" Binding="{Binding Amount}" Header="Valor" />
+                  <DataGridTextColumn Width="260" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Description}" Header="Descripción" />
+                  <DataGridTextColumn Width="100" Binding="{Binding Status}" Header="Estado" />
+                </DataGrid.Columns>
+              </DataGrid>
+            </Grid>
         </GroupBox>
 
         <GroupBox Grid.Row="4"
@@ -52,5 +85,23 @@
                        Text="{Binding EstadoPuntoDeEquilibrio}"
                        TextWrapping="Wrap" />
         </GroupBox>
+
+        <GroupBox Grid.Row="8"
+                  Padding="16"
+                  Header="Precio sugerido por silla para equilibrio mensual">
+            <TextBlock Text="{Binding PrecioSugeridoPorSilla}"
+                       TextWrapping="Wrap" />
+        </GroupBox>
+        <GroupBox Grid.Row="10" Padding="12" Header="Movimientos del día">
+          <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <WrapPanel Margin="0,0,0,8" HorizontalAlignment="Right"><DatePicker Width="155" Margin="0,0,8,0" SelectedDate="{Binding MovementQueryDate}" /><Button Padding="12,6" Command="{Binding ConsultDailyMovementsCommand}" Content="Consultar" /></WrapPanel>
+            <StackPanel Grid.Row="1">
+              <TextBlock Margin="0,0,0,6" Foreground="#5B6575" Text="{Binding DailyMovementsStatus}" />
+              <DataGrid MinHeight="180" MaxHeight="320" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding DailyMovements}"><DataGrid.Columns><DataGridTextColumn Width="80" Header="Hora" Binding="{Binding Time}" /><DataGridTextColumn Width="140" Header="Módulo" Binding="{Binding Module}" /><DataGridTextColumn Width="130" Header="Operación" Binding="{Binding Operation}" /><DataGridTextColumn Width="190" Header="Entidad" Binding="{Binding Entity}" /><DataGridTextColumn Width="300" Header="Detalle" Binding="{Binding Detail}" /><DataGridTextColumn Width="120" Header="Valor" Binding="{Binding Amount}" /><DataGridTextColumn Width="100" Header="Estado" Binding="{Binding State}" /></DataGrid.Columns></DataGrid>
+            </StackPanel>
+          </Grid>
+        </GroupBox>
     </Grid>
+    </ScrollViewer>
 </UserControl>

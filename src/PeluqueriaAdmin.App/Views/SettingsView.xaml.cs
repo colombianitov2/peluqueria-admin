@@ -26,4 +26,18 @@ public partial class SettingsView : UserControl
             viewModel.RestorePath = dialog.FileName;
         }
     }
+
+    private void SelectExportFolder_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Seleccionar carpeta de exportación",
+            Multiselect = false,
+        };
+
+        if (dialog.ShowDialog() == true && DataContext is SettingsViewModel viewModel)
+        {
+            viewModel.ExportDirectory = dialog.FolderName;
+        }
+    }
 }

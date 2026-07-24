@@ -12,6 +12,7 @@ namespace PeluqueriaAdmin.Application.Administration;
 public sealed record MonthlyExpenseBreakdown(
     long ServicesMinorUnits,
     long TaxesMinorUnits,
+    long CreditsMinorUnits,
     long OtherObligationsMinorUnits,
     long MerchandiseMinorUnits,
     long MandatorySuppliesMinorUnits,
@@ -23,7 +24,7 @@ public sealed record MonthlyExpenseBreakdown(
     long HistoricalAdjustmentMinorUnits)
 {
     public long TotalMinorUnits => checked(
-        ServicesMinorUnits + TaxesMinorUnits + OtherObligationsMinorUnits
+        ServicesMinorUnits + TaxesMinorUnits + CreditsMinorUnits + OtherObligationsMinorUnits
         + MerchandiseMinorUnits + MandatorySuppliesMinorUnits + OptionalSuppliesMinorUnits
         + MaintenanceMinorUnits + UnexpectedMinorUnits + OtherExpensesMinorUnits
         + PendingPlansMinorUnits + HistoricalAdjustmentMinorUnits);
@@ -34,11 +35,12 @@ public sealed record AnnualAdministrationReport(
     MonthlyExpenseBreakdown Expenses,
     string Indicator);
 
+public sealed record LocalUseEarning(DateOnly Date, DateTime OccurredUtc, long MinorUnits);
+
 public static class AdministrationReports
 {
     public static MonthlySummaryResult MonthlySummary(
         AdministrationData data,
-        Money optionalSuppliesBudget,
         Percentage collaboratorPercentage,
         YearMonth month)
     {
@@ -47,63 +49,48 @@ public static class AdministrationReports
             .OrderByDescending(item => item.ClosedUtc)
             .FirstOrDefault();
         return confirmed?.ToSummary() ?? MonthlySummaryCalculator.Calculate(
-            BuildMonthlyInput(data, optionalSuppliesBudget, month),
+            BuildMonthlyInput(data, month),
             collaboratorPercentage);
     }
 
     public static MonthlySummaryInput BuildMonthlyInput(
         AdministrationData data,
-        Money optionalSuppliesBudget,
         YearMonth month)
     {
         bool InMonth(DateOnly date) => YearMonth.From(date) == month;
         InventoryMovement[] purchases = data.InventoryMovements
             .Where(item => item.Type == InventoryMovementType.Purchase && InMonth(item.Date))
             .ToArray();
-        long PurchaseFor(ProductCategory category) => purchases
-            .Where(item => data.Products.Any(product => product.Id == item.ProductId && product.Category == category))
-            .Sum(item => item.CashAmount?.MinorUnits ?? 0);
-        long planCost = CalculatePlanCost(data, month);
-
         return new MonthlySummaryInput(
             data.LocalUsePayments.Where(item => InMonth(item.PaymentDate)).Sum(item => item.Amount.MinorUnits),
             data.InventoryMovements.Where(item => item.Type == InventoryMovementType.Sale && InMonth(item.Date))
                 .Sum(item => item.CashAmount?.MinorUnits ?? 0),
             data.FinancialEntries.Where(item => item.Type == FinancialEntryType.OtherIncome && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits),
-            data.Obligations.Where(item => InMonth(item.DueDate))
-                .Sum(item => item.GoalAmount(data.ObligationPayments).MinorUnits),
-            PurchaseFor(ProductCategory.ProductForSale),
-            data.FinancialEntries.Where(item => item.Type == FinancialEntryType.Expense
-                    && item.Category != ExpenseCategory.OptionalSupply && InMonth(item.Date))
-                .Sum(item => item.Amount.MinorUnits)
-                + PurchaseFor(ProductCategory.MandatorySupply)
-                + PurchaseFor(ProductCategory.DurableEquipment),
-            data.FinancialEntries.Where(item => item.Type == FinancialEntryType.Expense
-                    && item.Category == ExpenseCategory.OptionalSupply && InMonth(item.Date))
-                .Sum(item => item.Amount.MinorUnits)
-                + PurchaseFor(ProductCategory.OptionalCustomerSupply),
-            optionalSuppliesBudget.MinorUnits,
+            purchases.Sum(item => item.CashAmount?.MinorUnits ?? 0),
+            data.FinancialEntries.Where(item => item.Type == FinancialEntryType.Expense && InMonth(item.Date))
+                .Sum(item => item.Amount.MinorUnits),
             data.FinancialEntries.Where(item => item.Type == FinancialEntryType.UnexpectedExpense && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits),
-            data.MaintenanceRecords.Sum(item => item.GoalAmountFor(month).MinorUnits),
-            planCost);
+            data.ObligationPayments.Where(item => InMonth(item.Date)).Sum(item => item.Amount.MinorUnits),
+            data.MaintenanceRecords.Where(item => item.CompletedDate.HasValue && InMonth(item.CompletedDate.Value))
+                .Sum(item => item.ActualCost?.MinorUnits ?? 0));
     }
 
     public static AnnualAdministrationReport Annual(
         AdministrationData data,
-        Money optionalSuppliesBudget,
         Percentage collaboratorPercentage,
         int year)
     {
-        var totalExpenses = new MonthlyExpenseBreakdown(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        var totalExpenses = new MonthlyExpenseBreakdown(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         var summaries = new List<MonthlySummaryResult>();
         foreach (int monthNumber in Enumerable.Range(1, 12))
         {
             var month = new YearMonth(year, monthNumber);
-            MonthlySummaryResult summary = MonthlySummary(data, optionalSuppliesBudget, collaboratorPercentage, month);
-            MonthlyExpenseBreakdown dynamicBreakdown = ExpenseBreakdown(data, optionalSuppliesBudget, month);
-            long adjustment = summary.GoalMinorUnits - dynamicBreakdown.TotalMinorUnits;
+            MonthlySummaryResult summary = MonthlySummary(data, collaboratorPercentage, month);
+            MonthlyExpenseBreakdown dynamicBreakdown = MonthlyExpenses(data, month);
+            long target = CanonicalExpenseTarget(data, collaboratorPercentage, month);
+            long adjustment = target - dynamicBreakdown.TotalMinorUnits;
             totalExpenses = Add(totalExpenses, dynamicBreakdown with { HistoricalAdjustmentMinorUnits = adjustment });
             summaries.Add(summary);
         }
@@ -119,11 +106,8 @@ public static class AdministrationReports
         long distributions = data.DistributionPayments
             .Where(item => item.Date.Year == year && validParticipantIds.Contains(item.ParticipantId))
             .Sum(item => item.Amount.MinorUnits);
-        long pending = data.Obligations.Where(item => item.DueDate.Year == year).Sum(item => Math.Max(
-            0,
-            item.ExpectedAmount.MinorUnits - data.ObligationPayments
-                .Where(payment => payment.ObligationId == item.Id)
-                .Sum(payment => payment.Amount.MinorUnits)));
+        long pending = data.Obligations.Where(item => item.DueDate.Year == year)
+            .Sum(item => item.OutstandingAmount(data.ObligationPayments).MinorUnits);
         AnnualBalanceResult balance = AnnualBalanceCalculator.Calculate(summaries, distributions, pending);
         return new AnnualAdministrationReport(
             balance,
@@ -131,55 +115,121 @@ public static class AdministrationReports
             balance.RetainedMinorUnits >= 0 ? "Positivo" : "Negativo");
     }
 
-    private static MonthlyExpenseBreakdown ExpenseBreakdown(
+    public static MonthlyExpenseBreakdown MonthlyExpenses(
         AdministrationData data,
-        Money optionalSuppliesBudget,
         YearMonth month)
     {
         bool InMonth(DateOnly date) => YearMonth.From(date) == month;
-        long Obligations(ObligationType type) => data.Obligations
-            .Where(item => item.Type == type && InMonth(item.DueDate))
-            .Sum(item => item.GoalAmount(data.ObligationPayments).MinorUnits);
-        long Purchases(ProductCategory category) => data.InventoryMovements
+        long Obligations(ObligationType type) => data.ObligationPayments
+            .Where(payment => InMonth(payment.Date)
+                && data.Obligations.Any(item => item.Id == payment.ObligationId && item.Type == type))
+            .Sum(item => item.Amount.MinorUnits);
+        long Purchases(params ProductCategory[] categories) => data.InventoryMovements
             .Where(item => item.Type == InventoryMovementType.Purchase && InMonth(item.Date)
-                && data.Products.Any(product => product.Id == item.ProductId && product.Category == category))
+                && data.Products.Any(product => product.Id == item.ProductId
+                    && categories.Contains(product.Category)))
             .Sum(item => item.CashAmount?.MinorUnits ?? 0);
         long Expenses(ExpenseCategory category) => data.FinancialEntries
             .Where(item => item.Type == FinancialEntryType.Expense && item.Category == category && InMonth(item.Date))
             .Sum(item => item.Amount.MinorUnits);
-        long optionalActual = Purchases(ProductCategory.OptionalCustomerSupply) + Expenses(ExpenseCategory.OptionalSupply);
+        long optionalActual = Purchases(ProductCategory.CustomerCourtesy) + Expenses(ExpenseCategory.OptionalSupply);
+        long pendingPlans = data.MonthlyPurchaseItems
+            .Where(item => item.Month == month
+                && MonthlyPurchaseCommitmentPolicy.IsPending(item, data, month.LastDay))
+            .Sum(item => item.ExpectedTotalMinorUnits);
 
         return new MonthlyExpenseBreakdown(
             Obligations(ObligationType.Service),
             Obligations(ObligationType.Tax),
+            Obligations(ObligationType.Credit),
             Obligations(ObligationType.OtherRecurring),
-            Purchases(ProductCategory.ProductForSale) + Expenses(ExpenseCategory.MerchandisePurchase),
-            Purchases(ProductCategory.MandatorySupply) + Expenses(ExpenseCategory.MandatorySupply),
-            Math.Max(optionalSuppliesBudget.MinorUnits, optionalActual),
-            data.MaintenanceRecords.Sum(item => item.GoalAmountFor(month).MinorUnits),
+            Purchases(ProductCategory.FoodOrDrinkForSale, ProductCategory.OtherProductForSale)
+                + Expenses(ExpenseCategory.MerchandisePurchase),
+            Purchases(ProductCategory.Cleaning, ProductCategory.LocalSupply)
+                + Expenses(ExpenseCategory.MandatorySupply),
+            optionalActual,
+            data.MaintenanceRecords.Where(item => item.CompletedDate.HasValue && InMonth(item.CompletedDate.Value))
+                .Sum(item => item.ActualCost?.MinorUnits ?? 0),
             data.FinancialEntries.Where(item => item.Type == FinancialEntryType.UnexpectedExpense && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits),
-            Expenses(ExpenseCategory.Other) + Purchases(ProductCategory.DurableEquipment),
-            CalculatePlanCost(data, month),
+            Expenses(ExpenseCategory.Other) + Purchases(ProductCategory.OtherLocalProduct),
+            pendingPlans,
             0);
     }
 
-    private static long CalculatePlanCost(AdministrationData data, YearMonth month) =>
-        data.RestockPlans.Where(item => item.Month == month).Sum(plan =>
+    public static IReadOnlyList<LocalUseEarning> EarnedLocalUseIncome(AdministrationData data)
+    {
+        var earnings = new List<LocalUseEarning>();
+        foreach (var person in data.LocalUsePeople)
         {
-            InventoryMovement[] movements = data.InventoryMovements
-                .Where(item => item.ProductId == plan.ProductId && item.Date <= month.LastDay)
+            var charges = data.WeeklyCharges
+                .Where(item => item.PersonId == person.Id)
+                .OrderBy(item => item.PeriodEnd)
+                .ThenBy(item => item.CreatedUtc)
+                .Select(item => new RemainingCharge(item.PeriodEnd, item.CreatedUtc, item.Amount.MinorUnits))
                 .ToArray();
-            decimal suggested = plan.SuggestedPurchase(InventoryCalculator.CurrentQuantity(movements));
-            return checked((long)decimal.Round(
-                InventoryCalculator.AverageUnitCost(movements).MinorUnits * suggested,
-                0,
-                MidpointRounding.AwayFromZero));
-        });
+            var payments = data.LocalUsePayments
+                .Where(item => item.PersonId == person.Id)
+                .OrderBy(item => item.PaymentDate)
+                .ThenBy(item => item.CreatedUtc)
+                .Select(item => new RemainingPayment(item.PaymentDate, item.CreatedUtc, item.Amount.MinorUnits))
+                .ToArray();
+            int chargeIndex = 0;
+            int paymentIndex = 0;
+            while (chargeIndex < charges.Length && paymentIndex < payments.Length)
+            {
+                long applied = Math.Min(charges[chargeIndex].Remaining, payments[paymentIndex].Remaining);
+                DateOnly recognitionDate = charges[chargeIndex].PeriodEnd > payments[paymentIndex].Date
+                    ? charges[chargeIndex].PeriodEnd
+                    : payments[paymentIndex].Date;
+                DateTime occurredUtc = charges[chargeIndex].PeriodEnd > payments[paymentIndex].Date
+                    ? charges[chargeIndex].CreatedUtc
+                    : payments[paymentIndex].CreatedUtc;
+                earnings.Add(new LocalUseEarning(recognitionDate, occurredUtc, applied));
+                charges[chargeIndex].Remaining -= applied;
+                payments[paymentIndex].Remaining -= applied;
+                if (charges[chargeIndex].Remaining == 0) chargeIndex++;
+                if (payments[paymentIndex].Remaining == 0) paymentIndex++;
+            }
+        }
+        return earnings;
+    }
+
+
+    private static long CalculateEarnedLocalUseIncome(AdministrationData data, YearMonth month) =>
+        EarnedLocalUseIncome(data).Where(item => YearMonth.From(item.Date) == month).Sum(item => item.MinorUnits);
+
+    private sealed class RemainingCharge(DateOnly periodEnd, DateTime createdUtc, long remaining)
+    {
+        public DateOnly PeriodEnd { get; } = periodEnd;
+        public DateTime CreatedUtc { get; } = createdUtc;
+        public long Remaining { get; set; } = remaining;
+    }
+
+    private sealed class RemainingPayment(DateOnly date, DateTime createdUtc, long remaining)
+    {
+        public DateOnly Date { get; } = date;
+        public DateTime CreatedUtc { get; } = createdUtc;
+        public long Remaining { get; set; } = remaining;
+    }
+
+    private static long CanonicalExpenseTarget(
+        AdministrationData data,
+        Percentage collaboratorPercentage,
+        YearMonth month)
+    {
+        MonthlyClose? confirmed = data.MonthlyCloses
+            .Where(item => item.Month == month && item.IsConfirmed)
+            .OrderByDescending(item => item.ClosedUtc)
+            .FirstOrDefault();
+        return confirmed?.ToFinancialSnapshot().BreakEvenMinorUnits
+            ?? FinancialMonthCalculator.Calculate(data, collaboratorPercentage, month).BreakEvenMinorUnits;
+    }
 
     private static MonthlyExpenseBreakdown Add(MonthlyExpenseBreakdown left, MonthlyExpenseBreakdown right) => new(
         left.ServicesMinorUnits + right.ServicesMinorUnits,
         left.TaxesMinorUnits + right.TaxesMinorUnits,
+        left.CreditsMinorUnits + right.CreditsMinorUnits,
         left.OtherObligationsMinorUnits + right.OtherObligationsMinorUnits,
         left.MerchandiseMinorUnits + right.MerchandiseMinorUnits,
         left.MandatorySuppliesMinorUnits + right.MandatorySuppliesMinorUnits,
