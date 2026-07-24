@@ -1050,9 +1050,11 @@ public sealed class AdministrationService(
         AdministrationData data = await repository.LoadAsync(cancellationToken);
         MonthlyPurchaseItem plan = data.MonthlyPurchaseItems
             .SingleOrDefault(item => item.Id == monthlyPurchaseItemId)
-            ?? throw new InvalidOperationException("El producto planificado ya no está disponible.");
+            ?? throw new InvalidOperationException("El producto de la lista ya no está disponible.");
         if (plan.PurchaseMovementId.HasValue)
-            throw new InvalidOperationException("La compra mensual seleccionada ya fue registrada.");
+        {
+            throw new InvalidOperationException("El producto seleccionado ya fue agregado al inventario.");
+        }
 
         bool linkedProductIsUnavailable = plan.ProductId.HasValue
             && data.Products.All(item => item.Id != plan.ProductId.Value);
@@ -1061,32 +1063,67 @@ public sealed class AdministrationService(
             : data.Products.SingleOrDefault(item =>
                 item.Name.Equals(plan.Name, StringComparison.OrdinalIgnoreCase));
         bool createsProduct = product is null;
-        bool isForSale = product?.IsForSale
-            ?? plan.Category is ProductCategory.FoodOrDrinkForSale or ProductCategory.OtherProductForSale;
+        bool usesLegacyProductSnapshot = product is not null
+            && plan.ProductId.HasValue
+            && plan.Category == ProductCategory.OtherLocalProduct
+            && string.Equals(
+                plan.Name,
+                "Producto planificado",
+                StringComparison.Ordinal);
+        string effectiveName = usesLegacyProductSnapshot
+            ? product!.Name
+            : plan.Name;
+        ProductCategory effectiveCategory = usesLegacyProductSnapshot
+            ? product!.Category
+            : plan.Category;
+        bool isForSale = effectiveCategory is ProductCategory.FoodOrDrinkForSale
+            or ProductCategory.OtherProductForSale;
         if (isForSale && (!salePrice.HasValue || salePrice.Value.MinorUnits <= 0))
-            throw new ArgumentException("El precio de venta debe ser mayor que cero.", nameof(salePrice));
+        {
+            throw new ArgumentException(
+                "El precio de venta debe ser mayor que cero.",
+                nameof(salePrice));
+        }
 
+        EnsureUniqueProductName(data, effectiveName, product?.Id);
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        if (usesLegacyProductSnapshot)
+        {
+            plan.Update(
+                effectiveName,
+                effectiveCategory,
+                plan.Month,
+                plan.Quantity,
+                plan.ExpectedUnitCost,
+                plan.IsActive,
+                plan.ReserveWhenOutOfStock,
+                utcNow,
+                plan.Description);
+        }
+
+        string? inventoryDescription = string.IsNullOrWhiteSpace(description)
+            ? null
+            : description;
         if (product is null)
         {
             product = Product.Create(
-                plan.Name,
-                plan.Category,
+                effectiveName,
+                effectiveCategory,
                 "unidad",
                 utcNow,
                 isForSale ? salePrice : null,
-                plan.Description,
+                inventoryDescription,
                 plan.ExpectedUnitCost);
         }
         else
         {
             product.Update(
-                product.Name,
-                product.Category,
+                effectiveName,
+                effectiveCategory,
                 product.UnitOfMeasure,
                 utcNow,
                 isForSale ? salePrice : null,
-                product.Description,
+                inventoryDescription,
                 plan.ExpectedUnitCost);
         }
 
@@ -1105,21 +1142,118 @@ public sealed class AdministrationService(
             quantity,
             Money.FromMinorUnits(totalMinorUnits),
             utcNow,
-            description);
+            inventoryDescription);
         plan.LinkInventoryProduct(product.Id, purchase.Id, utcNow);
 
-        FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(item => !item.IsConsumed
-            && item.SourceType == FinancialCommitmentSource.MonthlyPurchase
-            && item.SourceId == plan.Id);
-        reserve?.Settle(date, purchase.CashAmount ?? Money.FromMinorUnits(0), utcNow);
+        FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(
+            item => !item.IsConsumed
+                && item.SourceType
+                    == FinancialCommitmentSource.MonthlyPurchase
+                && item.SourceId == plan.Id);
+        reserve?.Settle(
+            date,
+            purchase.CashAmount ?? Money.FromMinorUnits(0),
+            utcNow);
 
         var additions = new List<AuditableEntity> { purchase };
-        if (createsProduct) additions.Insert(0, product);
+        if (createsProduct)
+        {
+            additions.Insert(0, product);
+        }
+
         var updates = new List<AuditableEntity> { plan };
-        if (!createsProduct) updates.Add(product);
-        if (reserve is not null) updates.Add(reserve);
-        await SaveAsync(additions, updates, completedDraftKey, cancellationToken);
+        if (!createsProduct)
+        {
+            updates.Add(product);
+        }
+
+        if (reserve is not null)
+        {
+            updates.Add(reserve);
+        }
+
+        await SaveAsync(
+            additions,
+            updates,
+            completedDraftKey,
+            cancellationToken);
         return purchase;
+    }
+    public async Task UpdateRegisteredMonthlyPurchaseAsync(
+        Guid monthlyPurchaseItemId,
+        string name,
+        ProductCategory category,
+        decimal expectedQuantity,
+        Money expectedUnitCost,
+        string? listDescription,
+        DateOnly inventoryDate,
+        Quantity purchasedQuantity,
+        Money? salePrice,
+        string? inventoryDescription = null,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        MonthlyPurchaseItem plan = data.MonthlyPurchaseItems
+            .SingleOrDefault(item => item.Id == monthlyPurchaseItemId)
+            ?? throw new InvalidOperationException("El producto de la lista ya no está disponible.");
+        if (!plan.ProductId.HasValue || !plan.PurchaseMovementId.HasValue)
+        {
+            throw new InvalidOperationException("El producto todavía no ha sido agregado al inventario actual.");
+        }
+
+        Product product = data.Products.SingleOrDefault(item => item.Id == plan.ProductId.Value)
+            ?? throw new InvalidOperationException("El producto vinculado ya no está disponible.");
+        InventoryMovement purchase = data.InventoryMovements
+            .SingleOrDefault(item => item.Id == plan.PurchaseMovementId.Value)
+            ?? throw new InvalidOperationException("El movimiento de compra vinculado ya no está disponible.");
+        if (purchase.Type != InventoryMovementType.Purchase
+            && purchase.Type != InventoryMovementType.InitialStock)
+        {
+            throw new InvalidOperationException("El movimiento vinculado no es una entrada editable de inventario.");
+        }
+
+        bool isForSale = category is ProductCategory.FoodOrDrinkForSale
+            or ProductCategory.OtherProductForSale;
+        if (isForSale && (!salePrice.HasValue || salePrice.Value.MinorUnits <= 0))
+        {
+            throw new ArgumentException("El precio de venta debe ser mayor que cero.", nameof(salePrice));
+        }
+
+        EnsureUniqueProductName(data, name, product.Id);
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        plan.CorrectLinked(
+            name,
+            category,
+            expectedQuantity,
+            expectedUnitCost,
+            utcNow,
+            listDescription);
+        product.Update(
+            name,
+            category,
+            product.UnitOfMeasure,
+            utcNow,
+            isForSale ? salePrice : null,
+            inventoryDescription,
+            expectedUnitCost);
+
+        long totalMinorUnits = checked((long)decimal.Round(
+            expectedUnitCost.MinorUnits * purchasedQuantity.Value,
+            0,
+            MidpointRounding.AwayFromZero));
+        Money totalCost = Money.FromMinorUnits(totalMinorUnits);
+        purchase.Correct(
+            inventoryDate,
+            purchasedQuantity.Value,
+            purchase.Type == InventoryMovementType.Purchase ? totalCost : null,
+            totalCost,
+            utcNow,
+            inventoryDescription);
+
+        InventoryCalculator.EnsureNonNegative(data.InventoryMovements
+            .Where(item => item.ProductId == product.Id && item.Id != purchase.Id)
+            .Append(purchase));
+        await SaveAsync([], [plan, product, purchase], completedDraftKey: null, cancellationToken);
     }
 
     public async Task AddProductWithInitialStockAsync(

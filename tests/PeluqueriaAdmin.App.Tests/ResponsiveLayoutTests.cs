@@ -64,7 +64,7 @@ public sealed class ResponsiveLayoutTests
                     var sales = new SalesView { DataContext = new LayoutContext() };
                     AssertFits(sales, width, height, scale);
 
-                    foreach (int inventoryTab in new[] { 0, 1, 2, 3 })
+                    foreach (int inventoryTab in new[] { 0, 1, 2 })
                     {
                         var inventory = new InventoryView { DataContext = new LayoutContext() };
                         var tabs = Assert.IsType<TabControl>(inventory.FindName("InventoryTabs"));
@@ -167,19 +167,18 @@ public sealed class ResponsiveLayoutTests
         int selectedTab,
         double scale)
     {
-        if (selectedTab == 2)
+        string gridName = selectedTab switch
         {
-            var scroll = Assert.IsType<ScrollViewer>(inventory.FindName("PurchaseEntryScroll"));
-            Assert.True(scroll.ActualWidth > 120 && scroll.ActualHeight > 80,
-                $"Registrar compra quedó sin área desplazable a {scale:P0}.");
-        }
-        else if (selectedTab == 3)
-        {
-            var grid = Assert.IsType<DataGrid>(inventory.FindName("MonthlyPurchaseGrid"));
-            Assert.True(grid.ActualWidth > 120 && grid.ActualHeight > 60,
-                $"La lista mensual quedó sin área de tabla a {scale:P0}.");
-        }
+            0 => "InventoryCurrentGrid",
+            1 => "MovementHistoryGrid",
+            2 => "MonthlyPurchaseGrid",
+            _ => throw new ArgumentOutOfRangeException(nameof(selectedTab)),
+        };
+        var grid = Assert.IsType<DataGrid>(inventory.FindName(gridName));
+        Assert.True(grid.ActualWidth > 120 && grid.ActualHeight > 60,
+            $"La pestaña {selectedTab} de Inventario quedó sin área de tabla a {scale:P0}.");
     }
+
 
     private static void AssertProfileKeepsHeaderAndHistoryVisible(
         FrameworkElement profile,
@@ -248,5 +247,7 @@ public sealed class ResponsiveLayoutTests
         public bool IsWorkerProfileOpen { get; set; }
         public int ProfileTabIndex { get; set; } = 1;
         public bool IsProfileOpen { get; set; }
+        public bool ShowInventoryAddForm => true;
+        public bool IsEditingInventorySelection => false;
     }
 }

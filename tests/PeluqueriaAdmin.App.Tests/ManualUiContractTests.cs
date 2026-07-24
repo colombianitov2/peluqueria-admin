@@ -51,9 +51,9 @@ public sealed class ManualUiContractTests
             view,
             "Style=\"\\{StaticResource SectionTitle\\}\">(\\d+)\\.",
             RegexOptions.CultureInvariant);
-        Assert.Equal(21, headings.Count);
+        Assert.Equal(20, headings.Count);
         Assert.Equal(
-            Enumerable.Range(1, 21),
+            Enumerable.Range(1, 20),
             headings.Select(match => int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)));
 
         string[] requiredTopics =
@@ -63,7 +63,7 @@ public sealed class ManualUiContractTests
             "Colaboradores",
             "Ventas",
             "Inventario",
-            "Agregar al inventario",
+
             "Lista mensual de compra",
             "Otros ingresos, Gastos e Imprevistos",
             "Obligaciones y créditos",

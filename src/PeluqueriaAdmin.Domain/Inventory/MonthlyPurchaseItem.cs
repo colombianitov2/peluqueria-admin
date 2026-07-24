@@ -64,6 +64,26 @@ public sealed class MonthlyPurchaseItem : AuditableEntity
         Update(Name, Category, Month, quantity, expectedUnitCost, isActive,
             reserveWhenOutOfStock, utcNow, description);
 
+    public void CorrectLinked(
+        string name,
+        ProductCategory category,
+        decimal quantity,
+        Money expectedUnitCost,
+        DateTime utcNow,
+        string? description = null)
+    {
+        if (!ProductId.HasValue || !PurchaseMovementId.HasValue)
+        {
+            throw new InvalidOperationException(
+                "El producto debe estar vinculado al inventario antes de corregirse desde Inventario actual.");
+        }
+
+        Name = NormalizeRequiredText(name, nameof(name));
+        Category = category;
+        SetValues(quantity, expectedUnitCost, IsActive, ReserveWhenOutOfStock, description);
+        MarkUpdated(utcNow);
+    }
+
     public void LinkInventoryProduct(Guid productId, Guid movementId, DateTime utcNow)
     {
         if (productId == Guid.Empty) throw new ArgumentException("El producto no puede estar vacío.", nameof(productId));

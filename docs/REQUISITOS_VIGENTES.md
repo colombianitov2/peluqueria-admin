@@ -107,15 +107,21 @@ El inventario usa exclusivamente estas categorías: Alimento o bebida para venta
 
 Los productos destinados a venta aparecen inmediatamente en Ventas, pueden buscarse por nombre sin distinguir mayúsculas y muestran existencia y precio predeterminado. Cambiar a una categoría no vendible los retira del selector; cambiar a una categoría vendible los incorpora tras guardar, sin reiniciar.
 
-La pestaña **Lista mensual de compra** permite agregar, editar, guardar y eliminar lógicamente filas con nombre, categoría, mes, cantidad, costo esperado y descripción. No presenta controles **Activa**, **Reservar cuando el inventario llegue a cero** ni **Activar o desactivar**. Los indicadores técnicos heredados se conservan solo para leer y documentar bases anteriores, pero no deciden si una fila vigente afecta los cálculos.
+La pestaña **Lista mensual de compra** permite agregar, editar, guardar y eliminar lógicamente productos que se desean comprar. Cada fila contiene nombre, una de las seis categorías autorizadas, cantidad esperada, precio unitario o por paquete y descripción opcional. No muestra fecha ni mes y tampoco presenta controles **Activa**, **Reservar cuando el inventario llegue a cero** o **Activar o desactivar**.
 
-La pestaña **Agregar al inventario** registra siempre una compra; no muestra un selector de operación ni crea existencias iniciales o productos sueltos. Una búsqueda con icono de lupa filtra por nombre, categoría o mes las filas mensuales todavía no compradas. Después de seleccionar una fila solicita únicamente fecha de compra, cantidad realmente comprada, precio de venta al público cuando la categoría sea vendible y descripción opcional. El costo de adquisición procede del costo esperado de la fila mensual:
+La barra **Precio total esperado** se calcula automáticamente:
 
 ```text
-costo real de la compra = costo esperado unitario × cantidad realmente comprada
+precio total esperado = cantidad esperada × precio unitario o por paquete
 ```
 
-Guardar crea o vincula el producto, crea un único movimiento `Compra`, actualiza el precio de venta cuando corresponde y marca la fila mensual como comprada en la misma transacción. El precio de venta no se interpreta como costo de adquisición.
+Ese total aparece en la Lista mensual de compra, pero no se repite en Inventario actual.
+
+**Inventario actual** permite incorporar únicamente productos pendientes creados previamente en la Lista mensual de compra. Después de seleccionar uno mediante la búsqueda, solicita fecha agregada, cantidad comprada, precio de venta cuando la categoría sea vendible y descripción para inventario. Guardar crea o vincula el producto, registra una única compra y enlaza la fila de la lista en la misma transacción. El costo real de adquisición usa el precio unitario o por paquete definido en la lista multiplicado por la cantidad realmente comprada; el precio de venta no se interpreta como costo.
+
+La tabla de Inventario actual muestra todas las características de la fila de compra —excepto el precio total esperado— junto con cantidad comprada, existencia actual, precio de venta, descripción de inventario y fecha agregada. El botón **Editar selección** modifica de forma conjunta la fila de la lista, el producto y su compra vinculada, validando que la existencia no quede negativa.
+
+La pestaña **Movimientos** es exclusivamente un historial de solo lectura de entradas, compras, ventas, consumos y ajustes históricos. No contiene formularios para corregir, guardar ni eliminar movimientos. La antigua pestaña separada **Agregar al inventario** deja de existir porque la incorporación se realiza directamente desde Inventario actual.
 
 ## 6.1 Uso del local y perfiles
 

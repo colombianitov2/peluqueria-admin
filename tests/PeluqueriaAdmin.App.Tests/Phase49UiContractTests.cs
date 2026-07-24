@@ -31,9 +31,12 @@ public sealed class Phase49UiContractTests
     {
         string text = View("src", "PeluqueriaAdmin.App", "Views", "InventoryView.xaml");
         Assert.Contains("IsEditable=\"True\"", text, StringComparison.Ordinal);
-        Assert.Contains("IsTextSearchEnabled=\"True\"", text, StringComparison.Ordinal);
+        Assert.Contains("IsTextSearchEnabled=\"False\"", text, StringComparison.Ordinal);
+        Assert.Contains("MonthlyPurchaseSearchText", text, StringComparison.Ordinal);
         Assert.Contains("PendingMonthlyPurchaseRows", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Header=\"Agregar al inventario\"", text, StringComparison.Ordinal);
     }
+
 
     [Fact]
     public void Phase49_16_InventoryViewModelUsesAtomicPlannedProductLink()

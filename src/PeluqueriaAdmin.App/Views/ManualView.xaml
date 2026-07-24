@@ -180,65 +180,39 @@
 
           <Paragraph Style="{StaticResource SectionTitle}">7. Inventario actual y movimientos</Paragraph>
           <Paragraph>
-            Inventario actual muestra producto, categoría, existencia y valores derivados de todos
-            sus movimientos. El sobrante de un mes pasa al siguiente y nunca se registra de nuevo
-            como compra.
+            Inventario actual incorpora únicamente productos creados previamente en la
+            <Bold>Lista mensual de compra</Bold>. Use la lupa de búsqueda, seleccione una fila pendiente
+            y registre fecha agregada, cantidad comprada, precio de venta cuando la categoría sea
+            vendible y descripción para inventario.
           </Paragraph>
           <Paragraph>
-            <Bold>Existencia = entradas iniciales + compras − ventas − consumos históricos + ajustes históricos.</Bold>
-            Conteos y consumos antiguos continúan visibles para preservar la historia, aunque ya no
-            sean acciones disponibles en el formulario de compra.
-          </Paragraph>
-          <Paragraph>
-            Las categorías autorizadas son alimento o bebida para venta, otro producto para venta,
-            cortesía para clientes, aseo, insumo del local y otro producto del local. Cambiar una
-            categoría actualiza inmediatamente si el producto aparece o no en Ventas.
-          </Paragraph>
-
-          <Paragraph Style="{StaticResource SectionTitle}">8. Agregar al inventario</Paragraph>
-          <Paragraph>
-            Esta pestaña registra siempre una <Bold>compra</Bold>; no existe selector de operación.
-            Use la lupa de búsqueda para localizar un artículo agregado previamente a la Lista
-            mensual de compra. La búsqueda sirve para identificar con seguridad el producto
-            planificado que se está comprando.
-          </Paragraph>
-          <Paragraph>
-            Después de elegirlo, el formulario solicita únicamente:
+            La tabla combina nombre, categoría, cantidad esperada, precio unitario o por paquete y
+            descripción de la lista con cantidad comprada, existencia actual, precio de venta,
+            descripción de inventario y fecha agregada. El precio total esperado se consulta solo en
+            la Lista mensual de compra y no se repite en Inventario actual.
           </Paragraph>
           <List MarkerStyle="Disc">
-            <ListItem><Paragraph>fecha real de compra;</Paragraph></ListItem>
-            <ListItem><Paragraph>cantidad comprada;</Paragraph></ListItem>
-            <ListItem><Paragraph>precio de venta por unidad o paquete, cuando el artículo pertenece a una categoría vendible;</Paragraph></ListItem>
-            <ListItem><Paragraph>descripción opcional.</Paragraph></ListItem>
+            <ListItem><Paragraph><Bold>Editar selección</Bold> permite modificar los datos de la lista y de la compra vinculada en una sola operación.</Paragraph></ListItem>
+            <ListItem><Paragraph>La existencia actual continúa calculándose a partir de todas las entradas y salidas del producto.</Paragraph></ListItem>
+            <ListItem><Paragraph>Movimientos es un historial de solo lectura; no permite corregir, guardar ni eliminar movimientos desde esa pestaña.</Paragraph></ListItem>
+            <ListItem><Paragraph>Las categorías autorizadas siguen siendo alimento o bebida para venta, otro producto para venta, cortesía para clientes, aseo, insumo del local y otro producto del local.</Paragraph></ListItem>
           </List>
+
+          <Paragraph Style="{StaticResource SectionTitle}">8. Lista mensual de compra</Paragraph>
           <Paragraph>
-            Al guardar, el producto y el movimiento quedan vinculados en una sola operación. La
-            compra aumenta existencias y constituye una salida de caja solamente en el mes de la
-            compra. El importe real de esa salida es el costo esperado unitario guardado en la Lista
-            mensual multiplicado por la cantidad comprada; si ese costo cambió, edite primero la
-            fila mensual. El precio de venta no se usa como costo de compra. No vuelva a registrar
-            el mismo pago en Gastos.
+            Esta lista reúne los productos que se desean comprar. No solicita fecha ni mes. Cada fila
+            contiene producto, categoría, cantidad esperada, precio unitario o por paquete y
+            descripción. La barra <Bold>Precio total esperado</Bold> se actualiza automáticamente:
+            <Bold> cantidad esperada × precio unitario o por paquete.</Bold>
+          </Paragraph>
+          <Paragraph>
+            Sus acciones son <Bold>Agregar, Editar, Guardar y Eliminar</Bold>. Editar selección carga
+            una fila pendiente y Guardar cambios confirma la modificación. Eliminar exige confirmación
+            y conserva la eliminación lógica. Cuando una fila ya fue agregada al inventario, se edita
+            desde Inventario actual para mantener vinculados el producto, la lista y su movimiento.
           </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">9. Lista mensual de compra</Paragraph>
-          <Paragraph>
-            La lista permite planificar artículos aunque todavía no existan como productos de
-            inventario. Sus únicas acciones son <Bold>Agregar, Editar, Guardar y Eliminar</Bold>.
-            No existen activar, desactivar ni reservar cuando el inventario llegue a cero.
-          </Paragraph>
-          <List MarkerStyle="Disc">
-            <ListItem><Paragraph>Agregar crea el artículo planificado con mes, cantidad, costo esperado y descripción.</Paragraph></ListItem>
-            <ListItem><Paragraph>Editar carga la fila seleccionada; Guardar conserva los cambios.</Paragraph></ListItem>
-            <ListItem><Paragraph>Eliminar exige confirmación y conserva la eliminación lógica.</Paragraph></ListItem>
-            <ListItem><Paragraph>Una fila vinculada a una compra conserva su fotografía histórica y no debe generar otra compra.</Paragraph></ListItem>
-          </List>
-          <Paragraph>
-            Una fila pendiente es un dato futuro conocido y puede intervenir como compromiso en los
-            resúmenes aplicables. La compra real reemplaza la estimación por la ruta prevista sin
-            duplicar el gasto.
-          </Paragraph>
-
-          <Paragraph Style="{StaticResource SectionTitle}">10. Otros ingresos, Gastos e Imprevistos</Paragraph>
+          <Paragraph Style="{StaticResource SectionTitle}">9. Otros ingresos, Gastos e Imprevistos</Paragraph>
           <Paragraph>
             Registre la fecha real, concepto, valor y descripción opcional. Otros ingresos contiene
             dinero propio del local que no proviene de ventas ni Uso del local. Gastos contiene
@@ -250,7 +224,7 @@
             <ListItem><Paragraph>Los aportes de colaboradores y préstamos recibidos son financiación, no otros ingresos.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">11. Obligaciones y créditos</Paragraph>
+          <Paragraph Style="{StaticResource SectionTitle}">10. Obligaciones y créditos</Paragraph>
           <Paragraph>
             Agregar obligación define un compromiso con nombre, tipo, recurrencia, vencimiento
             inicial, valor esperado y descripción. Los tipos disponibles son
@@ -269,7 +243,7 @@
             <ListItem><Paragraph>El tipo Crédito identifica una obligación de pago. No crea automáticamente un desembolso recibido ni un calendario de amortización.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">12. Préstamos</Paragraph>
+          <Paragraph Style="{StaticResource SectionTitle}">11. Préstamos</Paragraph>
           <Paragraph>
             Los préstamos se administran dentro de Obligaciones, pero se diferencian de una
             obligación de tipo Crédito porque registran financiación recibida y un calendario exacto.
@@ -283,7 +257,7 @@
             <ListItem><Paragraph>Las cuotas vencidas o exigibles aparecen en Inicio y en las cuentas por pagar.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">13. Mantenimiento</Paragraph>
+          <Paragraph Style="{StaticResource SectionTitle}">12. Mantenimiento</Paragraph>
           <Paragraph>
             Programe el equipo o bien, tipo de mantenimiento, fecha prevista, costo estimado si se
             conoce, recurrencia y descripción. Completar mantenimiento registra fecha realizada y
@@ -296,7 +270,7 @@
             <ListItem><Paragraph>No se registran técnico, proveedor, ubicación, medio de pago ni comprobante.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">14. Resumen mensual y cierre</Paragraph>
+          <Paragraph Style="{StaticResource SectionTitle}">13. Resumen mensual y cierre</Paragraph>
           <Paragraph>
             Resumen mensual es el único lugar que muestra el resumen financiero completo y permite
             cerrar un mes. Las cuentas por cobrar se muestran separadas y no se consideran ingreso
@@ -314,7 +288,7 @@
             <ListItem><Paragraph>Reabrir exige confirmación, restaura el cálculo dinámico y se bloquea si ya se pagó una distribución.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">15. Balance anual</Paragraph>
+          <Paragraph Style="{StaticResource SectionTitle}">14. Balance anual</Paragraph>
           <Paragraph>
             Escriba únicamente el año. La vista siempre presenta enero a diciembre: un mes cerrado
             usa su fotografía histórica y uno abierto usa el cálculo vigente. Los gráficos utilizan
@@ -327,7 +301,7 @@
             <ListItem><Paragraph>Un arrastre no convierte por sí solo una cuenta por cobrar en ingreso ni un préstamo en gasto nuevo.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">16. Ajustes</Paragraph>
+          <Paragraph Style="{StaticResource SectionTitle}">15. Ajustes</Paragraph>
           <Paragraph>
             Ajustes contiene la tarifa semanal general, el porcentaje global de ganancia de
             colaboradores, la carpeta de exportación y gastos extraoficiales. La moneda es siempre
@@ -341,7 +315,7 @@
             <ListItem><Paragraph>La sección Datos reúne copia, restauración y exportación Excel; Actualizaciones reúne búsqueda, descarga y aplicación.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">17. Notas y Manual</Paragraph>
+          <Paragraph Style="{StaticResource SectionTitle}">16. Notas y Manual</Paragraph>
           <Paragraph>
             Notas es un único bloc editable. Se guarda después de una pausa breve, al perder el foco
             y al cerrar. Su contenido vive en SQLite y forma parte de copias, restauración y Excel.
@@ -353,7 +327,7 @@
             cambien funciones del programa, la siguiente versión actualizará también este manual.
           </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">18. Copias de seguridad y restauración</Paragraph>
+          <Paragraph Style="{StaticResource SectionTitle}">17. Copias de seguridad y restauración</Paragraph>
           <Paragraph>
             Una copia <Bold>.db</Bold> es la copia completa y restaurable de SQLite. Incluye tablas,
             relaciones, Notas, borradores, históricos, eliminados lógicamente y registros futuros.
@@ -372,7 +346,7 @@
             Windows durante el reemplazo.
           </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">19. Exportación completa a Excel</Paragraph>
+          <Paragraph Style="{StaticResource SectionTitle}">18. Exportación completa a Excel</Paragraph>
           <Paragraph>
             Exportar toda la información a Excel crea un único archivo <Bold>.xlsx</Bold> legible,
             sin necesitar Microsoft Excel instalado. Usa una fecha de corte única, incluye datos
@@ -392,7 +366,7 @@
             .db.
           </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">20. Actualizaciones mediante GitHub</Paragraph>
+          <Paragraph Style="{StaticResource SectionTitle}">19. Actualizaciones mediante GitHub</Paragraph>
           <Paragraph>
             La sección Actualizaciones consulta versiones públicas del repositorio de GitHub sin
             guardar tokens personales. Puede buscar manualmente, descargar una versión publicada y
@@ -412,7 +386,7 @@
             declarar esa prueba aprobada hasta ejecutarla y verificar la base de datos después.
           </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">21. Solución de problemas y glosario</Paragraph>
+          <Paragraph Style="{StaticResource SectionTitle}">20. Solución de problemas y glosario</Paragraph>
           <Paragraph Style="{StaticResource SubTitle}">Si una operación no se guarda</Paragraph>
           <List MarkerStyle="Disc">
             <ListItem><Paragraph>Revise campos obligatorios, fecha, selección y cantidad de decimales.</Paragraph></ListItem>

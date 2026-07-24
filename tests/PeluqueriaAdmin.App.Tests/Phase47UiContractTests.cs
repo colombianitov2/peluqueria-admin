@@ -44,11 +44,13 @@ public sealed class Phase47UiContractTests
         Assert.True(inventory.IndexOf("Header=\"Inventario actual\"", StringComparison.Ordinal)
             < inventory.IndexOf("Header=\"Movimientos\"", StringComparison.Ordinal));
         Assert.True(inventory.IndexOf("Header=\"Movimientos\"", StringComparison.Ordinal)
-            < inventory.IndexOf("Header=\"Agregar al inventario\"", StringComparison.Ordinal));
-        Assert.True(inventory.IndexOf("Header=\"Agregar al inventario\"", StringComparison.Ordinal)
             < inventory.IndexOf("Header=\"Lista mensual de compra\"", StringComparison.Ordinal));
+        Assert.DoesNotContain("Header=\"Agregar al inventario\"", inventory, StringComparison.Ordinal);
         Assert.Contains("SelectedIndex=\"0\"", inventory, StringComparison.Ordinal);
-        Assert.Contains("Productos agregados recientemente", inventory, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"InventoryCurrentGrid\"", inventory, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"MovementHistoryGrid\"", inventory, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"MonthlyPurchaseGrid\"", inventory, StringComparison.Ordinal);
+        Assert.DoesNotContain("Productos agregados recientemente", inventory, StringComparison.Ordinal);
         Assert.DoesNotContain("Planes de reposición", inventory, StringComparison.OrdinalIgnoreCase);
 
         string main = RepositoryFiles.Read("src", "PeluqueriaAdmin.App", "ViewModels", "MainViewModel.cs");
@@ -71,6 +73,7 @@ public sealed class Phase47UiContractTests
         Assert.Contains("Header=\"Historial de mantenimiento de equipos\"", maintenance, StringComparison.Ordinal);
         Assert.Contains("HistoryAssetOptions", maintenance, StringComparison.Ordinal);
     }
+
 
     [Fact]
     public void ExpensePie_HasExternalScrollableLegendAndNoSliceLabels()
