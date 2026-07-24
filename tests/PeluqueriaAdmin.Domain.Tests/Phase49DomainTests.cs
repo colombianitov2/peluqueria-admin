@@ -18,7 +18,9 @@ public sealed class Phase49DomainTests
         WeeklyRate rate = Rate();
         WorkerAccountBalance account = WeeklyChargeCalculator.CalculateAccount(
             person, [], [], [rate], new DateOnly(2026, 7, 23));
+
         Assert.Equal(new DateOnly(2026, 7, 25), account.NextChargeDate);
+        Assert.Equal(1_029, account.NextChargeAmount?.MinorUnits);
     }
 
     [Fact]
@@ -30,7 +32,9 @@ public sealed class Phase49DomainTests
             person.Id, new DateOnly(2026, 7, 23), Money.FromDecimal(24m), Utc);
         WorkerAccountBalance account = WeeklyChargeCalculator.CalculateAccount(
             person, [], [advance], [rate], new DateOnly(2026, 7, 23));
+
         Assert.Equal(new DateOnly(2026, 8, 8), account.NextRequiredPaymentDate);
+        Assert.Equal(1_029, account.NextRequiredPaymentAmount?.MinorUnits);
     }
 
     [Fact]
@@ -44,7 +48,8 @@ public sealed class Phase49DomainTests
             person, [], [rate], new DateOnly(2026, 7, 25), Utc));
         WorkerAccountBalance account = WeeklyChargeCalculator.CalculateAccount(
             person, [charge], [advance], [rate], new DateOnly(2026, 7, 25));
-        Assert.Equal(1_200, account.Credit.MinorUnits);
+
+        Assert.Equal(1_371, account.Credit.MinorUnits);
     }
 
     [Fact]

@@ -10,12 +10,16 @@ public static class WeeklyChargeCalculator
         DateOnly throughDate)
     {
         var starts = new List<DateOnly>();
-        DateOnly dueDate = NextSaturdayAfter(entryDate);
-        while (dueDate <= throughDate && (!exitDate.HasValue || dueDate < exitDate.Value))
+        ScheduledPeriod? period = PeriodStarting(entryDate);
+
+        while (period.HasValue
+               && period.Value.DueDate <= throughDate
+               && CanCharge(period.Value, exitDate))
         {
-            starts.Add(dueDate.AddDays(-6));
-            dueDate = dueDate.AddDays(7);
+            starts.Add(period.Value.PeriodStart);
+            period = NextPeriod(period.Value);
         }
+
         return starts;
     }
 
@@ -30,39 +34,32 @@ public static class WeeklyChargeCalculator
         ArgumentNullException.ThrowIfNull(existingCharges);
         ArgumentNullException.ThrowIfNull(rates);
 
-        if (rates.Count == 0)
-        {
-            throw new InvalidOperationException("Debe existir al menos una tarifa semanal.");
-        }
-
-        var existingDueDates = existingCharges
+        WeeklyRate[] orderedRates = ActiveRates(rates);
+        HashSet<DateOnly> existingDueDates = existingCharges
             .Where(charge => !charge.IsDeleted && charge.PersonId == person.Id)
             .Select(charge => charge.DueDate)
             .ToHashSet();
-        WeeklyRate[] orderedRates = rates
-            .Where(rate => !rate.IsDeleted)
-            .OrderBy(rate => rate.EffectiveFrom)
-            .ThenBy(rate => rate.CreatedUtc)
-            .ToArray();
-
-        if (orderedRates.Length == 0)
-        {
-            throw new InvalidOperationException("Debe existir al menos una tarifa semanal vigente.");
-        }
-
         var generated = new List<WeeklyCharge>();
 
-        foreach (DateOnly start in ExpectedPeriodStarts(person.EntryDate, person.ExitDate, throughDate))
+        foreach (DateOnly periodStart in ExpectedPeriodStarts(
+                     person.EntryDate,
+                     person.ExitDate,
+                     throughDate))
         {
-            DateOnly dueDate = start.AddDays(6);
-            if (existingDueDates.Contains(dueDate))
+            ScheduledPeriod period = PeriodStarting(periodStart)
+                ?? throw new InvalidOperationException(
+                    "No fue posible calcular el periodo semanal.");
+            if (existingDueDates.Contains(period.DueDate))
             {
                 continue;
             }
 
-            WeeklyRate rate = orderedRates.LastOrDefault(candidate => candidate.EffectiveFrom <= dueDate)
-                ?? orderedRates[0];
-            generated.Add(WeeklyCharge.CreateForDueDate(person.Id, dueDate, rate.Amount, utcNow));
+            Money amount = AmountFor(person, period, orderedRates);
+            generated.Add(WeeklyCharge.Create(
+                person.Id,
+                period.PeriodStart,
+                amount,
+                utcNow));
         }
 
         return generated;
@@ -96,32 +93,26 @@ public static class WeeklyChargeCalculator
         ArgumentNullException.ThrowIfNull(rates);
 
         WeeklyCharge[] completedCharges = charges
-            .Where(item => !item.IsDeleted && item.PersonId == person.Id && item.DueDate <= throughDate)
+            .Where(item => !item.IsDeleted
+                && item.PersonId == person.Id
+                && item.DueDate <= throughDate)
             .OrderBy(item => item.DueDate)
             .ThenBy(item => item.CreatedUtc)
             .ToArray();
         long totalCharged = completedCharges.Sum(item => item.Amount.MinorUnits);
         long totalPaid = payments
-            .Where(item => !item.IsDeleted && item.PersonId == person.Id && item.PaymentDate <= throughDate)
+            .Where(item => !item.IsDeleted
+                && item.PersonId == person.Id
+                && item.PaymentDate <= throughDate)
             .Sum(item => item.Amount.MinorUnits);
         long unapplied = totalPaid;
         DateOnly? coveredThrough = null;
-        WeeklyRate[] orderedRates = rates
-            .Where(item => !item.IsDeleted)
-            .OrderBy(item => item.EffectiveFrom)
-            .ThenBy(item => item.CreatedUtc)
-            .ToArray();
-        if (orderedRates.Length == 0)
-        {
-            throw new InvalidOperationException("Debe existir al menos una tarifa semanal vigente.");
-        }
-
-        DateOnly nextDueDate = NextSaturdayAfter(throughDate);
-        bool hasNextCharge = CanChargeOn(person, nextDueDate);
-        DateOnly? nextChargeDate = hasNextCharge
-            ? nextDueDate
+        WeeklyRate[] orderedRates = ActiveRates(rates);
+        ScheduledPeriod? next = NextPeriodAfter(person, throughDate);
+        DateOnly? nextChargeDate = next?.DueDate;
+        long? nextChargeAmount = next.HasValue
+            ? AmountFor(person, next.Value, orderedRates).MinorUnits
             : null;
-        long? nextChargeAmount = hasNextCharge ? RateFor(orderedRates, nextDueDate).Amount.MinorUnits : null;
 
         foreach (WeeklyCharge charge in completedCharges)
         {
@@ -141,72 +132,54 @@ public static class WeeklyChargeCalculator
             coveredThrough = charge.DueDate;
         }
 
-        if (!hasNextCharge)
+        if (!next.HasValue)
         {
-            return BuildBalance(totalCharged, totalPaid, null, null, null, null, coveredThrough);
+            return BuildBalance(
+                totalCharged,
+                totalPaid,
+                null,
+                null,
+                null,
+                null,
+                coveredThrough);
         }
 
         long projectedCredit = Math.Max(totalPaid - totalCharged, 0);
+        ScheduledPeriod? projection = next;
 
-        DateOnly projectionDueDate = nextDueDate;
-        while (CanChargeOn(person, projectionDueDate))
+        while (projection.HasValue)
         {
-            WeeklyRate rate = RateFor(orderedRates, projectionDueDate);
-            long weeklyAmount = rate.Amount.MinorUnits;
-            if (weeklyAmount > projectedCredit)
+            long amount = AmountFor(
+                person,
+                projection.Value,
+                orderedRates).MinorUnits;
+            if (amount > projectedCredit)
             {
                 return BuildBalance(
                     totalCharged,
                     totalPaid,
                     nextChargeDate,
                     nextChargeAmount,
-                    projectionDueDate,
-                    weeklyAmount - projectedCredit,
+                    projection.Value.DueDate,
+                    amount - projectedCredit,
                     coveredThrough);
             }
 
-            if (weeklyAmount == 0)
-            {
-                WeeklyRate? nextPositiveRate = orderedRates.FirstOrDefault(candidate =>
-                    candidate.EffectiveFrom > projectionDueDate && candidate.Amount.MinorUnits > 0);
-                if (nextPositiveRate is null)
-                {
-                    return BuildBalance(
-                        totalCharged, totalPaid, nextChargeDate, nextChargeAmount, null, null, coveredThrough);
-                }
-
-                int weeksToNextRate = Math.Max(1,
-                    (nextPositiveRate.EffectiveFrom.DayNumber - projectionDueDate.DayNumber + 6) / 7);
-                projectionDueDate = AddWeeksWithinRange(projectionDueDate, weeksToNextRate);
-                continue;
-            }
-
-            int affordableWeeks = checked((int)Math.Min(projectedCredit / weeklyAmount, int.MaxValue));
-            int segmentWeeks = WeeksUntilRateChange(orderedRates, projectionDueDate);
-            int remainingWeeks = WeeksUntilExit(person, projectionDueDate);
-            int dateLimitWeeks = (DateOnly.MaxValue.DayNumber - projectionDueDate.DayNumber) / 7;
-            int coveredWeeks = Math.Min(
-                affordableWeeks,
-                Math.Min(segmentWeeks, Math.Min(remainingWeeks, dateLimitWeeks)));
-            if (coveredWeeks == 0)
-            {
-                return BuildBalance(
-                    totalCharged,
-                    totalPaid,
-                    nextChargeDate,
-                    nextChargeAmount,
-                    projectionDueDate,
-                    weeklyAmount - projectedCredit,
-                    coveredThrough);
-            }
-
-            projectedCredit -= checked(coveredWeeks * weeklyAmount);
-            coveredThrough = AddWeeksWithinRange(projectionDueDate, coveredWeeks - 1);
-            projectionDueDate = AddWeeksWithinRange(projectionDueDate, coveredWeeks);
+            projectedCredit -= amount;
+            coveredThrough = projection.Value.DueDate;
+            projection = NextChargeablePeriod(
+                projection.Value,
+                person.ExitDate);
         }
 
         return BuildBalance(
-            totalCharged, totalPaid, nextChargeDate, nextChargeAmount, null, null, coveredThrough);
+            totalCharged,
+            totalPaid,
+            nextChargeDate,
+            nextChargeAmount,
+            null,
+            null,
+            coveredThrough);
     }
 
     private static WorkerAccountBalance BuildBalance(
@@ -222,45 +195,122 @@ public static class WeeklyChargeCalculator
             Money.FromMinorUnits(charged),
             Money.FromMinorUnits(paid),
             nextChargeDate,
-            nextChargeAmount.HasValue ? Money.FromMinorUnits(nextChargeAmount.Value) : null,
+            nextChargeAmount.HasValue
+                ? Money.FromMinorUnits(nextChargeAmount.Value)
+                : null,
             nextRequiredDate,
-            nextRequiredAmount.HasValue ? Money.FromMinorUnits(nextRequiredAmount.Value) : null,
+            nextRequiredAmount.HasValue
+                ? Money.FromMinorUnits(nextRequiredAmount.Value)
+                : null,
             coveredThrough);
 
-    private static WeeklyRate RateFor(WeeklyRate[] rates, DateOnly dueDate) =>
-        rates.LastOrDefault(candidate => candidate.EffectiveFrom <= dueDate) ?? rates[0];
-
-    private static bool CanChargeOn(LocalUsePerson person, DateOnly dueDate) =>
-        dueDate <= DateOnly.MaxValue.AddDays(-7)
-        && (!person.ExitDate.HasValue || dueDate < person.ExitDate.Value);
-
-    private static int WeeksUntilRateChange(WeeklyRate[] rates, DateOnly dueDate)
+    private static WeeklyRate[] ActiveRates(
+        IReadOnlyCollection<WeeklyRate> rates)
     {
-        WeeklyRate? next = rates.FirstOrDefault(candidate => candidate.EffectiveFrom > dueDate);
-        return next is null
-            ? int.MaxValue
-            : Math.Max(1, (next.EffectiveFrom.DayNumber - dueDate.DayNumber + 6) / 7);
-    }
-
-    private static int WeeksUntilExit(LocalUsePerson person, DateOnly dueDate)
-    {
-        if (!person.ExitDate.HasValue)
+        WeeklyRate[] ordered = rates
+            .Where(rate => !rate.IsDeleted)
+            .OrderBy(rate => rate.EffectiveFrom)
+            .ThenBy(rate => rate.CreatedUtc)
+            .ToArray();
+        if (ordered.Length == 0)
         {
-            return int.MaxValue;
+            throw new InvalidOperationException(
+                "Debe existir al menos una tarifa semanal vigente.");
         }
 
-        return Math.Max(0, (person.ExitDate.Value.DayNumber - dueDate.DayNumber + 6) / 7);
+        return ordered;
     }
 
-    private static DateOnly AddWeeksWithinRange(DateOnly date, int weeks)
+    private static Money AmountFor(
+        LocalUsePerson person,
+        ScheduledPeriod period,
+        WeeklyRate[] rates)
     {
-        int maximumWeeks = (DateOnly.MaxValue.DayNumber - date.DayNumber) / 7;
-        return date.AddDays(checked(7 * Math.Min(weeks, maximumWeeks)));
+        WeeklyRate rate = RateFor(rates, period.PeriodStart);
+        if (period.PeriodStart != person.EntryDate)
+        {
+            return rate.Amount;
+        }
+
+        int usedDays = period.DueDate.DayNumber
+            - period.PeriodStart.DayNumber
+            + 1;
+        long proratedMinorUnits = checked((long)decimal.Round(
+            rate.Amount.MinorUnits * usedDays / 7m,
+            0,
+            MidpointRounding.AwayFromZero));
+        return Money.FromMinorUnits(proratedMinorUnits);
     }
 
-    private static DateOnly NextSaturdayAfter(DateOnly date)
+    private static WeeklyRate RateFor(
+        WeeklyRate[] rates,
+        DateOnly periodStart) =>
+        rates.LastOrDefault(candidate =>
+            candidate.EffectiveFrom <= periodStart)
+        ?? rates[0];
+
+    private static ScheduledPeriod? NextPeriodAfter(
+        LocalUsePerson person,
+        DateOnly throughDate)
     {
-        int days = ((int)DayOfWeek.Saturday - (int)date.DayOfWeek + 7) % 7;
-        return date.AddDays(days == 0 ? 7 : days);
+        ScheduledPeriod? period = PeriodStarting(person.EntryDate);
+        while (period.HasValue && period.Value.DueDate <= throughDate)
+        {
+            period = NextPeriod(period.Value);
+        }
+
+        return period.HasValue
+               && CanCharge(period.Value, person.ExitDate)
+            ? period
+            : null;
     }
+
+    private static ScheduledPeriod? NextChargeablePeriod(
+        ScheduledPeriod current,
+        DateOnly? exitDate)
+    {
+        ScheduledPeriod? next = NextPeriod(current);
+        return next.HasValue && CanCharge(next.Value, exitDate)
+            ? next
+            : null;
+    }
+
+    private static ScheduledPeriod? PeriodStarting(DateOnly periodStart)
+    {
+        int daysUntilSaturday =
+            ((int)DayOfWeek.Saturday - (int)periodStart.DayOfWeek + 7) % 7;
+        if (periodStart.DayNumber
+            > DateOnly.MaxValue.DayNumber - daysUntilSaturday)
+        {
+            return null;
+        }
+
+        DateOnly dueDate = periodStart.AddDays(daysUntilSaturday);
+        return new ScheduledPeriod(periodStart, dueDate);
+    }
+
+    private static ScheduledPeriod? NextPeriod(ScheduledPeriod current)
+    {
+        if (current.DueDate == DateOnly.MaxValue)
+        {
+            return null;
+        }
+
+        DateOnly nextStart = current.DueDate.AddDays(1);
+        if (nextStart.DayNumber > DateOnly.MaxValue.DayNumber - 6)
+        {
+            return null;
+        }
+
+        return new ScheduledPeriod(nextStart, nextStart.AddDays(6));
+    }
+
+    private static bool CanCharge(
+        ScheduledPeriod period,
+        DateOnly? exitDate) =>
+        !exitDate.HasValue || period.DueDate < exitDate.Value;
+
+    private readonly record struct ScheduledPeriod(
+        DateOnly PeriodStart,
+        DateOnly DueDate);
 }

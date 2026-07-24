@@ -41,8 +41,15 @@ public sealed class WeeklyCharge : AuditableEntity
         Money amount,
         DateTime utcNow)
     {
-        DateOnly periodEnd = periodStart.AddDays(7);
-        return new(Guid.NewGuid(), personId, periodStart, periodEnd, PaymentDueDateFor(periodEnd), amount, utcNow);
+        DateOnly periodEnd = PaymentDueDateFor(periodStart);
+        return new(
+            Guid.NewGuid(),
+            personId,
+            periodStart,
+            periodEnd,
+            periodEnd,
+            amount,
+            utcNow);
     }
 
     internal static WeeklyCharge CreateForDueDate(
@@ -52,14 +59,25 @@ public sealed class WeeklyCharge : AuditableEntity
         DateTime utcNow)
     {
         if (dueDate.DayOfWeek != DayOfWeek.Saturday)
-            throw new ArgumentException("La cuota semanal debe vencer un sábado.", nameof(dueDate));
+        {
+            throw new ArgumentException(
+                "La cuota semanal debe vencer un sábado.",
+                nameof(dueDate));
+        }
+
         return new WeeklyCharge(
-            Guid.NewGuid(), personId, dueDate.AddDays(-6), dueDate, dueDate, amount, utcNow);
+            Guid.NewGuid(),
+            personId,
+            dueDate.AddDays(-6),
+            dueDate,
+            dueDate,
+            amount,
+            utcNow);
     }
 
-    internal static DateOnly PaymentDueDateFor(DateOnly periodEnd)
+    internal static DateOnly PaymentDueDateFor(DateOnly date)
     {
-        int days = ((int)DayOfWeek.Saturday - (int)periodEnd.DayOfWeek + 7) % 7;
-        return periodEnd.AddDays(days);
+        int days = ((int)DayOfWeek.Saturday - (int)date.DayOfWeek + 7) % 7;
+        return date.AddDays(days);
     }
 }

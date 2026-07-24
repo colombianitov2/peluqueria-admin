@@ -15,9 +15,14 @@ public sealed class AdvancePaymentPersistenceTests
     [Fact]
     public async Task WorkerEntryDatesAndZeroOrSixtyDollarDebtSurviveRealSqliteRestart()
     {
-        string root = Path.Combine(AppContext.BaseDirectory, "TestData", Guid.NewGuid().ToString("N"));
-        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
-        DateTime utc = new(2026, 7, 20, 12, 0, 0, DateTimeKind.Utc);
+        string root = Path.Combine(
+            AppContext.BaseDirectory,
+            "TestData",
+            Guid.NewGuid().ToString("N"));
+        CancellationToken cancellationToken =
+            TestContext.Current.CancellationToken;
+        DateTime utc =
+            new(2026, 7, 20, 12, 0, 0, DateTimeKind.Utc);
         DateOnly today = new(2026, 7, 20);
         var clock = new FixedTimeProvider(new DateTimeOffset(utc));
         try
@@ -25,31 +30,65 @@ public sealed class AdvancePaymentPersistenceTests
             ApplicationPaths paths = ApplicationPaths.FromRoot(root);
             paths.EnsureDirectories();
             var firstFactory = new Factory(paths.DatabaseFilePath);
-            await new DatabaseInitializer(firstFactory, paths, clock).InitializeAsync(cancellationToken);
+            await new DatabaseInitializer(
+                firstFactory,
+                paths,
+                clock).InitializeAsync(cancellationToken);
             var firstService = new AdministrationService(
                 new EfAdministrationRepository(firstFactory),
                 new EfSettingsRepository(firstFactory),
                 clock);
-            LocalUsePerson current = LocalUsePerson.Create("Ingreso actual", today, null, utc);
+            LocalUsePerson current = LocalUsePerson.Create(
+                "Ingreso actual",
+                today,
+                null,
+                utc);
             LocalUsePerson historical = LocalUsePerson.Create(
-                "Ingreso histórico", new DateOnly(2026, 6, 16), null, utc);
-            await firstService.AddLocalUsePersonAsync(current, today, cancellationToken);
-            await firstService.AddLocalUsePersonAsync(historical, today, cancellationToken);
+                "Ingreso histórico",
+                new DateOnly(2026, 6, 16),
+                null,
+                utc);
+            await firstService.AddLocalUsePersonAsync(
+                current,
+                today,
+                cancellationToken);
+            await firstService.AddLocalUsePersonAsync(
+                historical,
+                today,
+                cancellationToken);
 
             SqliteConnection.ClearAllPools();
-            AdministrationData reloaded = await new EfAdministrationRepository(
-                new Factory(paths.DatabaseFilePath)).LoadAsync(cancellationToken);
-            LocalUsePerson reloadedCurrent = reloaded.LocalUsePeople.Single(item => item.Id == current.Id);
-            LocalUsePerson reloadedHistorical = reloaded.LocalUsePeople.Single(item => item.Id == historical.Id);
+            AdministrationData reloaded =
+                await new EfAdministrationRepository(
+                    new Factory(paths.DatabaseFilePath))
+                .LoadAsync(cancellationToken);
+            LocalUsePerson reloadedCurrent =
+                reloaded.LocalUsePeople.Single(
+                    item => item.Id == current.Id);
+            LocalUsePerson reloadedHistorical =
+                reloaded.LocalUsePeople.Single(
+                    item => item.Id == historical.Id);
 
             Assert.Equal(today, reloadedCurrent.EntryDate);
-            Assert.Equal(new DateOnly(2026, 6, 16), reloadedHistorical.EntryDate);
-            Assert.Equal(0, WeeklyChargeCalculator.CalculateDebt(
-                reloaded.WeeklyCharges.Where(item => item.PersonId == current.Id),
-                reloaded.LocalUsePayments.Where(item => item.PersonId == current.Id), today).MinorUnits);
-            Assert.Equal(6_000, WeeklyChargeCalculator.CalculateDebt(
-                reloaded.WeeklyCharges.Where(item => item.PersonId == historical.Id),
-                reloaded.LocalUsePayments.Where(item => item.PersonId == historical.Id), today).MinorUnits);
+            Assert.Equal(
+                new DateOnly(2026, 6, 16),
+                reloadedHistorical.EntryDate);
+            Assert.Equal(
+                0,
+                WeeklyChargeCalculator.CalculateDebt(
+                    reloaded.WeeklyCharges.Where(
+                        item => item.PersonId == current.Id),
+                    reloaded.LocalUsePayments.Where(
+                        item => item.PersonId == current.Id),
+                    today).MinorUnits);
+            Assert.Equal(
+                5_657,
+                WeeklyChargeCalculator.CalculateDebt(
+                    reloaded.WeeklyCharges.Where(
+                        item => item.PersonId == historical.Id),
+                    reloaded.LocalUsePayments.Where(
+                        item => item.PersonId == historical.Id),
+                    today).MinorUnits);
         }
         finally
         {
@@ -117,46 +156,116 @@ public sealed class AdvancePaymentPersistenceTests
     [Fact]
     public async Task AdvanceBalance_DecreasesOncePerAnchoredWeekAndRestartDoesNotDuplicateCharges()
     {
-        string root = Path.Combine(AppContext.BaseDirectory, "TestData", Guid.NewGuid().ToString("N"));
-        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
-        var clock = new MutableTimeProvider(new DateTimeOffset(2026, 7, 1, 12, 0, 0, TimeSpan.Zero));
+        string root = Path.Combine(
+            AppContext.BaseDirectory,
+            "TestData",
+            Guid.NewGuid().ToString("N"));
+        CancellationToken cancellationToken =
+            TestContext.Current.CancellationToken;
+        var clock = new MutableTimeProvider(
+            new DateTimeOffset(
+                2026,
+                7,
+                1,
+                12,
+                0,
+                0,
+                TimeSpan.Zero));
         try
         {
             ApplicationPaths paths = ApplicationPaths.FromRoot(root);
             paths.EnsureDirectories();
             var factory = new Factory(paths.DatabaseFilePath);
-            await new DatabaseInitializer(factory, paths, clock).InitializeAsync(cancellationToken);
-            var service = new AdministrationService(new EfAdministrationRepository(factory), new EfSettingsRepository(factory), clock);
-            DateOnly entry = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
-            LocalUsePerson worker = LocalUsePerson.Create("Saldo controlado", entry, null, clock.GetUtcNow().UtcDateTime);
-            await service.AddLocalUsePersonAsync(worker, entry, cancellationToken);
-            await service.RegisterLocalUsePaymentAsync(worker.Id, entry, PeluqueriaAdmin.Domain.Settings.Money.FromDecimal(30m), cancellationToken);
+            await new DatabaseInitializer(
+                factory,
+                paths,
+                clock).InitializeAsync(cancellationToken);
+            var service = new AdministrationService(
+                new EfAdministrationRepository(factory),
+                new EfSettingsRepository(factory),
+                clock);
+            DateOnly entry =
+                DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+            LocalUsePerson worker = LocalUsePerson.Create(
+                "Saldo controlado",
+                entry,
+                null,
+                clock.GetUtcNow().UtcDateTime);
+            await service.AddLocalUsePersonAsync(
+                worker,
+                entry,
+                cancellationToken);
+            await service.RegisterLocalUsePaymentAsync(
+                worker.Id,
+                entry,
+                Money.FromDecimal(30m),
+                cancellationToken);
 
             clock.AdvanceDays(7);
-            DateOnly afterOneWeek = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
-            AdministrationData weekOne = await service.GenerateScheduledRecordsAsync(afterOneWeek, cancellationToken);
-            WorkerAccountBalance first = WeeklyChargeCalculator.CalculateAccount(worker, weekOne.WeeklyCharges, weekOne.LocalUsePayments, weekOne.WeeklyRates, afterOneWeek);
-            Assert.Equal(1_800, first.Credit.MinorUnits);
+            DateOnly afterOneWeek =
+                DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+            AdministrationData weekOne =
+                await service.GenerateScheduledRecordsAsync(
+                    afterOneWeek,
+                    cancellationToken);
+            WorkerAccountBalance first =
+                WeeklyChargeCalculator.CalculateAccount(
+                    worker,
+                    weekOne.WeeklyCharges,
+                    weekOne.LocalUsePayments,
+                    weekOne.WeeklyRates,
+                    afterOneWeek);
+            Assert.Equal(2_314, first.Credit.MinorUnits);
             Assert.Equal(0, first.Debt.MinorUnits);
 
             clock.AdvanceDays(14);
-            DateOnly afterThreeWeeks = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
-            AdministrationData weekThree = await service.GenerateScheduledRecordsAsync(afterThreeWeeks, cancellationToken);
-            WorkerAccountBalance partial = WeeklyChargeCalculator.CalculateAccount(worker, weekThree.WeeklyCharges, weekThree.LocalUsePayments, weekThree.WeeklyRates, afterThreeWeeks);
+            DateOnly afterThreeWeeks =
+                DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+            AdministrationData weekThree =
+                await service.GenerateScheduledRecordsAsync(
+                    afterThreeWeeks,
+                    cancellationToken);
+            WorkerAccountBalance partial =
+                WeeklyChargeCalculator.CalculateAccount(
+                    worker,
+                    weekThree.WeeklyCharges,
+                    weekThree.LocalUsePayments,
+                    weekThree.WeeklyRates,
+                    afterThreeWeeks);
             Assert.Equal(0, partial.Credit.MinorUnits);
-            Assert.Equal(600, partial.Debt.MinorUnits);
-            Assert.Equal(600, partial.NextRequiredPaymentAmount?.MinorUnits);
+            Assert.Equal(86, partial.Debt.MinorUnits);
+            Assert.Equal(86,
+                partial.NextRequiredPaymentAmount?.MinorUnits);
 
             SqliteConnection.ClearAllPools();
-            var restarted = new AdministrationService(new EfAdministrationRepository(new Factory(paths.DatabaseFilePath)), new EfSettingsRepository(new Factory(paths.DatabaseFilePath)), clock);
-            AdministrationData afterRestart = await restarted.GenerateScheduledRecordsAsync(afterThreeWeeks, cancellationToken);
-            Assert.Equal(3, afterRestart.WeeklyCharges.Count(item => item.PersonId == worker.Id));
-            Assert.Equal(600, WeeklyChargeCalculator.CalculateDebt(afterRestart.WeeklyCharges, afterRestart.LocalUsePayments, afterThreeWeeks).MinorUnits);
+            var restarted = new AdministrationService(
+                new EfAdministrationRepository(
+                    new Factory(paths.DatabaseFilePath)),
+                new EfSettingsRepository(
+                    new Factory(paths.DatabaseFilePath)),
+                clock);
+            AdministrationData afterRestart =
+                await restarted.GenerateScheduledRecordsAsync(
+                    afterThreeWeeks,
+                    cancellationToken);
+            Assert.Equal(
+                3,
+                afterRestart.WeeklyCharges.Count(
+                    item => item.PersonId == worker.Id));
+            Assert.Equal(
+                86,
+                WeeklyChargeCalculator.CalculateDebt(
+                    afterRestart.WeeklyCharges,
+                    afterRestart.LocalUsePayments,
+                    afterThreeWeeks).MinorUnits);
         }
         finally
         {
             SqliteConnection.ClearAllPools();
-            if (Directory.Exists(root)) Directory.Delete(root, true);
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
         }
     }
 

@@ -124,17 +124,20 @@
           </Paragraph>
           <Paragraph Style="{StaticResource SubTitle}">Cuenta semanal</Paragraph>
           <Paragraph>
-            La cuenta comienza en cero. Cada cuota corresponde a siete días completos desde la fecha
-            de ingreso y vence el primer sábado igual o posterior al final del periodo. Registrar un
-            pago nunca reinicia ese ciclo. Las cuotas ya causadas conservan la tarifa histórica y las
-            futuras usan la tarifa vigente.
+            La cuenta comienza en cero. El primer cobro se genera el sábado inmediato y se calcula
+            únicamente por los días usados desde la fecha de ingreso hasta ese sábado, contando ambos
+            días. Por ejemplo, domingo a sábado son siete días y martes a sábado son cinco días.
           </Paragraph>
           <Paragraph>
-            <Bold>Deuda = máximo(cuotas generadas − pagos, 0).</Bold>
-            El cálculo inverso es el saldo a favor:
-            <Bold>máximo(pagos − cuotas generadas, 0).</Bold>
+            <Bold>Primera cuota = tarifa semanal × días usados ÷ 7.</Bold>
+            El resultado se redondea al centavo. Con una tarifa de USD 12, ingresar un martes produce
+            una primera cuota de USD 8,57; ingresar un domingo produce USD 12.
           </Paragraph>
-          <Paragraph Style="{StaticResource SubTitle}">Perfil del trabajador</Paragraph>
+          <Paragraph>
+            Desde el domingo siguiente, cada periodo completo va de domingo a sábado y cobra la tarifa
+            semanal completa. Registrar un pago no reinicia el ciclo. Las cuotas ya generadas conservan
+            su importe y las futuras usan la tarifa vigente al inicio de cada periodo.
+          </Paragraph>          <Paragraph Style="{StaticResource SubTitle}">Perfil del trabajador</Paragraph>
           <List MarkerStyle="Disc">
             <ListItem><Paragraph>Ábralo con doble clic para consultar datos, cuenta, tarifas, pagos, silla e historial.</Paragraph></ListItem>
             <ListItem><Paragraph>Se acepta cualquier pago positivo, incluso anticipado o superior a la deuda. El excedente cubre cuotas futuras en orden cronológico.</Paragraph></ListItem>

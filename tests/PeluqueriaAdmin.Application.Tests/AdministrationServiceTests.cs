@@ -21,19 +21,30 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(
+            GeneralSettings.CreateDefault(UtcNow));
         var service = CreateService(repository, settingsRepository);
-        LocalUsePerson person = LocalUsePerson.Create("Ana", new DateOnly(2026, 7, 1), null, UtcNow);
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Ana",
+            new DateOnly(2026, 7, 1),
+            null,
+            UtcNow);
         Obligation obligation = Obligation.Create(
-            "Internet", ObligationType.Service, new DateOnly(2026, 7, 5),
-            Money.FromDecimal(50m), RecurrenceFrequency.Monthly, UtcNow);
+            "Internet",
+            ObligationType.Service,
+            new DateOnly(2026, 7, 5),
+            Money.FromDecimal(50m),
+            RecurrenceFrequency.Monthly,
+            UtcNow);
         await service.AddAsync(person, cancellationToken);
         await service.AddAsync(obligation, cancellationToken);
 
         AdministrationData first = await service.GenerateScheduledRecordsAsync(
-            new DateOnly(2026, 8, 18), cancellationToken);
+            new DateOnly(2026, 8, 18),
+            cancellationToken);
         AdministrationData second = await service.GenerateScheduledRecordsAsync(
-            new DateOnly(2026, 8, 18), cancellationToken);
+            new DateOnly(2026, 8, 18),
+            cancellationToken);
 
         Assert.Single(first.WeeklyRates);
         Assert.Equal(3, first.WeeklyCharges.Count);
@@ -46,13 +57,21 @@ public sealed class AdministrationServiceTests
     [Fact]
     public async Task RegisterPayment_AllowsAdvanceAtZeroDebtAndPersistsAfterServiceRestart()
     {
-        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        CancellationToken cancellationToken =
+            TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(
+            GeneralSettings.CreateDefault(UtcNow));
         var service = CreateService(repository, settingsRepository);
-        LocalUsePerson person = LocalUsePerson.Create("Luis", new DateOnly(2026, 7, 1), null, UtcNow);
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Luis",
+            new DateOnly(2026, 7, 1),
+            null,
+            UtcNow);
         await service.AddAsync(person, cancellationToken);
-        await service.GenerateScheduledRecordsAsync(new DateOnly(2026, 7, 1), cancellationToken);
+        await service.GenerateScheduledRecordsAsync(
+            new DateOnly(2026, 7, 1),
+            cancellationToken);
 
         await service.RegisterLocalUsePaymentAsync(
             person.Id,
@@ -60,18 +79,26 @@ public sealed class AdministrationServiceTests
             Money.FromDecimal(1000m),
             cancellationToken);
 
-        var restartedService = CreateService(repository, settingsRepository);
-        AdministrationData reloaded = await restartedService.LoadAsync(cancellationToken);
+        var restartedService = CreateService(
+            repository,
+            settingsRepository);
+        AdministrationData reloaded =
+            await restartedService.LoadAsync(cancellationToken);
         Assert.Single(reloaded.LocalUsePayments);
-        Assert.Equal(100_000, reloaded.LocalUsePayments.Single().Amount.MinorUnits);
-        WorkerAccountBalance balance = WeeklyChargeCalculator.CalculateAccount(
-            person,
-            reloaded.WeeklyCharges,
-            reloaded.LocalUsePayments,
-            reloaded.WeeklyRates,
-            new DateOnly(2026, 7, 2));
+        Assert.Equal(
+            100_000,
+            reloaded.LocalUsePayments.Single().Amount.MinorUnits);
+        WorkerAccountBalance balance =
+            WeeklyChargeCalculator.CalculateAccount(
+                person,
+                reloaded.WeeklyCharges,
+                reloaded.LocalUsePayments,
+                reloaded.WeeklyRates,
+                new DateOnly(2026, 7, 2));
         Assert.Equal(100_000, balance.Credit.MinorUnits);
-        Assert.Equal(800, balance.NextRequiredPaymentAmount?.MinorUnits);
+        Assert.Equal(
+            286,
+            balance.NextRequiredPaymentAmount?.MinorUnits);
     }
 
     [Fact]
@@ -79,25 +106,46 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(
+            GeneralSettings.CreateDefault(UtcNow));
         var service = CreateService(repository, settingsRepository);
         DateOnly today = new(2026, 7, 20);
-        LocalUsePerson person = LocalUsePerson.Create("Ana", new DateOnly(2026, 6, 16), null, UtcNow);
-        await service.AddLocalUsePersonAsync(person, today, cancellationToken);
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Ana",
+            new DateOnly(2026, 6, 16),
+            null,
+            UtcNow);
+        await service.AddLocalUsePersonAsync(
+            person,
+            today,
+            cancellationToken);
         AdministrationData before = await service.LoadAsync(cancellationToken);
-        Assert.Equal(6_000, WeeklyChargeCalculator.CalculateDebt(
-            before.WeeklyCharges, before.LocalUsePayments, today).MinorUnits);
+        Assert.Equal(
+            5_657,
+            WeeklyChargeCalculator.CalculateDebt(
+                before.WeeklyCharges,
+                before.LocalUsePayments,
+                today).MinorUnits);
         repository.FailNextSave = true;
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterLocalUsePaymentAsync(
-            person.Id, new DateOnly(2026, 7, 19), Money.FromDecimal(12m),
-            cancellationToken, completedDraftKey: "pago-prueba", description: "No debe persistir"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.RegisterLocalUsePaymentAsync(
+                person.Id,
+                new DateOnly(2026, 7, 19),
+                Money.FromDecimal(12m),
+                cancellationToken,
+                completedDraftKey: "pago-prueba",
+                description: "No debe persistir"));
 
         AdministrationData after = await service.LoadAsync(cancellationToken);
         Assert.Empty(after.LocalUsePayments);
         Assert.Equal(before.ActivityRecords.Count, after.ActivityRecords.Count);
-        Assert.Equal(6_000, WeeklyChargeCalculator.CalculateDebt(
-            after.WeeklyCharges, after.LocalUsePayments, today).MinorUnits);
+        Assert.Equal(
+            5_657,
+            WeeklyChargeCalculator.CalculateDebt(
+                after.WeeklyCharges,
+                after.LocalUsePayments,
+                today).MinorUnits);
     }
 
     [Fact]
@@ -105,18 +153,34 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
-        LocalUsePerson person = LocalUsePerson.Create("Ana", new DateOnly(2026, 7, 1), null, UtcNow);
+        var service = CreateService(
+            repository,
+            new FakeSettingsRepository(
+                GeneralSettings.CreateDefault(UtcNow)));
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Ana",
+            new DateOnly(2026, 7, 1),
+            null,
+            UtcNow);
 
-        await service.AddLocalUsePersonAsync(person, new DateOnly(2026, 7, 18), cancellationToken);
+        await service.AddLocalUsePersonAsync(
+            person,
+            new DateOnly(2026, 7, 18),
+            cancellationToken);
         await service.RegisterLocalUsePaymentAsync(
-            person.Id, new DateOnly(2026, 7, 18), Money.FromDecimal(12m), cancellationToken);
+            person.Id,
+            new DateOnly(2026, 7, 18),
+            Money.FromDecimal(12m),
+            cancellationToken);
 
         AdministrationData data = await service.LoadAsync(cancellationToken);
         Assert.Equal(3, data.WeeklyCharges.Count);
         Assert.Single(data.LocalUsePayments);
-        Assert.Equal(2_400, WeeklyChargeCalculator.CalculateDebt(
-            data.WeeklyCharges, data.LocalUsePayments).MinorUnits);
+        Assert.Equal(
+            1_886,
+            WeeklyChargeCalculator.CalculateDebt(
+                data.WeeklyCharges,
+                data.LocalUsePayments).MinorUnits);
     }
 
     [Fact]
@@ -279,20 +343,46 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(
+            repository,
+            new FakeSettingsRepository(
+                GeneralSettings.CreateDefault(UtcNow)));
 
-        LocalUsePerson person = LocalUsePerson.Create("Ana", new DateOnly(2026, 7, 1), null, UtcNow);
-        await service.AddLocalUsePersonAsync(person, new DateOnly(2026, 7, 8), cancellationToken);
-
-        Product product = Product.Create("Agua", ProductCategory.ProductForSale, "unidad", UtcNow);
-        await service.AddProductAsync(product, cancellationToken);
-        await service.AddInventoryMovementAsync(InventoryMovement.Initial(
-            product.Id, new DateOnly(2026, 7, 1), Quantity.Positive(2m), Money.FromDecimal(10m), UtcNow),
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Ana",
+            new DateOnly(2026, 7, 1),
+            null,
+            UtcNow);
+        await service.AddLocalUsePersonAsync(
+            person,
+            new DateOnly(2026, 7, 8),
             cancellationToken);
 
-        Collaborator collaborator = Collaborator.Create("Luis", new DateOnly(2026, 7, 1), null, UtcNow);
+        Product product = Product.Create(
+            "Agua",
+            ProductCategory.ProductForSale,
+            "unidad",
+            UtcNow);
+        await service.AddProductAsync(product, cancellationToken);
+        await service.AddInventoryMovementAsync(
+            InventoryMovement.Initial(
+                product.Id,
+                new DateOnly(2026, 7, 1),
+                Quantity.Positive(2m),
+                Money.FromDecimal(10m),
+                UtcNow),
+            cancellationToken);
+
+        Collaborator collaborator = Collaborator.Create(
+            "Luis",
+            new DateOnly(2026, 7, 1),
+            null,
+            UtcNow);
         await service.AddAsync(collaborator, cancellationToken);
-        await service.UpdateCollaboratorFundParticipationAsync(collaborator.Id, Percentage.FromPercent(100m), cancellationToken);
+        await service.UpdateCollaboratorFundParticipationAsync(
+            collaborator.Id,
+            Percentage.FromPercent(100m),
+            cancellationToken);
         var closed = await service.CloseMonthAsync(
             new YearMonth(2026, 7),
             new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0),
@@ -300,22 +390,34 @@ public sealed class AdministrationServiceTests
             [collaborator.Id],
             cancellationToken);
 
-        InvalidOperationException personError = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => service.DeleteAsync(person, cancellationToken));
-        InvalidOperationException productError = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => service.DeleteAsync(product, cancellationToken));
-        InvalidOperationException collaboratorError = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => service.DeleteAsync(collaborator, cancellationToken));
-        InvalidOperationException closeError = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => service.DeleteAsync(closed.Close, cancellationToken));
-        InvalidOperationException participantError = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => service.DeleteAsync(closed.Participants[0], cancellationToken));
+        InvalidOperationException personError =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.DeleteAsync(person, cancellationToken));
+        InvalidOperationException productError =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.DeleteAsync(product, cancellationToken));
+        InvalidOperationException collaboratorError =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.DeleteAsync(collaborator, cancellationToken));
+        InvalidOperationException closeError =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.DeleteAsync(closed.Close, cancellationToken));
+        InvalidOperationException participantError =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.DeleteAsync(
+                    closed.Participants[0],
+                    cancellationToken));
 
-        Assert.Contains("cuotas", personError.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("movimientos", productError.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("cierres", collaboratorError.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("reapertura", closeError.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("no se eliminan", participantError.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("cuotas", personError.Message,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("movimientos", productError.Message,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("cierres", collaboratorError.Message,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("reapertura", closeError.Message,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("no se eliminan", participantError.Message,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -347,20 +449,34 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(
+            repository,
+            new FakeSettingsRepository(
+                GeneralSettings.CreateDefault(UtcNow)));
         var month = new YearMonth(2026, 7);
-        var input = new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0);
+        var input =
+            new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0);
         var closed = await service.CloseMonthAsync(
-            month, input, Percentage.FromPercent(20m), [Guid.NewGuid()], cancellationToken);
+            month,
+            input,
+            Percentage.FromPercent(20m),
+            [Guid.NewGuid()],
+            cancellationToken);
         AdministrationData data = await service.LoadAsync(cancellationToken);
 
         MonthlySummaryResult snapshot = AdministrationReports.MonthlySummary(
-            data, Percentage.FromPercent(50m), month);
-        await service.ReopenMonthAsync(closed.Close.Id, cancellationToken);
+            data,
+            Percentage.FromPercent(50m),
+            month);
+        await service.ReopenMonthAsync(
+            closed.Close.Id,
+            cancellationToken);
         MonthlySummaryResult dynamic = AdministrationReports.MonthlySummary(
-            await service.LoadAsync(cancellationToken), Percentage.FromPercent(50m), month);
+            await service.LoadAsync(cancellationToken),
+            Percentage.FromPercent(50m),
+            month);
 
-        Assert.Equal(1_000, snapshot.CollaboratorFundMinorUnits);
+        Assert.Equal(0, snapshot.CollaboratorFundMinorUnits);
         Assert.Equal(0, dynamic.CollaboratorFundMinorUnits);
     }
 
@@ -487,22 +603,40 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(
+            repository,
+            new FakeSettingsRepository(
+                GeneralSettings.CreateDefault(UtcNow)));
         DateOnly date = new(2026, 7, 1);
         Chair chair = Chair.Create("Silla 1", date, null, UtcNow);
-        LocalUsePerson worker = LocalUsePerson.Create("Ana", date, null, UtcNow);
+        LocalUsePerson worker = LocalUsePerson.Create(
+            "Ana",
+            date,
+            null,
+            UtcNow);
         await service.AddChairAsync(chair, cancellationToken);
-        await service.AddLocalUsePersonWithChairAsync(worker, chair.Id, date.AddDays(7), cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(
+            worker,
+            chair.Id,
+            date.AddDays(7),
+            cancellationToken);
         await service.RegisterLocalUsePaymentAsync(
-            worker.Id, date.AddDays(7), Money.FromDecimal(12m), cancellationToken);
+            worker.Id,
+            date.AddDays(7),
+            Money.FromDecimal(12m),
+            cancellationToken);
 
-        await service.DeleteLocalUsePersonAsync(worker.Id, cancellationToken);
+        await service.DeleteLocalUsePersonAsync(
+            worker.Id,
+            cancellationToken);
 
         Assert.True(worker.IsDeleted);
         Assert.Null(chair.AssignedPersonId);
         Assert.Single(repository.Entities.OfType<WeeklyCharge>());
         Assert.Single(repository.Entities.OfType<LocalUsePayment>());
-        Assert.Contains(repository.Entities.OfType<PeluqueriaAdmin.Domain.Activity.ActivityRecord>(),
+        Assert.Contains(
+            repository.Entities.OfType<
+                PeluqueriaAdmin.Domain.Activity.ActivityRecord>(),
             item => item.Action == "Eliminación lógica de trabajador");
     }
 

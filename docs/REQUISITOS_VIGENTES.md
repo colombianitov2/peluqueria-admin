@@ -39,7 +39,7 @@ La aplicación:
 - Cada persona paga actualmente USD 12 semanales por utilizar el local y guardar sus pertenencias de trabajo.
 - Los USD 12 constituyen un valor general configurable en Ajustes, no una tarifa individual.
 - El día habitual de pago es sábado.
-- Al ingresar la deuda es cero. Cada cuota corresponde a siete días completos; vence el primer sábado igual o posterior al final del periodo, no se cobra un periodo incompleto y se conserva la tarifa histórica.
+- Al ingresar la deuda es cero hasta el sábado de cobro. La primera cuota se calcula proporcionalmente por los días usados desde la fecha de ingreso hasta ese sábado, contando tanto el día de ingreso como el sábado: domingo a sábado equivale a 7/7 de la tarifa y martes a sábado a 5/7. Desde el domingo siguiente, cada cuota corresponde a una semana completa de domingo a sábado. Cada importe se redondea al centavo y conserva la tarifa histórica vigente al inicio de su periodo.
 - Los pagos registrados reducen la deuda de cada persona.
 - La página principal muestra el nombre de cada persona con deuda y el importe adeudado.
 

@@ -27,6 +27,9 @@ public partial class App : System.Windows.Application
     private const string SingleInstanceMutexName = @"Local\Colombianito.PeluqueriaAdmin";
     private static Mutex? singleInstanceMutex;
     private ServiceProvider? serviceProvider;
+    private DatabaseBackupService? backupService;
+    private CancellationTokenSource? backupLoopCancellation;
+    private Task? backupLoopTask;
 
     [STAThread]
     private static void Main(string[] args)
@@ -67,6 +70,7 @@ public partial class App : System.Windows.Application
         try
         {
             serviceProvider = ConfigureServices();
+            backupService = serviceProvider.GetRequiredService<DatabaseBackupService>();
             await serviceProvider.GetRequiredService<DatabaseInitializer>().InitializeAsync();
             DateOnly today = DateOnly.FromDateTime(DateTime.Today);
             await serviceProvider.GetRequiredService<AdministrationService>()
@@ -79,6 +83,10 @@ public partial class App : System.Windows.Application
             MainWindow window = serviceProvider.GetRequiredService<MainWindow>();
             MainWindow = window;
             window.Show();
+            backupLoopCancellation = new CancellationTokenSource();
+            backupLoopTask = RunAutomaticBackupLoopAsync(
+                backupService,
+                backupLoopCancellation.Token);
             _ = settingsViewModel.CheckForUpdatesOnStartupAsync();
         }
         catch (Exception exception)
@@ -100,8 +108,49 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(System.Windows.ExitEventArgs e)
     {
+        backupLoopCancellation?.Cancel();
+        try
+        {
+            backupService?.CreateAutomaticIfNeededAsync().GetAwaiter().GetResult();
+        }
+        catch
+        {
+            // Un fallo de la copia automática al salir no debe bloquear el cierre.
+        }
+
+        backupLoopCancellation?.Dispose();
+        backupLoopCancellation = null;
+        backupLoopTask = null;
         serviceProvider?.Dispose();
         base.OnExit(e);
+    }
+
+    private static async Task RunAutomaticBackupLoopAsync(
+        DatabaseBackupService backupService,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromMinutes(30), cancellationToken);
+                try
+                {
+                    await backupService.CreateAutomaticIfNeededAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch
+                {
+                    // La siguiente comprobación vuelve a intentarlo sin afectar el uso del programa.
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
     }
 
     private static ServiceProvider ConfigureServices()
@@ -124,7 +173,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IExcelWorkbookWriter, ClosedXmlWorkbookWriter>();
         services.AddSingleton<IExcelExportService, ExcelExportService>();
         services.AddSingleton<DatabaseBackupService>();
-        services.AddSingleton<IDataManagementService, CsvDataManagementService>();
+        services.AddSingleton<IDataManagementService, BackupDataManagementService>();
         services.AddSingleton<IUpdateService, VelopackUpdateService>();
         services.AddSingleton<DatabaseInitializer>();
         services.AddSingleton<AdministrationService>();

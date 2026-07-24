@@ -68,16 +68,28 @@ public sealed class MonthlyClose : AuditableEntity
         Percentage percentage,
         MonthlySummaryResult summary,
         DateTime utcNow,
-        string? description = null) => new(Guid.NewGuid(), month, percentage, summary, utcNow, description);
+        string? description = null) =>
+        new(Guid.NewGuid(), month, percentage, summary, utcNow, description);
 
-    public static MonthlyClose Create(FinancialMonthSnapshot snapshot, DateTime utcNow, string? description = null)
+    public static MonthlyClose Create(
+        FinancialMonthSnapshot snapshot,
+        DateTime utcNow,
+        string? description = null)
     {
         var legacySummary = new MonthlySummaryResult(
-            snapshot.CollectedOperatingIncomeMinorUnits, snapshot.BreakEvenMinorUnits,
-            snapshot.ShortfallMinorUnits, snapshot.DistributableResultMinorUnits,
-            snapshot.CollaboratorFundMinorUnits, snapshot.RetainedLocalMinorUnits);
-        return new MonthlyClose(Guid.NewGuid(), snapshot.Month,
-            Percentage.FromBasisPoints(snapshot.GlobalPercentageBasisPoints), legacySummary, utcNow, description)
+            snapshot.CollectedOperatingIncomeMinorUnits,
+            snapshot.BreakEvenMinorUnits,
+            snapshot.ShortfallMinorUnits,
+            snapshot.DistributableResultMinorUnits,
+            snapshot.CollaboratorFundMinorUnits,
+            snapshot.RetainedLocalMinorUnits);
+        return new MonthlyClose(
+            Guid.NewGuid(),
+            snapshot.Month,
+            Percentage.FromBasisPoints(snapshot.GlobalPercentageBasisPoints),
+            legacySummary,
+            utcNow,
+            description)
         {
             AccountsReceivableMinorUnits = snapshot.AccountsReceivableMinorUnits,
             PaidOutflowsMinorUnits = snapshot.PaidOutflowsMinorUnits,
@@ -94,12 +106,24 @@ public sealed class MonthlyClose : AuditableEntity
     }
 
     public FinancialMonthSnapshot ToFinancialSnapshot() => new(
-        Month, IncomeMinorUnits, AccountsReceivableMinorUnits, PaidOutflowsMinorUnits,
-        AccountsPayableMinorUnits, NewReservesMinorUnits, CarriedReservesMinorUnits,
-        ReserveAdjustmentsMinorUnits, LoanPaymentsMinorUnits, FinancingReceivedMinorUnits,
-        PriorUncoveredCommitmentsMinorUnits, BaseResultMinorUnits, BreakEvenMinorUnits,
-        ShortfallMinorUnits, FundMinorUnits, RetainedResultMinorUnits,
-        CollaboratorPercentageBasisPoints, []);
+        Month,
+        IncomeMinorUnits,
+        AccountsReceivableMinorUnits,
+        PaidOutflowsMinorUnits,
+        AccountsPayableMinorUnits,
+        NewReservesMinorUnits,
+        CarriedReservesMinorUnits,
+        ReserveAdjustmentsMinorUnits,
+        LoanPaymentsMinorUnits,
+        FinancingReceivedMinorUnits,
+        PriorUncoveredCommitmentsMinorUnits,
+        BaseResultMinorUnits,
+        BreakEvenMinorUnits,
+        ShortfallMinorUnits,
+        FundMinorUnits,
+        RetainedResultMinorUnits,
+        CollaboratorPercentageBasisPoints,
+        []);
 
     public MonthlySummaryResult ToSummary() => new(
         IncomeMinorUnits,
@@ -108,6 +132,21 @@ public sealed class MonthlyClose : AuditableEntity
         BaseResultMinorUnits,
         FundMinorUnits,
         RetainedResultMinorUnits);
+
+    internal void FinalizeDistribution(long allocatedMinorUnits, DateTime utcNow)
+    {
+        if (allocatedMinorUnits < 0 || allocatedMinorUnits > FundMinorUnits)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(allocatedMinorUnits),
+                "La distribución no puede ser negativa ni superar el fondo calculado.");
+        }
+
+        long unassigned = FundMinorUnits - allocatedMinorUnits;
+        FundMinorUnits = allocatedMinorUnits;
+        RetainedResultMinorUnits = checked(RetainedResultMinorUnits + unassigned);
+        MarkUpdated(utcNow);
+    }
 
     public void Reopen(DateTime utcNow)
     {

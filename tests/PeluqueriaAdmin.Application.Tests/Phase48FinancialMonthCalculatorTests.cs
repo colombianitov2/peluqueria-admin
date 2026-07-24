@@ -20,18 +20,58 @@ public sealed class Phase48FinancialMonthCalculatorTests
     public void RequiredScenario_ExcludesWorkerDebtAndProducesExactlyFiftyFourDollarFund()
     {
         var month = new YearMonth(2026, 7);
-        var worker = LocalUsePerson.Create("Trabajador", new DateOnly(2026, 7, 1), null, UtcNow);
-        WeeklyRate rate = WeeklyRate.Create(worker.EntryDate, Money.FromDecimal(120m), UtcNow);
-        WeeklyCharge charge = Assert.Single(WeeklyChargeCalculator.Generate(worker, [], [rate], new DateOnly(2026, 7, 8), UtcNow));
-        FinancialEntry income = FinancialEntry.CreateIncome(new DateOnly(2026, 7, 18), "Ingresos cobrados", Money.FromDecimal(1000m), UtcNow);
-        FinancialEntry expense = FinancialEntry.CreateExpense(new DateOnly(2026, 7, 18), "Egresos pagados",
-            ExpenseCategory.Other, Money.FromDecimal(500m), UtcNow);
-        Obligation electricity = Obligation.Create("Electricidad", ObligationType.Service, new DateOnly(2026, 7, 25),
-            Money.FromDecimal(100m), RecurrenceFrequency.None, UtcNow);
-        MaintenanceRecord maintenance = MaintenanceRecord.Schedule("Aire", "Mantenimiento vencido",
-            new DateOnly(2026, 7, 10), Money.FromDecimal(80m), MaintenanceFrequency.Once, null, null, UtcNow);
-        Loan loan = Loan.Create("Préstamo", Money.FromDecimal(500m), Money.FromDecimal(50m),
-            new DateOnly(2026, 6, 1), LoanFrequency.Monthly, 10, new DateOnly(2026, 7, 20), UtcNow);
+        var worker = LocalUsePerson.Create(
+            "Trabajador",
+            new DateOnly(2026, 7, 1),
+            null,
+            UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(
+            worker.EntryDate,
+            Money.FromDecimal(120m),
+            UtcNow);
+        WeeklyCharge charge = Assert.Single(
+            WeeklyChargeCalculator.Generate(
+                worker,
+                [],
+                [rate],
+                new DateOnly(2026, 7, 8),
+                UtcNow));
+        FinancialEntry income = FinancialEntry.CreateIncome(
+            new DateOnly(2026, 7, 18),
+            "Ingresos cobrados",
+            Money.FromDecimal(1000m),
+            UtcNow);
+        FinancialEntry expense = FinancialEntry.CreateExpense(
+            new DateOnly(2026, 7, 18),
+            "Egresos pagados",
+            ExpenseCategory.Other,
+            Money.FromDecimal(500m),
+            UtcNow);
+        Obligation electricity = Obligation.Create(
+            "Electricidad",
+            ObligationType.Service,
+            new DateOnly(2026, 7, 25),
+            Money.FromDecimal(100m),
+            RecurrenceFrequency.None,
+            UtcNow);
+        MaintenanceRecord maintenance = MaintenanceRecord.Schedule(
+            "Aire",
+            "Mantenimiento vencido",
+            new DateOnly(2026, 7, 10),
+            Money.FromDecimal(80m),
+            MaintenanceFrequency.Once,
+            null,
+            null,
+            UtcNow);
+        Loan loan = Loan.Create(
+            "Préstamo",
+            Money.FromDecimal(500m),
+            Money.FromDecimal(50m),
+            new DateOnly(2026, 6, 1),
+            LoanFrequency.Monthly,
+            10,
+            new DateOnly(2026, 7, 20),
+            UtcNow);
         AdministrationData data = EmptyData() with
         {
             LocalUsePeople = [worker],
@@ -43,10 +83,13 @@ public sealed class Phase48FinancialMonthCalculatorTests
             Loans = [loan],
         };
 
-        var result = FinancialMonthCalculator.Calculate(data, Percentage.FromPercent(20m), month);
+        FinancialMonthSnapshot result = FinancialMonthCalculator.Calculate(
+            data,
+            Percentage.FromPercent(20m),
+            month);
 
         Assert.Equal(100_000, result.CollectedOperatingIncomeMinorUnits);
-        Assert.Equal(12_000, result.AccountsReceivableMinorUnits);
+        Assert.Equal(6_857, result.AccountsReceivableMinorUnits);
         Assert.Equal(50_000, result.PaidOutflowsMinorUnits);
         Assert.Equal(23_000, result.NewReservesMinorUnits);
         Assert.Equal(27_000, result.DistributableResultMinorUnits);

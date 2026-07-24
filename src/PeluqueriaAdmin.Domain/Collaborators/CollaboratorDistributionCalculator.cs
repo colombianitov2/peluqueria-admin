@@ -14,7 +14,7 @@ public static class CollaboratorDistributionCalculator
             Math.Max(0, close.BaseResultMinorUnits),
             close.CollaboratorPercentageBasisPoints,
             frozenAllocations);
-        return frozenAllocations
+        MonthlyCloseParticipant[] participants = frozenAllocations
             .OrderBy(item => item.CollaboratorId)
             .Select(item => new MonthlyCloseParticipant(
                 Guid.NewGuid(),
@@ -25,6 +25,8 @@ public static class CollaboratorDistributionCalculator
                 item.ProfitShareBasisPoints,
                 utcNow))
             .ToArray();
+        close.FinalizeDistribution(participants.Sum(item => item.Amount.MinorUnits), utcNow);
+        return participants;
     }
 
     public static IReadOnlyDictionary<Guid, long> CalculateMinorUnitAmounts(
@@ -35,8 +37,11 @@ public static class CollaboratorDistributionCalculator
         (Guid CollaboratorId, int ProfitShareBasisPoints)[] provided = allocations.ToArray();
         if (provided.Any(item => item.ProfitShareBasisPoints is < 0 or > 10_000))
         {
-            throw new ArgumentOutOfRangeException(nameof(allocations), "Cada porcentaje debe estar entre 0 % y 100 %.");
+            throw new ArgumentOutOfRangeException(
+                nameof(allocations),
+                "Cada porcentaje debe estar entre 0 % y 100 %.");
         }
+
         if (provided.GroupBy(item => item.CollaboratorId).Any(group => group.Count() != 1))
         {
             throw new ArgumentException("Cada colaborador debe aparecer una sola vez.", nameof(allocations));
@@ -48,11 +53,11 @@ public static class CollaboratorDistributionCalculator
             .Where(item => item.ProfitShareBasisPoints > 0)
             .OrderBy(item => item.CollaboratorId)
             .ToArray();
-
         int totalBasisPoints = ordered.Sum(item => item.ProfitShareBasisPoints);
         if (totalBasisPoints > 10_000)
         {
-            throw new InvalidOperationException("La suma de participaciones dentro del fondo no puede superar 100 %.");
+            throw new InvalidOperationException(
+                "La suma de participaciones dentro del fondo no puede superar 100 %.");
         }
 
         long distributableBase = Math.Max(0, distributableBaseMinorUnits);
