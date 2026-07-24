@@ -1,3 +1,4 @@
+using System.Threading;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PeluqueriaAdmin.App.Updates;
@@ -9,6 +10,7 @@ using PeluqueriaAdmin.Application.Exporting;
 using PeluqueriaAdmin.Application.Notes;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Application.Updates;
+using PeluqueriaAdmin.Domain.Common;
 using PeluqueriaAdmin.Infrastructure.Administration;
 using PeluqueriaAdmin.Infrastructure.Drafts;
 using PeluqueriaAdmin.Infrastructure.Exporting;
@@ -22,6 +24,8 @@ namespace PeluqueriaAdmin.App;
 
 public partial class App : System.Windows.Application
 {
+    private const string SingleInstanceMutexName = @"Local\Colombianito.PeluqueriaAdmin";
+    private static Mutex? singleInstanceMutex;
     private ServiceProvider? serviceProvider;
 
     [STAThread]
@@ -29,9 +33,31 @@ public partial class App : System.Windows.Application
     {
         VelopackApp.Build().SetArgs(args).SetAutoApplyOnStartup(false).Run();
 
-        var app = new App();
-        app.InitializeComponent();
-        app.Run();
+        singleInstanceMutex = new Mutex(true, SingleInstanceMutexName, out bool createdNew);
+        if (!createdNew)
+        {
+            System.Windows.MessageBox.Show(
+                "Peluquería Admin ya está abierta. Usa la ventana existente.",
+                "Peluquería Admin",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+            singleInstanceMutex.Dispose();
+            singleInstanceMutex = null;
+            return;
+        }
+
+        try
+        {
+            var app = new App();
+            app.InitializeComponent();
+            app.Run();
+        }
+        finally
+        {
+            singleInstanceMutex.ReleaseMutex();
+            singleInstanceMutex.Dispose();
+            singleInstanceMutex = null;
+        }
     }
 
     protected override async void OnStartup(System.Windows.StartupEventArgs e)
@@ -42,8 +68,9 @@ public partial class App : System.Windows.Application
         {
             serviceProvider = ConfigureServices();
             await serviceProvider.GetRequiredService<DatabaseInitializer>().InitializeAsync();
+            DateOnly today = DateOnly.FromDateTime(DateTime.Today);
             await serviceProvider.GetRequiredService<AdministrationService>()
-                .GenerateScheduledRecordsAsync(DateOnly.FromDateTime(DateTime.Today));
+                .GenerateScheduledRecordsAsync(YearMonth.From(today).LastDay);
 
             SettingsViewModel settingsViewModel = serviceProvider.GetRequiredService<SettingsViewModel>();
             await settingsViewModel.LoadAsync();
@@ -112,6 +139,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<MaintenanceViewModel>();
         services.AddSingleton<ObligationsViewModel>();
         services.AddSingleton<NotesViewModel>();
+        services.AddSingleton<ManualViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 

@@ -101,9 +101,16 @@ public sealed class Obligation : AuditableEntity
     public Money GoalAmount(IEnumerable<ObligationPayment> payments)
     {
         long paid = TotalPaidMinorUnits(payments);
-        return paid >= ExpectedAmount.MinorUnits
+        return IsSettled || paid >= ExpectedAmount.MinorUnits
             ? Money.FromMinorUnits(paid)
             : ExpectedAmount;
+    }
+
+    public Money OutstandingAmount(IEnumerable<ObligationPayment> payments)
+    {
+        long paid = TotalPaidMinorUnits(payments);
+        return Money.FromMinorUnits(
+            IsSettled ? 0 : Math.Max(0, ExpectedAmount.MinorUnits - paid));
     }
 
     public ObligationStatus Status(IEnumerable<ObligationPayment> payments, DateOnly today)

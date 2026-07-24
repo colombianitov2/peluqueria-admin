@@ -100,7 +100,7 @@ public sealed class CsvDataManagementService(
         MonthlyExpenseBreakdown expenses = report.Expenses;
         var csv = new CsvBuilder(
             "Año", "Moneda", "Ingresos", "Gastos/meta", "Servicios", "Impuestos",
-            "Otras obligaciones", "Mercancía para venta", "Insumos obligatorios",
+            "Créditos", "Otras obligaciones", "Mercancía para venta", "Insumos obligatorios",
             "Insumos opcionales", "Mantenimiento", "Imprevistos", "Otros gastos",
             "Planes de reposición", "Ajuste histórico", "Distribuciones pagadas",
             "Resultado retenido", "Pendientes", "Faltante", "Indicador");
@@ -111,6 +111,7 @@ public sealed class CsvDataManagementService(
             Decimal(result.ExpenseMinorUnits),
             Decimal(expenses.ServicesMinorUnits),
             Decimal(expenses.TaxesMinorUnits),
+            Decimal(expenses.CreditsMinorUnits),
             Decimal(expenses.OtherObligationsMinorUnits),
             Decimal(expenses.MerchandiseMinorUnits),
             Decimal(expenses.MandatorySuppliesMinorUnits),

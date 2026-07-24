@@ -44,6 +44,7 @@ public static class ObligationRecurrenceGenerator
         {
             RecurrenceFrequency.Monthly => anchorDate.AddMonths(occurrence),
             RecurrenceFrequency.Annual => anchorDate.AddYears(occurrence),
+            RecurrenceFrequency.Weekly => anchorDate.AddDays(checked(occurrence * 7)),
             _ => throw new InvalidOperationException("La recurrencia no genera nuevas obligaciones."),
         };
 }

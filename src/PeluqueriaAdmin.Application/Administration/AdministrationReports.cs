@@ -12,6 +12,7 @@ namespace PeluqueriaAdmin.Application.Administration;
 public sealed record MonthlyExpenseBreakdown(
     long ServicesMinorUnits,
     long TaxesMinorUnits,
+    long CreditsMinorUnits,
     long OtherObligationsMinorUnits,
     long MerchandiseMinorUnits,
     long MandatorySuppliesMinorUnits,
@@ -23,7 +24,7 @@ public sealed record MonthlyExpenseBreakdown(
     long HistoricalAdjustmentMinorUnits)
 {
     public long TotalMinorUnits => checked(
-        ServicesMinorUnits + TaxesMinorUnits + OtherObligationsMinorUnits
+        ServicesMinorUnits + TaxesMinorUnits + CreditsMinorUnits + OtherObligationsMinorUnits
         + MerchandiseMinorUnits + MandatorySuppliesMinorUnits + OptionalSuppliesMinorUnits
         + MaintenanceMinorUnits + UnexpectedMinorUnits + OtherExpensesMinorUnits
         + PendingPlansMinorUnits + HistoricalAdjustmentMinorUnits);
@@ -81,14 +82,15 @@ public static class AdministrationReports
         Percentage collaboratorPercentage,
         int year)
     {
-        var totalExpenses = new MonthlyExpenseBreakdown(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        var totalExpenses = new MonthlyExpenseBreakdown(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         var summaries = new List<MonthlySummaryResult>();
         foreach (int monthNumber in Enumerable.Range(1, 12))
         {
             var month = new YearMonth(year, monthNumber);
             MonthlySummaryResult summary = MonthlySummary(data, collaboratorPercentage, month);
             MonthlyExpenseBreakdown dynamicBreakdown = MonthlyExpenses(data, month);
-            long adjustment = summary.GoalMinorUnits - dynamicBreakdown.TotalMinorUnits;
+            long target = CanonicalExpenseTarget(data, collaboratorPercentage, month);
+            long adjustment = target - dynamicBreakdown.TotalMinorUnits;
             totalExpenses = Add(totalExpenses, dynamicBreakdown with { HistoricalAdjustmentMinorUnits = adjustment });
             summaries.Add(summary);
         }
@@ -104,11 +106,8 @@ public static class AdministrationReports
         long distributions = data.DistributionPayments
             .Where(item => item.Date.Year == year && validParticipantIds.Contains(item.ParticipantId))
             .Sum(item => item.Amount.MinorUnits);
-        long pending = data.Obligations.Where(item => item.DueDate.Year == year).Sum(item => Math.Max(
-            0,
-            item.ExpectedAmount.MinorUnits - data.ObligationPayments
-                .Where(payment => payment.ObligationId == item.Id)
-                .Sum(payment => payment.Amount.MinorUnits)));
+        long pending = data.Obligations.Where(item => item.DueDate.Year == year)
+            .Sum(item => item.OutstandingAmount(data.ObligationPayments).MinorUnits);
         AnnualBalanceResult balance = AnnualBalanceCalculator.Calculate(summaries, distributions, pending);
         return new AnnualAdministrationReport(
             balance,
@@ -134,10 +133,15 @@ public static class AdministrationReports
             .Where(item => item.Type == FinancialEntryType.Expense && item.Category == category && InMonth(item.Date))
             .Sum(item => item.Amount.MinorUnits);
         long optionalActual = Purchases(ProductCategory.CustomerCourtesy) + Expenses(ExpenseCategory.OptionalSupply);
+        long pendingPlans = data.MonthlyPurchaseItems
+            .Where(item => item.Month == month
+                && MonthlyPurchaseCommitmentPolicy.IsPending(item, data, month.LastDay))
+            .Sum(item => item.ExpectedTotalMinorUnits);
 
         return new MonthlyExpenseBreakdown(
             Obligations(ObligationType.Service),
             Obligations(ObligationType.Tax),
+            Obligations(ObligationType.Credit),
             Obligations(ObligationType.OtherRecurring),
             Purchases(ProductCategory.FoodOrDrinkForSale, ProductCategory.OtherProductForSale)
                 + Expenses(ExpenseCategory.MerchandisePurchase),
@@ -149,7 +153,7 @@ public static class AdministrationReports
             data.FinancialEntries.Where(item => item.Type == FinancialEntryType.UnexpectedExpense && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits),
             Expenses(ExpenseCategory.Other) + Purchases(ProductCategory.OtherLocalProduct),
-            0,
+            pendingPlans,
             0);
     }
 
@@ -209,9 +213,23 @@ public static class AdministrationReports
         public long Remaining { get; set; } = remaining;
     }
 
+    private static long CanonicalExpenseTarget(
+        AdministrationData data,
+        Percentage collaboratorPercentage,
+        YearMonth month)
+    {
+        MonthlyClose? confirmed = data.MonthlyCloses
+            .Where(item => item.Month == month && item.IsConfirmed)
+            .OrderByDescending(item => item.ClosedUtc)
+            .FirstOrDefault();
+        return confirmed?.ToFinancialSnapshot().BreakEvenMinorUnits
+            ?? FinancialMonthCalculator.Calculate(data, collaboratorPercentage, month).BreakEvenMinorUnits;
+    }
+
     private static MonthlyExpenseBreakdown Add(MonthlyExpenseBreakdown left, MonthlyExpenseBreakdown right) => new(
         left.ServicesMinorUnits + right.ServicesMinorUnits,
         left.TaxesMinorUnits + right.TaxesMinorUnits,
+        left.CreditsMinorUnits + right.CreditsMinorUnits,
         left.OtherObligationsMinorUnits + right.OtherObligationsMinorUnits,
         left.MerchandiseMinorUnits + right.MerchandiseMinorUnits,
         left.MandatorySuppliesMinorUnits + right.MandatorySuppliesMinorUnits,

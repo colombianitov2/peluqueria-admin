@@ -27,8 +27,15 @@ public sealed class AdministrationViewModelTests
         var repository = new FakeAdministrationRepository();
         var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
+        var service = new AdministrationService(repository, settingsRepository, timeProvider);
+        await service.AddAsync(FinancialEntry.CreateIncome(
+            new DateOnly(2026, 7, 18),
+            "Ingreso de mes abierto",
+            Money.FromDecimal(125m),
+            UtcNow),
+            TestContext.Current.CancellationToken);
         var viewModel = new AdministrationViewModel(
-            new AdministrationService(repository, settingsRepository, timeProvider),
+            service,
             new GetSettingsUseCase(settingsRepository),
             new FakeFormDraftStore(),
             timeProvider);
@@ -38,6 +45,9 @@ public sealed class AdministrationViewModelTests
         Assert.Equal("2026", viewModel.SpecificYearText);
         Assert.Equal("2026-01-01", viewModel.DateText);
         Assert.False(viewModel.HasRecoveredDraft);
+        OperationRow july = Assert.Single(viewModel.Rows, row => row.Principal == "2026-07");
+        Assert.Contains("125", july.Amount, StringComparison.Ordinal);
+        Assert.Contains("Mes abierto", july.Status, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -60,6 +70,45 @@ public sealed class AdministrationViewModelTests
         Assert.Equal("+Concepto aún incompleto", second.PrimaryText);
         Assert.True(second.HasRecoveredDraft);
         Assert.Empty((await service.LoadAsync(cancellationToken)).FinancialEntries);
+    }
+
+    [Fact]
+    public async Task InventoryPurchaseDraft_RestoresTheExactSelectedMonthlyPlan()
+    {
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
+        var drafts = new FakeFormDraftStore();
+        var service = new AdministrationService(repository, settingsRepository, timeProvider);
+        MonthlyPurchaseItem plan = MonthlyPurchaseItem.Create(
+            "Tinte cobrizo",
+            ProductCategory.OtherProductForSale,
+            new YearMonth(2026, 8),
+            4,
+            Money.FromDecimal(20m),
+            true,
+            false,
+            UtcNow);
+        await service.AddMonthlyPurchaseItemAsync(plan, TestContext.Current.CancellationToken);
+        var first = new AdministrationViewModel(
+            service, new GetSettingsUseCase(settingsRepository), drafts, timeProvider);
+        await first.SelectModuleAsync(AdministrationViewModel.InventoryModule);
+
+        first.SelectedMonthlyPlanId = plan.Id;
+        first.QuantityText = "4";
+        first.AmountText = "35";
+        first.OptionalDescriptionText = "Compra pendiente";
+        await first.FlushPendingAsync();
+
+        var second = new AdministrationViewModel(
+            service, new GetSettingsUseCase(settingsRepository), drafts, timeProvider);
+        await second.SelectModuleAsync(AdministrationViewModel.InventoryModule);
+
+        Assert.True(second.HasRecoveredDraft);
+        Assert.Equal(plan.Id, second.SelectedMonthlyPlanId);
+        Assert.Equal("4", second.QuantityText);
+        Assert.Equal("35", second.AmountText);
+        Assert.Equal("Compra pendiente", second.OptionalDescriptionText);
     }
 
     [Fact]
@@ -255,6 +304,11 @@ public sealed class AdministrationViewModelTests
         await service.AddAsync(obligation, cancellationToken);
         await service.AddAsync(ObligationPayment.Create(obligation.Id, new DateOnly(2026, 7, 10),
             Money.FromDecimal(25m), UtcNow), cancellationToken);
+        Obligation credit = Obligation.Create("Crédito de equipo", ObligationType.Credit,
+            new DateOnly(2026, 7, 12), Money.FromDecimal(18m), RecurrenceFrequency.None, UtcNow);
+        await service.AddAsync(credit, cancellationToken);
+        await service.AddAsync(ObligationPayment.Create(credit.Id, new DateOnly(2026, 7, 12),
+            Money.FromDecimal(18m), UtcNow), cancellationToken);
         Loan loan = Loan.Create("Préstamo", Money.FromDecimal(100m), Money.FromDecimal(10m),
             new DateOnly(2026, 7, 1), LoanFrequency.Monthly, 10, new DateOnly(2026, 7, 15), UtcNow);
         await service.AddLoanAsync(loan, cancellationToken);
@@ -271,6 +325,7 @@ public sealed class AdministrationViewModelTests
         await viewModel.RefreshCommand.ExecuteAsync(null);
 
         Assert.Contains(viewModel.ExpenseLegendRows, row => row.Category == "Obligaciones");
+        Assert.Contains(viewModel.ExpenseLegendRows, row => row.Category == "Créditos");
         Assert.Contains(viewModel.ExpenseLegendRows, row => row.Category == "Préstamos");
         Assert.Contains(viewModel.ExpenseLegendRows, row => row.Category == "Reservas");
     }

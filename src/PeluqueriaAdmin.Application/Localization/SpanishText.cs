@@ -39,6 +39,7 @@ public static class SpanishText
         ObligationType.Service => "Servicio",
         ObligationType.Tax => "Impuesto",
         ObligationType.OtherRecurring => "Otra obligación",
+        ObligationType.Credit => "Crédito",
         _ => throw new ArgumentOutOfRangeException(nameof(value)),
     };
 
@@ -53,9 +54,10 @@ public static class SpanishText
 
     public static string For(RecurrenceFrequency value) => value switch
     {
-        RecurrenceFrequency.None => "Ninguna",
+        RecurrenceFrequency.None => "Sin recurrencia",
         RecurrenceFrequency.Monthly => "Mensual",
         RecurrenceFrequency.Annual => "Anual",
+        RecurrenceFrequency.Weekly => "Semanal",
         _ => throw new ArgumentOutOfRangeException(nameof(value)),
     };
 

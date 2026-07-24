@@ -2,9 +2,9 @@
 
 ## Carácter canónico y precedencia
 
-Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.9 del 23 de julio de 2026.
+Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 4.10 del 23 de julio de 2026.
 
-La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, cobro semanal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 y 4.5 concretan las reglas vigentes de Uso del local, perfil, fechas, sillas, cuenta, historial y pagos anticipados. La Fase 4.7 sustituyó la notificación de obligaciones, los porcentajes individuales directos y los planes de reposición. La Fase 4.8 sustituye la regla de cierre automático: el cierre mensual vuelve a ser una acción manual visible únicamente en Resumen mensual y crea reservas, exclusiones y distribuciones congeladas. La Fase 4.9 sustituye las etiquetas ambiguas de actividad, el anticipo congelado, la lista mensual dependiente del inventario, el préstamo sin calendario exacto y el balance anual limitado a cierres.
+La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, cobro semanal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 y 4.5 concretan las reglas vigentes de Uso del local, perfil, fechas, sillas, cuenta, historial y pagos anticipados. La Fase 4.7 sustituyó la notificación de obligaciones, los porcentajes individuales directos y los planes de reposición visibles. La Fase 4.8 sustituye la regla de cierre automático: el cierre mensual vuelve a ser una acción manual visible únicamente en Resumen mensual y crea reservas, exclusiones y distribuciones congeladas. La Fase 4.9 sustituye las etiquetas ambiguas de actividad, el anticipo congelado, la lista mensual dependiente del inventario, el préstamo sin calendario exacto y el balance anual limitado a cierres. La Fase 4.10 sustituye el formulario genérico de alta de inventario, los controles de activación/reserva de la lista mensual, la lista incompleta de tipos y recurrencias de obligaciones y el Manual pendiente.
 
 Los trabajadores son quienes usan y alquilan las sillas. Los colaboradores son exclusivamente inversionistas y nunca ocupan sillas. La interfaz, los mensajes, Excel y la documentación usan esta distinción.
 
@@ -107,6 +107,16 @@ El inventario usa exclusivamente estas categorías: Alimento o bebida para venta
 
 Los productos destinados a venta aparecen inmediatamente en Ventas, pueden buscarse por nombre sin distinguir mayúsculas y muestran existencia y precio predeterminado. Cambiar a una categoría no vendible los retira del selector; cambiar a una categoría vendible los incorpora tras guardar, sin reiniciar.
 
+La pestaña **Lista mensual de compra** permite agregar, editar, guardar y eliminar lógicamente filas con nombre, categoría, mes, cantidad, costo esperado y descripción. No presenta controles **Activa**, **Reservar cuando el inventario llegue a cero** ni **Activar o desactivar**. Los indicadores técnicos heredados se conservan solo para leer y documentar bases anteriores, pero no deciden si una fila vigente afecta los cálculos.
+
+La pestaña **Agregar al inventario** registra siempre una compra; no muestra un selector de operación ni crea existencias iniciales o productos sueltos. Una búsqueda con icono de lupa filtra por nombre, categoría o mes las filas mensuales todavía no compradas. Después de seleccionar una fila solicita únicamente fecha de compra, cantidad realmente comprada, precio de venta al público cuando la categoría sea vendible y descripción opcional. El costo de adquisición procede del costo esperado de la fila mensual:
+
+```text
+costo real de la compra = costo esperado unitario × cantidad realmente comprada
+```
+
+Guardar crea o vincula el producto, crea un único movimiento `Compra`, actualiza el precio de venta cuando corresponde y marca la fila mensual como comprada en la misma transacción. El precio de venta no se interpreta como costo de adquisición.
+
 ## 6.1 Uso del local y perfiles
 
 Uso del local conserva las tres tarjetas y usa tablas independientes de trabajadores y sillas. El selector **Acción** contiene únicamente **Añadir silla** y **Añadir trabajador**. La silla inicial del trabajador es opcional; la ausencia de sillas vacías no bloquea su alta. La fecha visible se persiste exactamente, cambiar de acción o terminar un alta prepara la fecha local actual y un borrador recuperado muestra un aviso junto con su fecha antes de guardar. El formulario no expone una acción visible para limpiar, pero conserva el borrador interno.
@@ -169,9 +179,12 @@ Los gastos imprevistos pueden añadirse en cualquier mes para daños, reparacion
 ## 8. Servicios, obligaciones e impuestos
 
 - Los servicios y obligaciones se registran manualmente con sus fechas y valores.
+- Los tipos disponibles son **Servicio**, **Impuesto**, **Crédito** y **Otra obligación**.
+- Las recurrencias disponibles son **Sin recurrencia**, **Semanal**, **Mensual** y **Anual**. La semanal conserva el vencimiento ancla y avanza exactamente siete días.
 - Los impuestos son únicamente recordatorios y gastos internos.
 - La aplicación no calcula obligaciones legales ni prepara declaraciones.
-- La página principal muestra solamente la fecha y el nombre de los servicios o impuestos pendientes de pago, junto con los demás elementos expresamente permitidos para esa página.
+- La página principal muestra la fecha, el nombre y el saldo de las obligaciones pendientes —incluidos créditos— y de las compras mensuales conocidas que correspondan al periodo, junto con los demás elementos expresamente permitidos para esa página.
+- Registrar un pago confirma una ocurrencia con el valor real. Una ocurrencia confirmada queda sin saldo pendiente aun cuando el valor real difiera del esperado; los reportes usan ese valor real una sola vez.
 
 ## 9. Mantenimiento
 
@@ -311,7 +324,8 @@ El indicador mensual es negativo cuando todavía falta dinero para cubrir las ob
 La página principal muestra exclusivamente:
 
 - fecha actual o mes seleccionado;
-- fecha y nombre de servicios e impuestos pendientes de pago;
+- fecha, nombre y saldo de obligaciones pendientes, incluidos servicios, impuestos, créditos y otras obligaciones;
+- compras de la lista mensual que siguen pendientes y corresponden al periodo consultado;
 - nombre de cada persona que debe pagos por uso del local;
 - monto adeudado por cada persona;
 - cantidad faltante para alcanzar el punto de equilibrio mensual.
@@ -322,8 +336,8 @@ La página principal muestra exclusivamente:
 No mostrar allí:
 
 - gráficos;
-- inventario;
-- alertas de inventario;
+- existencias o tablas de inventario;
+- alertas de existencias, distintas del compromiso económico de una compra mensual;
 - ventas;
 - icono, insignia o panel emergente de obligaciones;
 - elementos distintos del precio sugerido expresamente autorizado.
@@ -344,7 +358,7 @@ Copias y exportación:
 - máximo una copia automática diaria cuando la base cambió y retención de las 30 automáticas más recientes;
 - copia diferenciada antes de migrar un esquema existente y antes de restaurar;
 - restauración manual después de validar compatibilidad y con recuperación de la base anterior ante fallo;
-- una única exportación `.xlsx` con todas las hojas lógicas, Notas, historial, futuro conocido, eliminados y borradores; no incluye planes de reposición ni ofrece CSV en la interfaz.
+- una única exportación `.xlsx` con todas las hojas lógicas, Notas, historial, futuro conocido, eliminados y borradores; incluye tarifas semanales históricas, lista mensual vigente, compatibilidad heredada de inventario, obligaciones/créditos, recurrencias, saldos y los demás datos persistidos; no ofrece CSV en la interfaz.
 - la carpeta del `.xlsx` es configurable, persistente y nunca cambia silenciosamente si ocurre un error.
 
 La arquitectura debe contemplar:
@@ -390,6 +404,8 @@ El ejecutable nunca debe incluir un token personal de GitHub ni otra credencial 
 
 La primera alpha es x64, sin certificado y puede activar una advertencia de SmartScreen. Windows 11 es la plataforma principal de validación; Windows 10 x64 sigue siendo un objetivo no verificado en un equipo real. No se declara verificada una actualización entre Releases hasta disponer de dos versiones publicadas.
 
+La incorporación del logotipo de la empresa y la comprobación del salto real entre versiones mediante GitHub quedan expresamente para una actualización posterior. La Fase 4.10 no publica `alpha.2`, no crea un Release y no modifica el mecanismo de actualización.
+
 ## 17. Correcciones de aceptación de la Fase 3.1
 
 - Editar y eliminar son acciones separadas: la confirmación se exige solo para eliminar y se reinicia después de usarla.
@@ -421,7 +437,7 @@ La primera alpha es x64, sin certificado y puede activar una advertencia de Smar
 ## Decisiones reemplazadas en Fase 4.6
 
 Quedan reemplazadas la moneda configurable, COP, el presupuesto mensual opcional, la nómina como sección independiente, el reparto igualitario automático y la exportación CSV múltiple. Ventas recalcula cantidad por precio editable en USD y nunca permite superar la existencia. Las gráficas responden realmente a hoy, semana, mes, tres meses, seis meses, año, fecha específica y año específico; un registro antiguo sin hora operativa verificable se incluye en totales pero no se asigna a una hora inventada.
-- El futuro módulo Manual queda como requisito pendiente y no se muestra un botón vacío.
+- La decisión de Fase 4.6 mantenía el Manual como requisito pendiente; queda expresamente reemplazada por la implementación de Fase 4.10.
 
 ## Decisiones reemplazadas en Fase 4.7
 
@@ -445,3 +461,14 @@ Quedan reemplazados el recibo de obligaciones de Inicio, los porcentajes individ
 - Balance anual consulta solo el año, combina snapshots mensuales confirmados con meses abiertos en vivo, grafica 12 meses y congela un snapshot anual con arrastres separados.
 - Resumen financiero vive únicamente en Resumen mensual. Los gastos extraoficiales son configuraciones persistentes sin filtro temporal y admiten edición explícita.
 - Inicio añade movimientos generales diarios sin recuperar una notificación independiente de obligaciones.
+
+## Decisiones vigentes de Fase 4.10
+
+- **Agregar al inventario** registra siempre una compra procedente de una fila pendiente de la Lista mensual; no ofrece un selector de operación. La lupa busca por producto, categoría o mes.
+- La compra solicita fecha, cantidad real, precio de venta si corresponde y descripción. El costo de caja es `costo esperado unitario × cantidad real`; el precio de venta nunca sustituye el costo de adquisición.
+- La Lista mensual ofrece agregar, editar, guardar y eliminar. Los indicadores heredados de activación y reserva no se muestran ni alteran compromisos, Inicio, punto de equilibrio, cierres o reportes.
+- Obligaciones incorpora **Crédito** y recurrencia **Semanal**. Una ocurrencia pagada usa el valor real y queda con saldo cero; una pendiente conserva el saldo esperado.
+- Inicio, Resumen mensual, precio sugerido por silla, Balance anual y Excel consumen las mismas reglas compartidas para no duplicar ni omitir compras u obligaciones.
+- **Manual** aparece debajo de Notas y explica detalladamente cada módulo, cálculos, cierres, seguridad, copias, Excel y actualizaciones. Es contenido estático del programa y no una operación de usuario.
+- Excel conserva una fotografía completa y consistente de datos actuales, históricos, futuros, eliminados, borradores y estructuras heredadas que todavía existan en SQLite.
+- El logotipo y la prueba del actualizador mediante una versión posterior en GitHub no forman parte de esta entrega. No se publica `alpha.2`.

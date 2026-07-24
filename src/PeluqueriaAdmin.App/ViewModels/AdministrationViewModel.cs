@@ -1595,7 +1595,18 @@ public sealed partial class AdministrationViewModel(
         result.AddRange(data.ObligationPayments
             .Where(item => !WasReserved(FinancialCommitmentSource.Obligation, item.ObligationId, item.Date, item.Amount.MinorUnits))
             .Select(item =>
-            new ChartCashPoint(item.Date, item.CreatedUtc, "Obligaciones", -item.Amount.MinorUnits)));
+            {
+                Obligation? obligation = data.Obligations.SingleOrDefault(
+                    candidate => candidate.Id == item.ObligationId);
+                string category = obligation?.Type == ObligationType.Credit
+                    ? "Créditos"
+                    : "Obligaciones";
+                return new ChartCashPoint(
+                    item.Date,
+                    item.CreatedUtc,
+                    category,
+                    -item.Amount.MinorUnits);
+            }));
         result.AddRange(data.MaintenanceRecords
             .Where(item => item.CompletedDate.HasValue && item.ActualCost.HasValue)
             .Where(item => !WasReserved(FinancialCommitmentSource.Maintenance, item.Id,
@@ -1713,22 +1724,33 @@ public sealed partial class AdministrationViewModel(
     private IEnumerable<OperationRow> BuildAnnualRows(AdministrationData data, SettingsDto settings)
     {
         int year = ParseDate(DateText, "año a consultar").Year;
-        foreach (int number in Enumerable.Range(1, 12))
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+        AnnualFinancialReport report = AnnualFinancialCalculator.Calculate(
+            data,
+            Percentage.FromPercent(settings.CollaboratorProfitPercent),
+            year,
+            today);
+        foreach (AnnualMonthFinancial financialMonth in report.Months)
         {
-            YearMonth month = new(year, number);
-            MonthlyClose? close = data.MonthlyCloses.Where(item => item.Month == month && item.IsConfirmed)
+            MonthlyClose? close = data.MonthlyCloses.Where(
+                    item => item.Month == financialMonth.Month && item.IsConfirmed)
                 .OrderByDescending(item => item.ClosedUtc).FirstOrDefault();
-            long income = close?.IncomeMinorUnits ?? 0;
-            long outflows = close?.PaidOutflowsMinorUnits ?? 0;
-            long reserves = close?.NewReservesMinorUnits ?? 0;
-            long obligations = close?.AccountsPayableMinorUnits ?? 0;
-            long loans = close?.LoanPaymentsMinorUnits ?? 0;
-            long fund = close?.FundMinorUnits ?? 0;
-            long result = close?.BaseResultMinorUnits ?? 0;
-            string detail = $"Egresos {ApplicationCurrency.Code} {outflows / 100m:N2} · Reservas {ApplicationCurrency.Code} {reserves / 100m:N2} · Obligaciones {ApplicationCurrency.Code} {obligations / 100m:N2} · Préstamos {ApplicationCurrency.Code} {loans / 100m:N2} · Fondo {ApplicationCurrency.Code} {fund / 100m:N2}";
-            yield return Row(month.FirstDay, month.ToString(), detail, string.Empty,
-                $"{ApplicationCurrency.Code} {income / 100m:N2}",
-                close is null ? "Sin cierre · valores en cero" : result >= 0 ? "Positivo" : "Negativo", close);
+            string detail =
+                $"Egresos y reservas {ApplicationCurrency.Code} {financialMonth.OutflowMinorUnits / 100m:N2} · "
+                + $"Resultado {ApplicationCurrency.Code} {financialMonth.ResultMinorUnits / 100m:N2}";
+            string origin = financialMonth.IsClosed
+                ? "Snapshot de cierre confirmado"
+                : financialMonth.Month.FirstDay <= today
+                    ? "Mes abierto · valores actuales"
+                    : "Mes futuro · sin movimientos";
+            yield return Row(
+                financialMonth.Month.FirstDay,
+                financialMonth.Month.ToString(),
+                detail,
+                string.Empty,
+                $"{ApplicationCurrency.Code} {financialMonth.IncomeMinorUnits / 100m:N2}",
+                $"{origin} · {(financialMonth.ResultMinorUnits >= 0 ? "Positivo" : "Negativo")}",
+                close);
         }
     }
 
@@ -1791,7 +1813,8 @@ public sealed partial class AdministrationViewModel(
         || !string.IsNullOrWhiteSpace(QuantityText)
         || !string.IsNullOrWhiteSpace(OptionalDescriptionText)
         || SelectedEntityOption is not null
-        || SelectedSecondaryEntityOption is not null;
+        || SelectedSecondaryEntityOption is not null
+        || SelectedMonthlyPlanId.HasValue;
 
     private async Task UpdateSelectedProductDetailsAsync(EntityOption? option)
     {
@@ -1841,7 +1864,8 @@ public sealed partial class AdministrationViewModel(
             string payload = JsonSerializer.Serialize(new FormPayload(
                 PrimaryText, SecondaryText, ExtraText, DateText, EndDateText,
                 AmountText, SecondaryAmountText, QuantityText, OptionalDescriptionText,
-                SelectedEntityOption?.Id, SelectedSecondaryEntityOption?.Id));
+                SelectedEntityOption?.Id, SelectedSecondaryEntityOption?.Id,
+                SelectedMonthlyPlanId));
             Guid? entityId = isEditing ? SelectedRow?.Entity?.Id : null;
             await formDraftStore.UpsertAsync(FormDraft.Create(
                 CurrentDraftKey(), Title, SelectedAction, payload, entityId, isEditing,
@@ -1879,6 +1903,7 @@ public sealed partial class AdministrationViewModel(
         OptionalDescriptionText = payload.OptionalDescriptionText;
         SelectedEntityOption = EntityOptions.SingleOrDefault(item => item.Id == payload.SelectedEntityId);
         SelectedSecondaryEntityOption = SecondaryEntityOptions.SingleOrDefault(item => item.Id == payload.SelectedSecondaryEntityId);
+        SelectedMonthlyPlanId = payload.SelectedMonthlyPlanId;
         suppressFormTracking = false;
         HasRecoveredDraft = HasFormContent();
         StatusMessage = string.Empty;
@@ -2035,6 +2060,8 @@ public sealed partial class AdministrationViewModel(
         }
     }
     partial void OnSelectedSecondaryEntityOptionChanged(EntityOption? value) => TrackFormChange();
+
+    partial void OnSelectedMonthlyPlanIdChanged(Guid? value) => TrackFormChange();
 
     partial void OnSelectedPeriodChanged(string value)
     {
@@ -2202,8 +2229,8 @@ public sealed partial class AdministrationViewModel(
                 PrimaryLabel = "Nombre del gasto"; ShowAmount = true; AmountLabel = "Valor"; break;
             case (ObligationsModule, "Agregar obligación"):
                 PrimaryLabel = "Nombre de la obligación"; ShowSecondary = ShowExtra = ShowAmount = true; UseSecondarySelector = false; SecondaryLabel = "Tipo"; ExtraLabel = "Recurrencia"; DateLabel = "Fecha de vencimiento"; AmountLabel = "Valor esperado";
-                foreach (string x in new[] { "Servicio", "Impuesto", "Otra obligación" }) SecondaryOptions.Add(x);
-                foreach (string x in new[] { "Ninguna", "Mensual", "Anual" }) ExtraOptions.Add(x); break;
+                foreach (string x in new[] { "Servicio", "Impuesto", "Crédito", "Otra obligación" }) SecondaryOptions.Add(x);
+                foreach (string x in new[] { "Sin recurrencia", "Semanal", "Mensual", "Anual" }) ExtraOptions.Add(x); break;
             case (ObligationsModule, "Registrar pago"):
                 PrimaryLabel = "Obligación"; UsePrimarySelector = true; ShowAmount = true; AmountLabel = "Valor pagado"; break;
             case (MaintenanceModule, "Programar mantenimiento"):
@@ -2232,7 +2259,8 @@ public sealed partial class AdministrationViewModel(
         string QuantityText,
         string OptionalDescriptionText = "",
         Guid? SelectedEntityId = null,
-        Guid? SelectedSecondaryEntityId = null);
+        Guid? SelectedSecondaryEntityId = null,
+        Guid? SelectedMonthlyPlanId = null);
 
     private void ConfigureModule()
     {
@@ -2243,11 +2271,11 @@ public sealed partial class AdministrationViewModel(
             LocalUseModule => ("Sillas, trabajadores, asignaciones, cuotas semanales y pagos.", ["Añadir silla", "Añadir trabajador", "Registrar pago", "Asignar o cambiar silla", "Retirar silla"]),
             CollaboratorsModule => ("Participantes de los cierres mensuales; no constituye nómina laboral.", ["Agregar colaborador"]),
             SalesModule => ("Ventas de productos del local. Selecciona el producto por nombre.", ["Registrar venta"]),
-            InventoryModule => ("Productos y compras de inventario.", ["Agregar producto", "Registrar compra"]),
+            InventoryModule => ("Compras de productos planificados en la Lista mensual.", ["Registrar compra"]),
             OtherIncomeModule => ("Ingresos reales diferentes de uso del local y ventas.", ["Registrar ingreso"]),
             ExpensesModule => ("Gastos del local que no provienen ya de una compra de inventario.", ["Registrar gasto"]),
             UnexpectedModule => ("Daños, reparaciones y acontecimientos no planificados.", ["Registrar imprevisto"]),
-            ObligationsModule => ("Servicios, impuestos y otras obligaciones; estados calculados.", ["Agregar obligación", "Registrar pago"]),
+            ObligationsModule => ("Servicios, impuestos, créditos y otras obligaciones; estados calculados.", ["Agregar obligación", "Registrar pago"]),
             MaintenanceModule => ("Mantenimiento previsto y realizado de equipos o bienes.", ["Programar mantenimiento", "Registrar realización"]),
             PayrollModule => ("Cierres mensuales, participantes y pagos completos.", ["Cerrar mes", "Pagar ganancia completa", "Reabrir cierre"]),
             MonthlySummaryModule => ("Ingresos, meta, faltante y resultados. Indica una fecha del mes a consultar.", ["Consultar"]),
@@ -2432,16 +2460,18 @@ public sealed partial class AdministrationViewModel(
     {
         "servicio" or "service" => ObligationType.Service,
         "impuesto" or "tax" => ObligationType.Tax,
+        "credito" or "credit" => ObligationType.Credit,
         "otra" or "otra obligacion" or "otherrecurring" => ObligationType.OtherRecurring,
-        _ => throw new ArgumentException("Tipo válido: Servicio, Impuesto u Otra."),
+        _ => throw new ArgumentException("Tipo válido: Servicio, Impuesto, Crédito u Otra obligación."),
     };
 
     private static RecurrenceFrequency ParseRecurrence(string value) => Normalize(value) switch
     {
-        "" or "ninguna" or "none" => RecurrenceFrequency.None,
+        "" or "ninguna" or "sin recurrencia" or "none" => RecurrenceFrequency.None,
+        "semanal" or "weekly" => RecurrenceFrequency.Weekly,
         "mensual" or "monthly" => RecurrenceFrequency.Monthly,
         "anual" or "annual" => RecurrenceFrequency.Annual,
-        _ => throw new ArgumentException("Repetición válida: Ninguna, Mensual o Anual."),
+        _ => throw new ArgumentException("Repetición válida: Sin recurrencia, Semanal, Mensual o Anual."),
     };
 
     private static string Normalize(string value) => value.Trim().ToLowerInvariant()

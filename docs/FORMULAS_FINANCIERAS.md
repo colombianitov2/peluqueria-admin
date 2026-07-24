@@ -30,13 +30,25 @@ Los pagos actuales por uso del local no se restan porque crearían una fórmula 
 ```text
 existencia = entradas iniciales + compras - ventas - consumos + ajustes de conteo
 margen informativo = venta bruta - costo promedio estimado de lo vendido
+costo esperado de fila mensual = costo esperado unitario × cantidad planificada
+costo real de compra mensual = costo esperado unitario × cantidad realmente comprada
 ```
 
-La compra es la única salida de caja por adquirir inventario. Venta y consumo reducen existencias, pero el costo estimado no se registra de nuevo como salida de caja.
+La compra es la única salida de caja por adquirir inventario. Venta y consumo reducen existencias, pero el costo estimado no se registra de nuevo como salida de caja. El precio de venta escrito al comprar actualiza el valor que se cobrará al cliente y nunca se usa como costo de adquisición.
+
+Toda fila vigente de la Lista mensual que todavía no tiene movimiento de compra es un compromiso conocido para su mes. Los indicadores internos `IsActive` y `ReserveWhenOutOfStock` de bases anteriores se ignoran en cálculos. Antes de realizarla, el punto de equilibrio usa cantidad planificada por costo esperado. Al registrar la compra, el compromiso pendiente desaparece y lo sustituye exactamente una salida real calculada con la cantidad comprada; nunca se suman ambos valores.
 
 ## Obligaciones, mantenimiento, reservas y préstamos
 
-Una obligación o mantenimiento pendiente correspondiente al mes crea un compromiso por su valor esperado. Si se reserva al cerrar, el pago posterior consume esa reserva y solo `valor real - valor reservado` ajusta el periodo de pago. Una diferencia negativa libera fondos; una positiva reduce el resultado. Un mantenimiento vencido sin estimación debe recibir un costo o una exclusión justificada antes de cerrar.
+Una obligación o mantenimiento pendiente correspondiente al mes crea un compromiso por su saldo esperado. Cada recurrencia semanal avanza exactamente siete días desde el vencimiento inicial; mensual y anual conservan su ancla de calendario. **Crédito** es una categoría de obligación separada para reportes, pero utiliza la misma regla financiera.
+
+```text
+saldo pendiente de ocurrencia abierta = máximo(valor esperado - pagos vinculados, 0)
+saldo pendiente de ocurrencia confirmada = 0
+valor real de ocurrencia confirmada = suma de pagos vinculados
+```
+
+Confirmar un pago cierra la ocurrencia incluso cuando el valor real difiere del esperado. El pago real reemplaza al esperado en el resultado y no se agregan ambos. Si se reservó al cerrar, el pago posterior consume esa reserva y solo `valor real - valor reservado` ajusta el periodo de pago. Una diferencia negativa libera fondos; una positiva reduce el resultado. Un mantenimiento vencido sin estimación debe recibir un costo o una exclusión justificada antes de cerrar.
 
 Los préstamos recibidos son financiación. La cuota vencida o correspondiente al mes es un compromiso; para esta aplicación la cuota completa es salida de efectivo y no se separan capital e intereses.
 
@@ -67,7 +79,7 @@ ganancia retenida por el local = máximo(resultado repartible, 0) - fondo colabo
 faltante = máximo(-resultado repartible, 0)
 ```
 
-Las cuentas por cobrar no entran hasta cobrarse. Los aportes y préstamos recibidos aumentan la disponibilidad, pero no el resultado repartible. El porcentaje no cambia el punto de equilibrio cero. Compras, obligaciones, mantenimientos, préstamos y reservas se incorporan por una sola ruta para evitar doble conteo.
+Las cuentas por cobrar no entran hasta cobrarse. Los aportes y préstamos recibidos aumentan la disponibilidad, pero no el resultado repartible. El porcentaje no cambia el punto de equilibrio cero. Compras mensuales pendientes, compras realizadas, obligaciones, mantenimientos, préstamos y reservas se incorporan por una sola ruta compartida para evitar doble conteo. Inicio, precio sugerido por silla, Resumen mensual, Balance anual y Excel consumen esa misma regla.
 
 Ejemplo aprobado: `1000 - 500 - 100 - 50 - 80 = 270`; con porcentaje global 20 %, el fondo es `54`. Una deuda de trabajador de `120` se mantiene fuera hasta su cobro. Si una reserva de electricidad de `100` se paga luego por `110`, solo `10` afecta el periodo posterior.
 

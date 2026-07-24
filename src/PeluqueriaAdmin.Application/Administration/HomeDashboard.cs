@@ -1,4 +1,6 @@
+using PeluqueriaAdmin.Application.Localization;
 using PeluqueriaAdmin.Domain.Common;
+using PeluqueriaAdmin.Domain.Inventory;
 using PeluqueriaAdmin.Domain.LocalUse;
 using PeluqueriaAdmin.Domain.Obligations;
 using PeluqueriaAdmin.Domain.Reports;
@@ -43,19 +45,12 @@ public static class HomeDashboardCalculator
             .OrderBy(item => item.DueDate)
             .Select(item =>
             {
-                long paid = data.ObligationPayments
-                    .Where(payment => payment.ObligationId == item.Id)
-                    .Sum(payment => payment.Amount.MinorUnits);
+                Money pending = item.OutstandingAmount(data.ObligationPayments);
                 return new PendingHomeObligation(
                     item.DueDate,
                     item.Name,
-                    item.Type switch
-                    {
-                        ObligationType.Service => "Servicio",
-                        ObligationType.Tax => "Impuesto",
-                        _ => "Otra obligación",
-                    },
-                    Money.FromMinorUnits(Math.Max(0, item.ExpectedAmount.MinorUnits - paid)),
+                    SpanishText.For(item.Type),
+                    pending,
                     item.Description ?? string.Empty,
                     item.DueDate < today ? "Vencido" : "Pendiente");
             })
@@ -73,6 +68,15 @@ public static class HomeDashboardCalculator
                         item.Description ?? string.Empty,
                         item.DueDate < today ? "Vencido" : "Pendiente");
                 }))
+            .Concat(data.MonthlyPurchaseItems
+                .Where(item => MonthlyPurchaseCommitmentPolicy.IsPending(item, data, endOfMonth))
+                .Select(item => new PendingHomeObligation(
+                    item.Month.LastDay,
+                    item.Name,
+                    "Compra mensual",
+                    Money.FromMinorUnits(item.ExpectedTotalMinorUnits),
+                    item.Description ?? string.Empty,
+                    item.Month.LastDay < today ? "Vencido" : "Pendiente")))
             .OrderBy(item => item.DueDate)
             .ThenBy(item => item.Name)
             .ToArray();

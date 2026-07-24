@@ -19,6 +19,8 @@ La Fase 4.8 amplía la suite a **209 pruebas únicas**: 65 de dominio, 60 de apl
 
 La Fase 4.9 amplía la suite a **256 pruebas únicas**: 80 de dominio, 69 de aplicación, 26 de infraestructura y 81 de interfaz. Sus 47 casos nuevos corresponden uno a uno a la matriz de aceptación: fechas locales y acciones exactas; sábado, crédito y tarifa histórica; eventos de aportes; planes independientes; préstamos exactos; Inicio; balance anual vivo/cerrado/arrastres; Ajustes; persistencia; migración F48→F49; integridad SQLite; un XLSX y cero CSV; y refresco sin acumulación.
 
+La Fase 4.10 amplía la suite a **287 pruebas únicas**: 83 de dominio, 84 de aplicación, 26 de infraestructura y 94 de interfaz. Añade cobertura para el registro único de compra desde una fila mensual, búsqueda por lupa, ausencia de activación/desactivación, costo esperado por cantidad real, Crédito, recurrencia Semanal, saldo cero de una ocurrencia confirmada, compromisos compartidos por Inicio/punto de equilibrio y Manual integrado. Infrastructure valida además las hojas de tarifas semanales, lista mensual, planes de reposición heredados, compatibilidad de inventario, pagos de obligaciones, saldos arrastrados, historial eliminado detallado y el desglose anual oficial. La suite completa pasó en Debug y Release: **574 ejecuciones aprobadas, 0 fallos y 0 omitidas**, con compilación limpia en ambas configuraciones.
+
 ## Cobertura funcional comprobada
 
 - primera cuota, periodos de siete días, retiro, cambio futuro de tarifa e idempotencia;
@@ -68,6 +70,11 @@ La Fase 4.9 amplía la suite a **256 pruebas únicas**: 80 de dominio, 69 de apl
 - cuentas por cobrar excluidas hasta cobrarse, pagos futuros sin alterar meses anteriores y separación de financiación;
 - mantenimiento futuro fuera del mes, vencido dentro del compromiso y cierre bloqueado ante costo sin resolver;
 - lista mensual por identificador, cantidad por costo, arrastre desde el mes de aplicación y consumo posterior de reserva;
+- lista mensual sin controles de activación/reserva; toda fila pendiente afecta su mes y una compra real la sustituye sin doble conteo;
+- registro de compra desde búsqueda mensual con cantidad real, costo esperado unitario, precio de venta separado y vínculo transaccional;
+- obligaciones de tipo Crédito, recurrencia Semanal cada siete días y saldo cero tras confirmar el pago real;
+- hojas Excel de tarifas semanales, lista mensual vigente, compatibilidad heredada, créditos y saldos arrastrados;
+- navegación y contenido del Manual estático debajo de Notas, sin persistencia ni modificación de operaciones;
 - cierre mensual manual, motivo obligatorio de exclusión, reapertura y nuevo cierre sin duplicados activos;
 - préstamos recibidos fuera de ingresos, cuotas dentro de compromisos y saldo decreciente;
 - doce cierres requeridos para cierre anual, preservación histórica y meses nuevos en cero;
@@ -120,7 +127,7 @@ La Fase 4.6 añade pruebas para USD único y normalización de bases COP sin con
 - actualización entre dos GitHub Releases y conservación de datos durante ese salto;
 - firma de código y comportamiento reputacional de SmartScreen;
 - comparación de reportes con datos reales aprobados por el usuario.
-- integración y validación del logotipo exacto K&V Barber & Beauty, porque el archivo gráfico solicitado no estuvo disponible entre los adjuntos accesibles.
+- incorporación y validación del logotipo exacto K&V Barber & Beauty en la actualización posterior elegida para probar el actualizador; Fase 4.10 no lo modifica ni publica `alpha.2`.
 
 Ninguna prueba automatizada utiliza la base real ni incorpora datos permanentes.
 

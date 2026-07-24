@@ -30,14 +30,10 @@ public static class SuggestedChairPriceCalculator
         DateOnly today)
     {
         bool InMonth(DateOnly date) => YearMonth.From(date) == month;
-        long officialGoal = checked(
-            data.Obligations.Where(item => InMonth(item.DueDate)).Sum(item => item.ExpectedAmount.MinorUnits)
-            + data.InventoryMovements.Where(item => item.Type == InventoryMovementType.Purchase && InMonth(item.Date))
-                .Sum(item => item.CashAmount?.MinorUnits ?? 0)
-            + data.FinancialEntries.Where(item => item.Type is FinancialEntryType.Expense or FinancialEntryType.UnexpectedExpense && InMonth(item.Date))
-                .Sum(item => item.Amount.MinorUnits)
-            + data.MaintenanceRecords.Where(item => InMonth(item.ScheduledDate))
-                .Sum(item => item.ActualCost?.MinorUnits ?? item.EstimatedCost?.MinorUnits ?? 0));
+        long officialGoal = FinancialMonthCalculator.Calculate(
+            data,
+            Percentage.FromBasisPoints(0),
+            month).BreakEvenMinorUnits;
         long unofficial = data.UnofficialExpenses
             .Where(item => item.AppliesOn(today))
             .Sum(item => item.MonthlyAmount.MinorUnits);

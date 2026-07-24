@@ -139,13 +139,14 @@ public static class AnnualFinancialCalculator
     {
         DateOnly cutoff = new(year, 12, 31);
         long obligations = data.Obligations.Where(item => item.DueDate <= cutoff)
-            .Sum(item => Math.Max(0, item.ExpectedAmount.MinorUnits
-                - data.ObligationPayments.Where(payment => payment.ObligationId == item.Id)
-                    .Sum(payment => payment.Amount.MinorUnits)));
+            .Sum(item => item.OutstandingAmount(data.ObligationPayments).MinorUnits);
         long maintenance = data.MaintenanceRecords
             .Where(item => !item.CompletedDate.HasValue && item.ScheduledDate <= cutoff)
             .Sum(item => item.EstimatedCost?.MinorUnits ?? 0);
-        return checked(obligations + maintenance);
+        long monthlyPurchases = data.MonthlyPurchaseItems
+            .Where(item => MonthlyPurchaseCommitmentPolicy.IsPending(item, data, cutoff))
+            .Sum(item => item.ExpectedTotalMinorUnits);
+        return checked(obligations + maintenance + monthlyPurchases);
     }
 
     private static long CalculateAccountsReceivable(AdministrationData data, int year, DateOnly today)
@@ -167,12 +168,33 @@ public static class AnnualFinancialCalculator
         var result = new List<AnnualPendingCommitment>();
         foreach (var obligation in data.Obligations.Where(item => item.DueDate <= cutoff))
         {
-            long pending = Math.Max(0, obligation.ExpectedAmount.MinorUnits
-                - data.ObligationPayments.Where(payment => payment.ObligationId == obligation.Id)
-                    .Sum(payment => payment.Amount.MinorUnits));
+            long pending = obligation.OutstandingAmount(data.ObligationPayments).MinorUnits;
             if (pending > 0) result.Add(new(
                 obligation.DueDate, obligation.Name, "Obligación", pending,
                 obligation.Description ?? string.Empty, obligation.DueDate < today ? "Vencida" : "Pendiente"));
+        }
+        foreach (var maintenance in data.MaintenanceRecords.Where(item =>
+                     !item.CompletedDate.HasValue && item.ScheduledDate <= cutoff))
+        {
+            long pending = maintenance.EstimatedCost?.MinorUnits ?? 0;
+            if (pending > 0) result.Add(new(
+                maintenance.ScheduledDate,
+                $"{maintenance.Asset}: {maintenance.MaintenanceType}",
+                "Mantenimiento",
+                pending,
+                maintenance.Description ?? string.Empty,
+                maintenance.ScheduledDate < today ? "Vencido" : "Pendiente"));
+        }
+        foreach (var item in data.MonthlyPurchaseItems.Where(item =>
+                     MonthlyPurchaseCommitmentPolicy.IsPending(item, data, cutoff)))
+        {
+            result.Add(new(
+                item.Month.LastDay,
+                item.Name,
+                "Compra mensual",
+                item.ExpectedTotalMinorUnits,
+                item.Description ?? string.Empty,
+                item.Month.LastDay < today ? "Vencida" : "Pendiente"));
         }
         foreach (var installment in data.LoanInstallments.Where(item => item.DueDate <= cutoff
                      && data.LoanPayments.All(payment => payment.InstallmentId != item.Id)))

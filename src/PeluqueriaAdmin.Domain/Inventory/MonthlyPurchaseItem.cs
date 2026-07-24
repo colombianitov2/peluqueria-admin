@@ -76,6 +76,15 @@ public sealed class MonthlyPurchaseItem : AuditableEntity
         MarkUpdated(utcNow);
     }
 
+    public void RelinkUnavailableInventoryProduct(Guid productId, DateTime utcNow)
+    {
+        if (productId == Guid.Empty) throw new ArgumentException("El producto no puede estar vacío.", nameof(productId));
+        if (PurchaseMovementId.HasValue)
+            throw new InvalidOperationException("Una compra vinculada conserva su fotografía histórica.");
+        ProductId = productId;
+        MarkUpdated(utcNow);
+    }
+
     public void LinkPurchase(Guid movementId, DateTime utcNow)
     {
         if (!ProductId.HasValue)

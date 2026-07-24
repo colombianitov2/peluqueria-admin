@@ -179,6 +179,178 @@ public sealed class Phase48AdministrationServiceTests
     }
 
     [Fact]
+    public async Task MonthlyPurchase_CreatesProductAndPurchaseAtomically_UsingPlannedCostAndEnteredSalePrice()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeRepository();
+        AdministrationService service = CreateService(repository);
+        MonthlyPurchaseItem plan = MonthlyPurchaseItem.Create(
+            "Tinte cobre",
+            ProductCategory.OtherProductForSale,
+            July,
+            2,
+            Money.FromDecimal(7.25m),
+            true,
+            false,
+            UtcNow,
+            "Producto planificado");
+        await service.AddMonthlyPurchaseItemAsync(plan, cancellationToken);
+
+        InventoryMovement purchase = await service.RegisterMonthlyPurchaseAsync(
+            plan.Id,
+            new DateOnly(2026, 7, 23),
+            Quantity.Positive(3),
+            Money.FromDecimal(20m),
+            "Compra real",
+            cancellationToken,
+            "Inventario:Registrar compra:new");
+
+        Product product = Assert.Single(repository.Active<Product>());
+        Assert.Equal("Tinte cobre", product.Name);
+        Assert.Equal(2_000, product.DefaultSalePrice?.MinorUnits);
+        Assert.Equal(725, product.DefaultUnitCost?.MinorUnits);
+        Assert.Equal(InventoryMovementType.Purchase, purchase.Type);
+        Assert.Equal(3m, purchase.QuantityDelta);
+        Assert.Equal(2_175, purchase.CashAmount?.MinorUnits);
+        Assert.Equal("Compra real", purchase.Description);
+        Assert.Equal(product.Id, plan.ProductId);
+        Assert.Equal(purchase.Id, plan.PurchaseMovementId);
+        Assert.Contains("Inventario:Registrar compra:new", repository.CompletedDraftKeys);
+        Assert.DoesNotContain(repository.Active<InventoryMovement>(),
+            item => item.Type == InventoryMovementType.InitialStock);
+    }
+
+    [Fact]
+    public async Task MonthlyPurchase_UsesTheExactSelectedExistingProduct_UpdatesSalePriceAndCannotRepeat()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeRepository();
+        AdministrationService service = CreateService(repository);
+        Product product = Product.Create(
+            "Cera",
+            ProductCategory.OtherProductForSale,
+            "unidad",
+            UtcNow,
+            Money.FromDecimal(10m),
+            defaultUnitCost: Money.FromDecimal(5m));
+        await service.AddProductAsync(product, cancellationToken);
+        MonthlyPurchaseItem plan = MonthlyPurchaseItem.Create(
+            product.Id,
+            July,
+            1,
+            Money.FromDecimal(8m),
+            false,
+            true,
+            UtcNow,
+            "Reposición seleccionada");
+        await service.AddMonthlyPurchaseItemAsync(plan, cancellationToken);
+
+        InventoryMovement purchase = await service.RegisterMonthlyPurchaseAsync(
+            plan.Id,
+            new DateOnly(2026, 7, 24),
+            Quantity.Positive(2),
+            Money.FromDecimal(14m),
+            cancellationToken: cancellationToken);
+
+        Assert.Single(repository.Active<Product>());
+        Assert.Equal(product.Id, purchase.ProductId);
+        Assert.Equal(1_400, product.DefaultSalePrice?.MinorUnits);
+        Assert.Equal(800, product.DefaultUnitCost?.MinorUnits);
+        Assert.Equal(1_600, purchase.CashAmount?.MinorUnits);
+        Assert.Equal(purchase.Id, plan.PurchaseMovementId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterMonthlyPurchaseAsync(
+            plan.Id,
+            new DateOnly(2026, 7, 25),
+            Quantity.Positive(1),
+            Money.FromDecimal(15m),
+            cancellationToken: cancellationToken));
+        Assert.Single(repository.Active<InventoryMovement>());
+    }
+
+    [Fact]
+    public async Task MonthlyPurchase_SettlesItsExactReserveWithPlannedUnitCostTimesActualQuantity()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeRepository();
+        AdministrationService service = CreateService(repository);
+        MonthlyPurchaseItem plan = MonthlyPurchaseItem.Create(
+            "Champú de uso interno",
+            ProductCategory.LocalSupply,
+            July,
+            2,
+            Money.FromDecimal(12.50m),
+            true,
+            false,
+            UtcNow);
+        await service.AddMonthlyPurchaseItemAsync(plan, cancellationToken);
+        FinancialReserve reserve = FinancialReserve.Create(
+            July,
+            FinancialCommitmentSource.MonthlyPurchase,
+            plan.Id,
+            plan.Name,
+            July.LastDay,
+            Money.FromDecimal(25m),
+            UtcNow);
+        repository.Entities.Add(reserve);
+
+        InventoryMovement purchase = await service.RegisterMonthlyPurchaseAsync(
+            plan.Id,
+            new DateOnly(2026, 7, 26),
+            Quantity.Positive(3),
+            null,
+            cancellationToken: cancellationToken);
+
+        Assert.True(reserve.IsConsumed);
+        Assert.Equal(new DateOnly(2026, 7, 26), reserve.SettledDate);
+        Assert.Equal(3_750, reserve.ActualAmount?.MinorUnits);
+        Assert.Equal(3_750, purchase.CashAmount?.MinorUnits);
+        Assert.Null(Assert.Single(repository.Active<Product>()).DefaultSalePrice);
+    }
+
+    [Fact]
+    public async Task MonthlyPurchase_ReplacesUnavailableDeletedProductLinkAndKeepsThePlanUsable()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeRepository();
+        AdministrationService service = CreateService(repository);
+        Product deletedProduct = Product.Create(
+            "Cera eliminada",
+            ProductCategory.OtherProductForSale,
+            "unidad",
+            UtcNow,
+            Money.FromDecimal(11m),
+            defaultUnitCost: Money.FromDecimal(6m));
+        await service.AddProductAsync(deletedProduct, cancellationToken);
+        MonthlyPurchaseItem plan = MonthlyPurchaseItem.Create(
+            "Cera eliminada",
+            ProductCategory.OtherProductForSale,
+            July,
+            2,
+            Money.FromDecimal(7m),
+            true,
+            false,
+            UtcNow,
+            "Plan que conserva su uso",
+            deletedProduct.Id);
+        await service.AddMonthlyPurchaseItemAsync(plan, cancellationToken);
+        deletedProduct.MarkDeleted(UtcNow.AddMinutes(1));
+
+        InventoryMovement purchase = await service.RegisterMonthlyPurchaseAsync(
+            plan.Id,
+            new DateOnly(2026, 7, 27),
+            Quantity.Positive(3),
+            Money.FromDecimal(12m),
+            cancellationToken: cancellationToken);
+
+        Product replacement = Assert.Single(repository.Active<Product>());
+        Assert.NotEqual(deletedProduct.Id, replacement.Id);
+        Assert.Equal("Cera eliminada", replacement.Name);
+        Assert.Equal(replacement.Id, plan.ProductId);
+        Assert.Equal(replacement.Id, purchase.ProductId);
+        Assert.Equal(purchase.Id, plan.PurchaseMovementId);
+    }
+
+    [Fact]
     public async Task CloseYear_RequiresTwelveMonths_PreservesThem_AndRejectsDuplicateAnnualClose()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
@@ -212,6 +384,7 @@ public sealed class Phase48AdministrationServiceTests
     private sealed class FakeRepository : IAdministrationRepository
     {
         public List<AuditableEntity> Entities { get; } = [];
+        public List<string> CompletedDraftKeys { get; } = [];
         public IReadOnlyList<T> Active<T>() where T : AuditableEntity => Entities.OfType<T>().Where(item => !item.IsDeleted).ToArray();
 
         public Task<AdministrationData> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult(new AdministrationData(
@@ -231,7 +404,11 @@ public sealed class Phase48AdministrationServiceTests
 
         public Task SaveCompletingDraftAsync(IReadOnlyCollection<AuditableEntity> additions,
             IReadOnlyCollection<AuditableEntity> updates, string completedDraftKey,
-            CancellationToken cancellationToken = default) => SaveAsync(additions, updates, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            CompletedDraftKeys.Add(completedDraftKey);
+            return SaveAsync(additions, updates, cancellationToken);
+        }
 
         public Task SaveSettingsAndRateAsync(GeneralSettings settings, WeeklyRate? newRate,
             CancellationToken cancellationToken = default)

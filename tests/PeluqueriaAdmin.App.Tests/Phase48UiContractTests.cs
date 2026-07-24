@@ -64,7 +64,7 @@ public sealed class Phase48UiContractTests
         string obligations = RepositoryFiles.Read("src", "PeluqueriaAdmin.App", "Views", "ObligationsView.xaml");
 
         Assert.Contains("Header=\"Lista mensual de compra\"", inventory, StringComparison.Ordinal);
-        Assert.Contains("Reservar cuando el inventario llegue a cero", inventory, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reservar cuando el inventario llegue a cero", inventory, StringComparison.Ordinal);
         Assert.Contains("Content=\"Añadir préstamo\"", obligations, StringComparison.Ordinal);
         Assert.Contains("Content=\"Registrar cuota\"", obligations, StringComparison.Ordinal);
         Assert.Contains("Header=\"Calendario de cuotas\"", obligations, StringComparison.Ordinal);

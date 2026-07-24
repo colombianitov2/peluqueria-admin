@@ -34,6 +34,7 @@ public sealed partial class MainViewModel : ObservableObject
         MaintenanceViewModel maintenance,
         ObligationsViewModel obligations,
         NotesViewModel notes,
+        ManualViewModel manual,
         AdministrationService administrationService,
         GetSettingsUseCase getSettings,
         TimeProvider timeProvider)
@@ -47,6 +48,7 @@ public sealed partial class MainViewModel : ObservableObject
         Maintenance = maintenance;
         Obligations = obligations;
         Notes = notes;
+        Manual = manual;
         this.administrationService = administrationService;
         this.getSettings = getSettings;
         this.timeProvider = timeProvider;
@@ -68,6 +70,7 @@ public sealed partial class MainViewModel : ObservableObject
             new(AdministrationViewModel.AnnualBalanceModule, true),
             new("Ajustes", false),
             new("Notas", false),
+            new("Manual", false),
         ];
         currentPage = this;
         selectedNavigationItem = NavigationItems[0];
@@ -90,6 +93,8 @@ public sealed partial class MainViewModel : ObservableObject
     public MaintenanceViewModel Maintenance { get; }
 
     public NotesViewModel Notes { get; }
+
+    public ManualViewModel Manual { get; }
 
     public ObligationsViewModel Obligations { get; }
 
@@ -198,6 +203,12 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        if (item.Name == "Manual")
+        {
+            CurrentPage = Manual;
+            return;
+        }
+
         if (item.Name == AdministrationViewModel.LocalUseModule)
         {
             await LocalUse.LoadAsync();
@@ -249,7 +260,8 @@ public sealed partial class MainViewModel : ObservableObject
         DateTime localNow = timeProvider.GetLocalNow().DateTime;
         DateOnly today = DateOnly.FromDateTime(localNow);
         YearMonth month = YearMonth.From(today);
-        AdministrationData data = await administrationService.GenerateScheduledRecordsAsync(today);
+        AdministrationData data = await administrationService.GenerateScheduledRecordsAsync(
+            YearMonth.From(today).LastDay);
         SettingsDto settings = await getSettings.ExecuteAsync();
         FechaActual = localNow.ToString("D", CultureInfo.GetCultureInfo("es-ES"));
 

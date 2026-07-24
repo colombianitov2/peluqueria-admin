@@ -94,9 +94,11 @@ public static class FinancialMonthCalculator
         var result = new List<FinancialCommitmentCandidate>();
         foreach (Obligation obligation in data.Obligations.Where(item => item.DueDate <= end))
         {
-            long paid = data.ObligationPayments.Where(item => item.ObligationId == obligation.Id && item.Date <= end)
-                .Sum(item => item.Amount.MinorUnits);
-            long pending = Math.Max(0, obligation.ExpectedAmount.MinorUnits - paid);
+            ObligationPayment[] payments = data.ObligationPayments
+                .Where(item => item.ObligationId == obligation.Id && item.Date <= end)
+                .ToArray();
+            long paid = payments.Sum(item => item.Amount.MinorUnits);
+            long pending = obligation.OutstandingAmount(payments).MinorUnits;
             if (pending == 0) continue;
             result.Add(Candidate(FinancialCommitmentSource.Obligation, obligation.Id, "Obligación",
                 obligation.Name, obligation.DueDate, pending, paid, obligation.DueDate < month.FirstDay ? "Vencida" : "Pendiente", data, month));
@@ -110,18 +112,12 @@ public static class FinancialMonthCalculator
                 expected, 0, maintenance.ScheduledDate < month.FirstDay ? "Vencido" : "Pendiente", data, month));
         }
 
-        var stock = data.InventoryMovements.GroupBy(item => item.ProductId)
-            .ToDictionary(group => group.Key, group => group.Sum(item => item.QuantityDelta));
         foreach (MonthlyPurchaseItem item in data.MonthlyPurchaseItems.Where(item =>
-                     (item.Month.Year < month.Year || item.Month.Year == month.Year && item.Month.Month <= month.Month)
-                     && item.IsActive && !item.PurchaseMovementId.HasValue))
+                     MonthlyPurchaseCommitmentPolicy.IsPending(item, data, end)))
         {
-            decimal currentStock = item.ProductId.HasValue
-                ? stock.GetValueOrDefault(item.ProductId.Value)
-                : 0m;
-            if (!item.ReserveWhenOutOfStock || currentStock > 0) continue;
             result.Add(Candidate(FinancialCommitmentSource.MonthlyPurchase, item.Id, "Lista mensual de compra",
-                item.Name, month.LastDay, item.ExpectedTotalMinorUnits, 0, "Pendiente", data, month));
+                item.Name, item.Month.LastDay, item.ExpectedTotalMinorUnits, 0,
+                item.Month.LastDay < month.FirstDay ? "Vencida" : "Pendiente", data, month));
         }
 
         Guid[] scheduledLoanIds = data.LoanInstallments.Select(item => item.LoanId).Distinct().ToArray();

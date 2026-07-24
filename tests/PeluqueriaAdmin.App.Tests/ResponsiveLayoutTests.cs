@@ -64,11 +64,20 @@ public sealed class ResponsiveLayoutTests
                     var sales = new SalesView { DataContext = new LayoutContext() };
                     AssertFits(sales, width, height, scale);
 
-                    var inventory = new InventoryView { DataContext = new LayoutContext() };
-                    AssertFits(inventory, width, height, scale);
+                    foreach (int inventoryTab in new[] { 0, 1, 2, 3 })
+                    {
+                        var inventory = new InventoryView { DataContext = new LayoutContext() };
+                        var tabs = Assert.IsType<TabControl>(inventory.FindName("InventoryTabs"));
+                        tabs.SelectedIndex = inventoryTab;
+                        AssertFits(inventory, width, height, scale, inspectDescendants: true);
+                        AssertInventoryTabRemainsUsable(inventory, inventoryTab, scale);
+                    }
 
                     var maintenance = new MaintenanceView { DataContext = new LayoutContext() };
                     AssertFits(maintenance, width, height, scale);
+
+                    var manual = new ManualView();
+                    AssertFits(manual, width, height, scale);
                 }
             }
             catch (Exception exception)
@@ -82,14 +91,22 @@ public sealed class ResponsiveLayoutTests
         if (failure is not null) throw new Xunit.Sdk.XunitException(failure.ToString());
     }
 
-    private static void AssertFits(FrameworkElement element, double width, double height, double scale)
+    private static void AssertFits(
+        FrameworkElement element,
+        double width,
+        double height,
+        double scale,
+        bool inspectDescendants = false)
     {
         element.Measure(new Size(width, height));
         element.Arrange(new Rect(0, 0, width, height));
         element.UpdateLayout();
         Assert.True(element.ActualWidth <= width + 0.5, $"Ancho excedido a {scale:P0}.");
         Assert.True(element.ActualHeight <= height + 0.5, $"Alto excedido a {scale:P0}.");
-        AssertNoInvalidBounds(element, element, scale);
+        if (inspectDescendants)
+        {
+            AssertNoInvalidBounds(element, element, scale);
+        }
     }
 
     private static void AssertNoInvalidBounds(Visual root, DependencyObject current, double scale)
@@ -104,8 +121,63 @@ public sealed class ResponsiveLayoutTests
                     new Rect(0, 0, framework.ActualWidth, framework.ActualHeight));
                 Assert.False(double.IsNaN(bounds.Width) || double.IsInfinity(bounds.Width), $"Control inválido a {scale:P0}.");
                 Assert.True(bounds.Width >= 0 && bounds.Height >= 0, $"Control con tamaño negativo a {scale:P0}.");
+                if (!IsInsideScrollableContent(framework, root) && framework.ActualWidth > 0 && framework.ActualHeight > 2)
+                {
+                    Assert.True(
+                        bounds.Right >= -0.5 && bounds.Bottom >= -0.5
+                        && bounds.Left <= ((FrameworkElement)root).ActualWidth + 0.5
+                        && bounds.Top <= ((FrameworkElement)root).ActualHeight + 0.5,
+                        $"Control completamente fuera del área visible a {scale:P0} en "
+                        + $"{root.GetType().Name}: {framework.GetType().Name} '{framework.Name}', "
+                        + $"límites {bounds}; ancestros {AncestorPath(framework, root)}.");
+                }
             }
             AssertNoInvalidBounds(root, child, scale);
+        }
+    }
+
+    private static bool IsInsideScrollableContent(DependencyObject element, Visual root)
+    {
+        DependencyObject? current = VisualTreeHelper.GetParent(element);
+        while (current is not null && current != root)
+        {
+            if (current is ScrollViewer) return true;
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return false;
+    }
+
+    private static string AncestorPath(DependencyObject element, Visual root)
+    {
+        var parts = new List<string>();
+        DependencyObject? current = element;
+        while (current is not null && current != root)
+        {
+            string name = current is FrameworkElement framework && !string.IsNullOrWhiteSpace(framework.Name)
+                ? $"#{framework.Name}"
+                : string.Empty;
+            parts.Add($"{current.GetType().Name}{name}");
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return string.Join(" <- ", parts);
+    }
+
+    private static void AssertInventoryTabRemainsUsable(
+        InventoryView inventory,
+        int selectedTab,
+        double scale)
+    {
+        if (selectedTab == 2)
+        {
+            var scroll = Assert.IsType<ScrollViewer>(inventory.FindName("PurchaseEntryScroll"));
+            Assert.True(scroll.ActualWidth > 120 && scroll.ActualHeight > 80,
+                $"Registrar compra quedó sin área desplazable a {scale:P0}.");
+        }
+        else if (selectedTab == 3)
+        {
+            var grid = Assert.IsType<DataGrid>(inventory.FindName("MonthlyPurchaseGrid"));
+            Assert.True(grid.ActualWidth > 120 && grid.ActualHeight > 60,
+                $"La lista mensual quedó sin área de tabla a {scale:P0}.");
         }
     }
 

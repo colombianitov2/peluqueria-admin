@@ -3,6 +3,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PeluqueriaAdmin.Application.Administration;
+using PeluqueriaAdmin.Domain.Common;
 using PeluqueriaAdmin.Domain.Obligations;
 using PeluqueriaAdmin.Domain.Settings;
 
@@ -10,8 +11,10 @@ namespace PeluqueriaAdmin.App.ViewModels;
 
 public sealed partial class ObligationsViewModel(AdministrationService service, TimeProvider timeProvider) : ObservableObject
 {
-    public ObservableCollection<string> TypeOptions { get; } = ["Servicio", "Impuesto", "Otra obligación"];
-    public ObservableCollection<string> RecurrenceOptions { get; } = ["Sin recurrencia", "Mensual", "Anual"];
+    public ObservableCollection<string> TypeOptions { get; } =
+        ["Servicio", "Impuesto", "Crédito", "Otra obligación"];
+    public ObservableCollection<string> RecurrenceOptions { get; } =
+        ["Sin recurrencia", "Semanal", "Mensual", "Anual"];
     public ObservableCollection<ObligationCatalogRow> Obligations { get; } = [];
     public ObservableCollection<ObligationPaymentListRow> Payments { get; } = [];
     public ObservableCollection<ObligationSeriesOption> PaymentOptions { get; } = [];
@@ -63,7 +66,8 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
     public async Task RefreshAsync()
     {
         DateOnly today = Today();
-        AdministrationData data = await service.GenerateScheduledRecordsAsync(today);
+        AdministrationData data = await service.GenerateScheduledRecordsAsync(
+            YearMonth.From(today).LastDay);
         Guid? selectedSeries = SelectedObligation?.SeriesId;
         Obligations.Clear();
         PaymentOptions.Clear();
@@ -201,7 +205,8 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
                 NameText, ParseType(SelectedType), RequiredDate(InitialDueDate, "fecha de vencimiento inicial"),
                 ParseMoney(ExpectedAmountText), ParseRecurrence(SelectedRecurrence),
                 timeProvider.GetUtcNow().UtcDateTime, ObligationDescription);
-            await service.AddObligationAsync(obligation, Today());
+            DateOnly today = Today();
+            await service.AddObligationAsync(obligation, YearMonth.From(today).LastDay);
             ResetDefinitionForm();
             StatusMessage = "La obligación se agregó correctamente.";
             IsError = false;
@@ -406,11 +411,13 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
     private static ObligationType ParseType(string value) => value switch
     {
         "Impuesto" => ObligationType.Tax,
+        "Crédito" => ObligationType.Credit,
         "Otra obligación" => ObligationType.OtherRecurring,
         _ => ObligationType.Service,
     };
     private static RecurrenceFrequency ParseRecurrence(string value) => value switch
     {
+        "Semanal" => RecurrenceFrequency.Weekly,
         "Mensual" => RecurrenceFrequency.Monthly,
         "Anual" => RecurrenceFrequency.Annual,
         _ => RecurrenceFrequency.None,
@@ -431,11 +438,13 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
     private static string TypeName(ObligationType value) => value switch
     {
         ObligationType.Tax => "Impuesto",
+        ObligationType.Credit => "Crédito",
         ObligationType.OtherRecurring => "Otra obligación",
         _ => "Servicio",
     };
     private static string RecurrenceName(RecurrenceFrequency value) => value switch
     {
+        RecurrenceFrequency.Weekly => "Semanal",
         RecurrenceFrequency.Monthly => "Mensual",
         RecurrenceFrequency.Annual => "Anual",
         _ => "Sin recurrencia",

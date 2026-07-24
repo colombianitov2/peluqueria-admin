@@ -140,7 +140,7 @@ public sealed class Phase48FinancialMonthCalculatorTests
     }
 
     [Fact]
-    public void MonthlyPurchase_UsesQuantityTimesCost_AndRemainsPendingAfterStartingMonth()
+    public void ConditionalMonthlyPurchase_UsesQuantityTimesCost_AndCarriesForwardAfterStartingMonth()
     {
         Product product = Product.Create("Champú", ProductCategory.Cleaning, "unidad", UtcNow);
         MonthlyPurchaseItem item = MonthlyPurchaseItem.Create(product.Id, new YearMonth(2026, 7), 3,
@@ -151,8 +151,44 @@ public sealed class Phase48FinancialMonthCalculatorTests
         FinancialMonthSnapshot august = FinancialMonthCalculator.Calculate(data, Percentage.FromPercent(0m), new YearMonth(2026, 8));
 
         Assert.Equal(3_750, july.NewReservesMinorUnits);
-        Assert.Equal(3_750, august.NewReservesMinorUnits);
+        Assert.Equal(0, august.NewReservesMinorUnits);
+        Assert.Equal(3_750, august.PriorUncoveredCommitmentsMinorUnits);
         Assert.Equal(FinancialCommitmentSource.MonthlyPurchase, Assert.Single(august.Candidates).SourceType);
+    }
+
+    [Fact]
+    public void LegacyActivationAndStockFlags_DoNotHidePendingMonthlyPurchases()
+    {
+        Product product = Product.Create("Champú", ProductCategory.Cleaning, "unidad", UtcNow);
+        var month = new YearMonth(2026, 7);
+        MonthlyPurchaseItem normal = MonthlyPurchaseItem.Create(
+            product.Id, month, 2, Money.FromDecimal(10m), true, false, UtcNow);
+        MonthlyPurchaseItem conditional = MonthlyPurchaseItem.Create(
+            product.Id, month, 3, Money.FromDecimal(7m), true, true, UtcNow);
+        InventoryMovement stock = InventoryMovement.Initial(
+            product.Id,
+            month.FirstDay,
+            Quantity.Positive(5),
+            Money.FromDecimal(50m),
+            UtcNow);
+        AdministrationData withStock = EmptyData() with
+        {
+            Products = [product],
+            InventoryMovements = [stock],
+            MonthlyPurchaseItems = [normal, conditional],
+        };
+
+        FinancialMonthSnapshot whileStockRemains = FinancialMonthCalculator.Calculate(
+            withStock, Percentage.FromPercent(0m), month);
+        FinancialMonthSnapshot withoutStock = FinancialMonthCalculator.Calculate(
+            withStock with { InventoryMovements = [] }, Percentage.FromPercent(0m), month);
+
+        Assert.Contains(whileStockRemains.Candidates, item => item.SourceId == normal.Id);
+        Assert.Contains(whileStockRemains.Candidates, item => item.SourceId == conditional.Id);
+        Assert.Equal(4_100, whileStockRemains.NewReservesMinorUnits);
+        Assert.Contains(withoutStock.Candidates, item => item.SourceId == normal.Id);
+        Assert.Contains(withoutStock.Candidates, item => item.SourceId == conditional.Id);
+        Assert.Equal(4_100, withoutStock.NewReservesMinorUnits);
     }
 
     [Fact]
