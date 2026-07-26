@@ -135,6 +135,13 @@ public sealed partial class InventoryViewModel(
                 InventoryMovement[] productMovements = data.InventoryMovements
                     .Where(item => item.ProductId == product.Id)
                     .ToArray();
+                decimal currentQuantity = InventoryCalculator.CurrentQuantity(productMovements);
+                decimal actualUnitCost = UnitCostOf(purchase);
+                DateTime lastUpdatedUtc = productMovements
+                    .Select(item => item.UpdatedUtc)
+                    .Append(product.UpdatedUtc)
+                    .Append(plan.UpdatedUtc)
+                    .Max();
                 CurrentInventory.Add(new InventoryCurrentRow(
                     product,
                     plan,
@@ -145,12 +152,16 @@ public sealed partial class InventoryViewModel(
                     $"{ApplicationCurrency.Code} {plan.ExpectedUnitCost.ToDecimal():N2}",
                     plan.Description ?? string.Empty,
                     purchase.QuantityDelta.ToString("0.###", CultureInfo.CurrentCulture),
-                    InventoryCalculator.CurrentQuantity(productMovements).ToString("0.###", CultureInfo.CurrentCulture),
+                    $"{ApplicationCurrency.Code} {actualUnitCost:N2}",
+                    FormatTotalValue(purchase, ApplicationCurrency.Code),
+                    currentQuantity.ToString("0.###", CultureInfo.CurrentCulture),
+                    $"{ApplicationCurrency.Code} {currentQuantity * actualUnitCost:N2}",
                     product.DefaultSalePrice.HasValue
                         ? $"{ApplicationCurrency.Code} {product.DefaultSalePrice.Value.ToDecimal():N2}"
                         : string.Empty,
                     product.Description ?? purchase.Description ?? string.Empty,
-                    purchase.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
+                    purchase.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    lastUpdatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)));
             }
             SelectedCurrentRow = selectedCurrentPlanId.HasValue
                 ? CurrentInventory.SingleOrDefault(item => item.Plan.Id == selectedCurrentPlanId.Value)
@@ -168,6 +179,14 @@ public sealed partial class InventoryViewModel(
                 Product? linkedProduct = item.ProductId.HasValue
                     ? data.Products.SingleOrDefault(product => product.Id == item.ProductId.Value)
                     : null;
+                InventoryMovement? linkedPurchase = item.PurchaseMovementId.HasValue
+                    ? data.InventoryMovements.SingleOrDefault(
+                        movement => movement.Id == item.PurchaseMovementId.Value)
+                    : null;
+                decimal currentQuantity = linkedProduct is null
+                    ? 0m
+                    : InventoryCalculator.CurrentQuantity(
+                        data.InventoryMovements.Where(movement => movement.ProductId == linkedProduct.Id));
                 bool requiresSalePrice = linkedProduct?.IsForSale
                     ?? item.Category is ProductCategory.FoodOrDrinkForSale or ProductCategory.OtherProductForSale;
                 var row = new MonthlyPurchaseRow(
@@ -177,6 +196,16 @@ public sealed partial class InventoryViewModel(
                     item.Quantity.ToString("0.###", CultureInfo.CurrentCulture),
                     $"{ApplicationCurrency.Code} {item.ExpectedUnitCost.ToDecimal():N2}",
                     $"{ApplicationCurrency.Code} {Money.FromMinorUnits(item.ExpectedTotalMinorUnits).ToDecimal():N2}",
+                    linkedPurchase?.QuantityDelta.ToString("0.###", CultureInfo.CurrentCulture) ?? string.Empty,
+                    linkedPurchase is null
+                        ? string.Empty
+                        : $"{ApplicationCurrency.Code} {UnitCostOf(linkedPurchase):N2}",
+                    linkedPurchase is null
+                        ? string.Empty
+                        : FormatTotalValue(linkedPurchase, ApplicationCurrency.Code),
+                    linkedProduct is null
+                        ? string.Empty
+                        : currentQuantity.ToString("0.###", CultureInfo.CurrentCulture),
                     item.PurchaseMovementId.HasValue ? "Agregado al inventario" : "Pendiente",
                     item.Description ?? string.Empty,
                     requiresSalePrice,
@@ -748,6 +777,14 @@ public sealed partial class InventoryViewModel(
         return total.HasValue ? $"{currencyCode} {total.Value.ToDecimal():N2}" : string.Empty;
     }
 
+    private static decimal UnitCostOf(InventoryMovement movement)
+    {
+        Money? total = movement.CashAmount ?? movement.EstimatedCost;
+        return total.HasValue && movement.QuantityDelta != 0m
+            ? total.Value.ToDecimal() / Math.Abs(movement.QuantityDelta)
+            : 0m;
+    }
+
     private static decimal ParsePositiveDecimal(string value, string field)
     {
         bool valid = TryParseDecimal(value, out decimal amount);
@@ -976,10 +1013,14 @@ public sealed record InventoryCurrentRow(
     string ExpectedUnitCost,
     string ListDescription,
     string PurchasedQuantity,
+    string ActualUnitCost,
+    string ActualTotal,
     string CurrentQuantity,
+    string CurrentValue,
     string SalePrice,
     string InventoryDescription,
-    string AddedDate);
+    string AddedDate,
+    string LastUpdated);
 
 public sealed record InventoryMovementRow(
     InventoryMovement Movement,
@@ -999,6 +1040,10 @@ public sealed record MonthlyPurchaseRow(
     string Quantity,
     string UnitPrice,
     string TotalExpected,
+    string ActualQuantity,
+    string ActualUnitPrice,
+    string ActualTotal,
+    string CurrentQuantity,
     string State,
     string Description,
     bool RequiresSalePrice,

@@ -22,11 +22,16 @@ public sealed class Phase410InventoryUiTests
         Assert.Contains("Text=\"Precio de venta\"", view, StringComparison.Ordinal);
         Assert.Contains("Text=\"Descripción para inventario\"", view, StringComparison.Ordinal);
         Assert.Contains("Header=\"Fecha agregada\"", view, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Costo unitario real\"", view, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Total comprado\"", view, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Valor inventario actual\"", view, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Última actualización\"", view, StringComparison.Ordinal);
         Assert.Contains("Content=\"Editar selección\"", view, StringComparison.Ordinal);
         Assert.Contains("SaveInventorySelectionEditCommand", view, StringComparison.Ordinal);
         Assert.Contains("UpdateRegisteredMonthlyPurchaseAsync", viewModel, StringComparison.Ordinal);
         Assert.Contains("InventoryCurrentRow", viewModel, StringComparison.Ordinal);
         Assert.DoesNotContain("<TabItem Header=\"Agregar al inventario\">", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("<ScrollViewer", view, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -56,6 +61,10 @@ public sealed class Phase410InventoryUiTests
         Assert.Contains("Text=\"Cantidad esperada\"", view, StringComparison.Ordinal);
         Assert.Contains("Text=\"Precio unitario o por paquete\"", view, StringComparison.Ordinal);
         Assert.Contains("Text=\"Precio total esperado\"", view, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Cantidad comprada\"", view, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Costo unitario real\"", view, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Total real\"", view, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Existencia actual\"", view, StringComparison.Ordinal);
         Assert.Contains("MonthlyPurchaseExpectedTotalText", view, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"Mes\"", view, StringComparison.Ordinal);
         Assert.DoesNotContain("Header=\"Mes\"", view, StringComparison.Ordinal);
@@ -105,6 +114,10 @@ public sealed class Phase410InventoryUiTests
             "2",
             "USD 7,25",
             "USD 14,50",
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            string.Empty,
             "Pendiente",
             string.Empty,
             true,
