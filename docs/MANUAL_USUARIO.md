@@ -1,5 +1,7 @@
 # Manual de usuario
 
+Versión documentada: **0.2.0-alpha.1**.
+
 Peluquería Admin es una herramienta interna en USD. No es un sistema contable, fiscal ni
 tributario oficial y no registra clientes, proveedores, comprobantes, medios de pago ni los
 servicios personales de los trabajadores. La ayuda incluida en la aplicación funciona sin

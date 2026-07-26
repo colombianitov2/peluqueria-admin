@@ -15,7 +15,7 @@ Las compilaciones preliminares consultan también GitHub prereleases. Las versio
 
 ## Publicación deliberada
 
-El workflow `.github/workflows/release.yml` solo se activa al empujar una etiqueta `v*` que contenga una versión SemVer válida, por ejemplo `v0.1.0-alpha.1`. El job:
+El workflow `.github/workflows/release.yml` solo se activa al empujar una etiqueta `v*` que contenga una versión SemVer válida, por ejemplo `v0.2.0-alpha.1`. El job:
 
 1. restaura paquetes;
 2. verifica formato;
@@ -26,7 +26,7 @@ El workflow `.github/workflows/release.yml` solo se activa al empujar una etique
 7. crea instalador, portable y paquetes;
 8. publica el GitHub Release con el token efímero del workflow.
 
-No debe crearse una etiqueta hasta que el PR correspondiente esté aprobado y se decida publicar. La Fase 3 no crea etiqueta ni Release.
+No debe crearse una etiqueta hasta que el PR correspondiente esté aprobado y se decida publicar.
 
 ## Firma
 
@@ -34,7 +34,10 @@ La alpha no tiene firma. Windows SmartScreen puede mostrar una advertencia. El C
 
 ## Verificación y límites
 
-Se construyó localmente `0.1.0-alpha.1`: Velopack verificó el bootstrap y produjo `Setup.exe`, portable, paquete completo y feeds. No se instaló el ejecutable generado ni se ha probado una actualización entre dos Releases porque todavía no existen dos versiones publicadas. Windows 10 x64 sigue siendo compatibilidad objetivo, no comprobada físicamente.
+La versión `0.2.0-alpha.1` se publica como preliminar para instalar y verificar la migración desde
+`0.1.0-alpha.1`. La prueba posterior de actualización automática entre dos Releases se realizará con
+una versión distinta que incorpore el logotipo K&amp;V; no debe considerarse aprobada antes de ejecutar
+ese salto real. Windows 10 x64 sigue siendo compatibilidad objetivo, no comprobada físicamente.
 
 Fuentes oficiales consultadas:
 
@@ -42,4 +45,3 @@ Fuentes oficiales consultadas:
 - [Fuentes de actualización](https://docs.velopack.io/integrating/update-sources)
 - [GitHub Actions](https://docs.velopack.io/distributing/github-actions)
 - [CLI de Windows](https://docs.velopack.io/reference/cli/content/vpk-windows)
-

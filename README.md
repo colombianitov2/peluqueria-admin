@@ -61,9 +61,9 @@ dotnet ef migrations add NombreDescriptivo --project src/PeluqueriaAdmin.Infrast
 Para publicar una compilación autocontenida x64 y crear un paquete local de desarrollo:
 
 ```powershell
-dotnet publish src/PeluqueriaAdmin.App/PeluqueriaAdmin.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/publish -p:Version=0.1.0-alpha.1
+dotnet publish src/PeluqueriaAdmin.App/PeluqueriaAdmin.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/publish -p:Version=0.2.0-alpha.1
 dotnet tool install --tool-path artifacts/tools vpk --version 1.2.0
-artifacts/tools/vpk pack --packId Colombianito.PeluqueriaAdmin --packVersion 0.1.0-alpha.1 --packDir artifacts/publish --mainExe PeluqueriaAdmin.App.exe --packTitle "Peluquería Admin" --runtime win-x64 --outputDir Releases
+artifacts/tools/vpk pack --packId Colombianito.PeluqueriaAdmin --packVersion 0.2.0-alpha.1 --packDir artifacts/publish --mainExe PeluqueriaAdmin.App.exe --packTitle "Peluquería Admin" --runtime win-x64 --outputDir Releases
 ```
 
 `artifacts/` y `Releases/` están ignorados. El workflow `release.yml` publica únicamente al empujar deliberadamente una etiqueta SemVer `v*`.
@@ -84,6 +84,7 @@ No se deben subir datos reales de la peluquería, bases de datos, copias de segu
 - [Arquitectura propuesta y adoptada](docs/ARQUITECTURA_PROPUESTA.md)
 - [Decisiones pendientes](docs/DECISIONES_PENDIENTES.md)
 - [Dependencias](docs/DEPENDENCIAS.md)
+- [Notas de la versión 0.2.0-alpha.1](docs/NOTAS_VERSION_0.2.0-alpha.1.md)
 - [Modelo de datos](docs/MODELO_DATOS.md)
 - [Fórmulas financieras](docs/FORMULAS_FINANCIERAS.md)
 - [Copias y restauración](docs/COPIAS_Y_RESTAURACION.md)

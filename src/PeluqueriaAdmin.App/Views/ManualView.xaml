@@ -67,6 +67,9 @@
             Este manual es informativo y forma parte del programa. Consultarlo no crea registros,
             no cambia cálculos y no modifica la base de datos.
           </Paragraph>
+          <Paragraph FontWeight="SemiBold" Foreground="#475569">
+            Versión documentada: 0.2.0-alpha.1.
+          </Paragraph>
 
           <Paragraph Style="{StaticResource SubTitle}">Índice</Paragraph>
           <Paragraph LineHeight="25">
