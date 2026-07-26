@@ -41,9 +41,7 @@ public sealed class Phase410FinancialIntegrationTests
             July,
             new DateOnly(2026, 7, 23));
 
-        PendingHomeObligation homeRow = Assert.Single(pendingHome.Obligations);
-        Assert.Equal("Compra mensual", homeRow.Type);
-        Assert.Equal(2_500, homeRow.Amount.MinorUnits);
+        Assert.Empty(pendingHome.Obligations);
         Assert.Equal(2_500, pendingMonth.AccountsPayableMinorUnits);
         Assert.Equal(2_500, pendingMonth.NewReservesMinorUnits);
         Assert.Equal(2_500, pendingMonth.BreakEvenMinorUnits);

@@ -255,40 +255,37 @@ public sealed class ExcelExportTests
             Assert.Equal(expectedInventory, inventoryRow.Cell(3).GetValue<decimal>());
 
             var july = new YearMonth(2026, 7);
-            MonthlyClose? julyClose = data.MonthlyCloses.SingleOrDefault(x => x.Month == july && x.IsConfirmed);
-            FinancialMonthSnapshot expectedMonth = julyClose?.ToFinancialSnapshot()
-                ?? FinancialMonthCalculator.Calculate(data, generalSettings.CollaboratorProfit, july);
-            IXLRow monthlyRow = workbook.Worksheet("Resúmenes mensuales").RowsUsed()
-                .Single(row => row.Cell(1).DataType == XLDataType.DateTime && row.Cell(1).GetDateTime().Date == july.FirstDay.ToDateTime(TimeOnly.MinValue));
-            Assert.Equal(expectedMonth.CollectedOperatingIncomeMinorUnits / 100m, monthlyRow.Cell(2).GetValue<decimal>());
-            Assert.Equal(expectedMonth.AccountsReceivableMinorUnits / 100m, monthlyRow.Cell(3).GetValue<decimal>());
-
-            IXLRow annualRow = workbook.Worksheet("Balance anual").RowsUsed().Single(row => row.Cell(1).TryGetValue(out int year) && year == 2026);
-            AnnualFinancialReport expectedAnnual = AnnualFinancialCalculator.Calculate(
+            MonthlyCashBreakdown expectedMonth = AdministrationReports.MonthlyCash(
                 data,
                 generalSettings.CollaboratorProfit,
-                2026,
-                new DateOnly(2026, 7, 18));
-            Assert.Contains(expectedAnnual.Months, month => month.IsClosed);
-            Assert.Contains(
-                expectedAnnual.Months,
-                month => !month.IsClosed && month.Month.FirstDay <= new DateOnly(2026, 7, 18));
-            Assert.Equal(expectedAnnual.IncomeMinorUnits / 100m, annualRow.Cell(2).GetValue<decimal>());
-            Assert.Equal(expectedAnnual.OutflowMinorUnits / 100m, annualRow.Cell(3).GetValue<decimal>());
-            Assert.Equal(expectedAnnual.ResultMinorUnits / 100m, annualRow.Cell(4).GetValue<decimal>());
-            Assert.Equal(expectedAnnual.AccountsReceivableMinorUnits / 100m, annualRow.Cell(5).GetValue<decimal>());
-            Assert.Equal(expectedAnnual.AccountsPayableMinorUnits / 100m, annualRow.Cell(6).GetValue<decimal>());
-            Assert.Equal(expectedAnnual.PendingReservesMinorUnits / 100m, annualRow.Cell(7).GetValue<decimal>());
-            Assert.Equal(expectedAnnual.PendingLoansMinorUnits / 100m, annualRow.Cell(8).GetValue<decimal>());
-            Assert.Equal(expectedAnnual.CollaboratorFundMinorUnits / 100m, annualRow.Cell(9).GetValue<decimal>());
-            Assert.Equal(expectedAnnual.SurplusMinorUnits / 100m, annualRow.Cell(10).GetValue<decimal>());
-            Assert.Equal(expectedAnnual.DeficitMinorUnits / 100m, annualRow.Cell(11).GetValue<decimal>());
-            Assert.Equal(expectedAnnual.ProjectedNextYearBalanceMinorUnits / 100m, annualRow.Cell(12).GetValue<decimal>());
-            Assert.Contains("meses abiertos", annualRow.Cell(25).GetString(), StringComparison.OrdinalIgnoreCase);
-            Assert.Equal("Créditos", workbook.Worksheet("Balance anual").Cell(1, 15).GetString());
+                july);
+            IXLRow monthlyRow = workbook.Worksheet("Resúmenes mensuales").RowsUsed()
+                .Single(row => row.Cell(1).DataType == XLDataType.DateTime && row.Cell(1).GetDateTime().Date == july.FirstDay.ToDateTime(TimeOnly.MinValue));
+            Assert.Equal(expectedMonth.TotalIncomeMinorUnits / 100m, monthlyRow.Cell(21).GetValue<decimal>());
+            Assert.Equal(-expectedMonth.TotalSpentMinorUnits / 100m, monthlyRow.Cell(22).GetValue<decimal>());
+            Assert.Equal(expectedMonth.BreakEvenMinorUnits / 100m, monthlyRow.Cell(23).GetValue<decimal>());
+            Assert.Equal(expectedMonth.DifferenceMinorUnits / 100m, monthlyRow.Cell(24).GetValue<decimal>());
+            Assert.Equal(expectedMonth.CarryOutMinorUnits / 100m, monthlyRow.Cell(25).GetValue<decimal>());
+
+            IXLRow annualRow = workbook.Worksheet("Balance anual").RowsUsed().Single(row => row.Cell(1).TryGetValue(out int year) && year == 2026);
+            MonthlyCashBreakdown[] expectedAnnual = Enumerable.Range(1, 7)
+                .Select(month => AdministrationReports.MonthlyCash(
+                    data,
+                    generalSettings.CollaboratorProfit,
+                    new YearMonth(2026, month)))
+                .ToArray();
+            Assert.Contains(expectedAnnual, month => month.IsClosed);
+            Assert.Contains(expectedAnnual, month => !month.IsClosed);
+            Assert.Equal(expectedAnnual[0].CarryInMinorUnits / 100m, annualRow.Cell(2).GetValue<decimal>());
+            Assert.Equal(expectedAnnual.Sum(month => month.LocalUseIncomeMinorUnits) / 100m, annualRow.Cell(3).GetValue<decimal>());
+            Assert.Equal(-expectedAnnual.Sum(month => month.CreditPaymentsMinorUnits) / 100m, annualRow.Cell(17).GetValue<decimal>());
+            Assert.Equal(expectedAnnual.Sum(month => month.TotalSpentMinorUnits) / 100m, annualRow.Cell(23).GetValue<decimal>());
+            Assert.Equal(expectedAnnual[^1].CarryOutMinorUnits / 100m, annualRow.Cell(25).GetValue<decimal>());
+            Assert.Contains("meses abiertos", annualRow.Cell(27).GetString(), StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("Pagos de créditos", workbook.Worksheet("Balance anual").Cell(1, 17).GetString());
             IXLRow annualCreditRow = workbook.Worksheet("Balance anual").RowsUsed()
                 .Single(row => row.Cell(1).TryGetValue(out int year) && year == 2027);
-            Assert.Equal(35m, annualCreditRow.Cell(15).GetValue<decimal>());
+            Assert.Equal(0m, annualCreditRow.Cell(17).GetValue<decimal>());
         }
         finally
         {

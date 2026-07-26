@@ -98,6 +98,12 @@ public sealed class Obligation : AuditableEntity
         MarkUpdated(utcNow);
     }
 
+    public void ReopenSettlement(DateTime utcNow)
+    {
+        IsSettled = false;
+        MarkUpdated(utcNow);
+    }
+
     public Money GoalAmount(IEnumerable<ObligationPayment> payments)
     {
         long paid = TotalPaidMinorUnits(payments);

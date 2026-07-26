@@ -280,6 +280,103 @@ public sealed class Phase411AuditApplicationTests
         Assert.Equal(-120_000, report.ResultMinorUnits);
     }
 
+    [Fact]
+    public void Phase50C_MonthlyCashUsesRequestedCategoriesAndCarriesBalanceExactlyOnce()
+    {
+        FinancialEntry julyIncome = FinancialEntry.CreateIncome(
+            new DateOnly(2026, 7, 10),
+            "Ingreso julio",
+            Money.FromDecimal(300m),
+            Utc);
+        UnofficialExpense recurring = UnofficialExpense.Create(
+            "Administración",
+            Money.FromDecimal(100m),
+            new DateOnly(2026, 7, 1),
+            null,
+            Utc);
+        AdministrationData data = EmptyData() with
+        {
+            FinancialEntries = [julyIncome],
+            UnofficialExpenses = [recurring],
+        };
+
+        MonthlyCashBreakdown july = AdministrationReports.MonthlyCash(
+            data, Percentage.FromPercent(20m), new YearMonth(2026, 7));
+        MonthlyCashBreakdown august = AdministrationReports.MonthlyCash(
+            data, Percentage.FromPercent(20m), new YearMonth(2026, 8));
+        MonthlyCashBreakdown september = AdministrationReports.MonthlyCash(
+            data, Percentage.FromPercent(20m), new YearMonth(2026, 9));
+
+        Assert.Equal(30_000, july.TotalIncomeMinorUnits);
+        Assert.Equal(10_000, july.RecurringExpensesMinorUnits);
+        Assert.Equal(10_000, july.TotalSpentMinorUnits);
+        Assert.Equal(20_000, july.DifferenceMinorUnits);
+        Assert.Equal(20_000, july.CarryOutMinorUnits);
+        Assert.Equal(20_000, august.CarryInMinorUnits);
+        Assert.Equal(10_000, august.CarryOutMinorUnits);
+        Assert.Equal(10_000, september.CarryInMinorUnits);
+        Assert.Equal(0, september.CarryOutMinorUnits);
+    }
+
+    [Fact]
+    public void Phase50C_AnnualCommitmentIsShownAsOneTwelfthInItsVisibleCategory()
+    {
+        Obligation annual = Obligation.Create(
+            "Seguro anual",
+            ObligationType.Service,
+            new DateOnly(2026, 12, 15),
+            Money.FromDecimal(1_200m),
+            RecurrenceFrequency.Annual,
+            Utc);
+        AdministrationData data = EmptyData() with { Obligations = [annual] };
+
+        MonthlyCashBreakdown january = AdministrationReports.MonthlyCash(
+            data, Percentage.FromPercent(0m), new YearMonth(2026, 1));
+        MonthlyCashBreakdown december = AdministrationReports.MonthlyCash(
+            data, Percentage.FromPercent(0m), new YearMonth(2026, 12));
+
+        Assert.Equal(10_000, january.ServicesMinorUnits);
+        Assert.Equal(10_000, december.ServicesMinorUnits);
+        Assert.Equal(10_000, january.BreakEvenMinorUnits);
+        Assert.Equal(10_000, december.BreakEvenMinorUnits);
+    }
+
+    [Fact]
+    public void Phase50C_AnnualPaymentOnlyAppliesItsDifferenceAndNeverDuplicatesTheCommitment()
+    {
+        Obligation annual = Obligation.Create(
+            "Seguro anual",
+            ObligationType.Service,
+            new DateOnly(2026, 12, 15),
+            Money.FromDecimal(1_200m),
+            RecurrenceFrequency.Annual,
+            Utc);
+        ObligationPayment payment = ObligationPayment.Create(
+            annual.Id,
+            new DateOnly(2026, 12, 15),
+            Money.FromDecimal(1_260m),
+            Utc);
+        AdministrationData data = EmptyData() with
+        {
+            Obligations = [annual],
+            ObligationPayments = [payment],
+        };
+
+        MonthlyCashBreakdown january = AdministrationReports.MonthlyCash(
+            data, Percentage.FromPercent(0m), new YearMonth(2026, 1));
+        MonthlyCashBreakdown december = AdministrationReports.MonthlyCash(
+            data, Percentage.FromPercent(0m), new YearMonth(2026, 12));
+        long annualTotal = Enumerable.Range(1, 12)
+            .Select(month => AdministrationReports.MonthlyCash(
+                data, Percentage.FromPercent(0m), new YearMonth(2026, month)))
+            .Sum(month => month.ServicesMinorUnits);
+
+        Assert.Equal(10_000, january.ServicesMinorUnits);
+        Assert.Equal(16_000, december.ServicesMinorUnits);
+        Assert.Equal(126_000, annualTotal);
+        Assert.Equal(16_000, december.BreakEvenMinorUnits);
+    }
+
     private static FinancialMonthSnapshot Snapshot(YearMonth month, long income, long result) => new(
         month,
         income,

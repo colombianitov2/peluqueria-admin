@@ -37,8 +37,175 @@ public sealed record AnnualAdministrationReport(
 
 public sealed record LocalUseEarning(DateOnly Date, DateTime OccurredUtc, long MinorUnits);
 
+public sealed record MonthlyCashBreakdown(
+    YearMonth Month,
+    long CarryInMinorUnits,
+    long LocalUseIncomeMinorUnits,
+    long SalesIncomeMinorUnits,
+    long OtherIncomeMinorUnits,
+    long OtherRealIncomeMinorUnits,
+    long CollaboratorContributionsMinorUnits,
+    long FinancingReceivedMinorUnits,
+    long InventoryMinorUnits,
+    long GeneralExpensesMinorUnits,
+    long RecurringExpensesMinorUnits,
+    long UnexpectedExpensesMinorUnits,
+    long ServicesMinorUnits,
+    long TaxesMinorUnits,
+    long OtherObligationsMinorUnits,
+    long LoanPaymentsMinorUnits,
+    long CreditPaymentsMinorUnits,
+    long MaintenanceMinorUnits,
+    long CollaboratorPaymentsMinorUnits,
+    long OtherOutflowsMinorUnits,
+    long TotalIncomeMinorUnits,
+    long TotalSpentMinorUnits,
+    long BreakEvenMinorUnits,
+    long DifferenceMinorUnits,
+    long CarryOutMinorUnits,
+    bool IsClosed);
+
 public static class AdministrationReports
 {
+    public static MonthlyCashBreakdown MonthlyCash(
+        AdministrationData data,
+        Percentage collaboratorPercentage,
+        YearMonth month)
+    {
+        MonthlyClose? close = data.MonthlyCloses
+            .Where(item => item.Month == month && item.IsConfirmed)
+            .OrderByDescending(item => item.ClosedUtc)
+            .FirstOrDefault();
+        FinancialMonthSnapshot snapshot = close?.ToFinancialSnapshot()
+            ?? FinancialMonthCalculator.Calculate(data, collaboratorPercentage, month);
+        bool InMonth(DateOnly date) => YearMonth.From(date) == month;
+
+        long localUse = EarnedLocalUseIncome(data)
+            .Where(item => InMonth(item.Date))
+            .Sum(item => item.MinorUnits);
+        long sales = data.InventoryMovements
+            .Where(item => item.Type == InventoryMovementType.Sale && InMonth(item.Date))
+            .Sum(item => item.CashAmount?.MinorUnits ?? 0);
+        long otherIncome = data.FinancialEntries
+            .Where(item => item.Type == FinancialEntryType.OtherIncome && InMonth(item.Date))
+            .Sum(item => item.Amount.MinorUnits);
+        long otherRealIncome = checked(
+            snapshot.CollectedOperatingIncomeMinorUnits - localUse - sales - otherIncome);
+        long contributions = data.CollaboratorContributions
+            .Where(item => InMonth(item.Date))
+            .Sum(item => item.Amount.MinorUnits);
+        long financing = data.Loans
+            .Where(item => InMonth(item.StartDate))
+            .Sum(item => item.InitialBalance.MinorUnits);
+
+        MonthlyExpenseBreakdown expenses = MonthlyExpenses(data, month);
+        long recurring = data.UnofficialExpenses
+            .Where(item => item.AppliesInMonth(month))
+            .Sum(item => item.MonthlyAmount.MinorUnits);
+        long services = expenses.ServicesMinorUnits;
+        long taxes = expenses.TaxesMinorUnits;
+        long credits = expenses.CreditsMinorUnits;
+        long otherObligations = expenses.OtherObligationsMinorUnits;
+        long maintenance = expenses.MaintenanceMinorUnits;
+        long loans = snapshot.LoanPaymentsMinorUnits;
+
+        foreach (FinancialCommitmentCandidate candidate in snapshot.Candidates.Where(item => !item.IsExcluded))
+        {
+            if (candidate.SourceType == FinancialCommitmentSource.Obligation)
+            {
+                ObligationType type = data.Obligations
+                    .Single(item => item.Id == candidate.SourceId).Type;
+                switch (type)
+                {
+                    case ObligationType.Service: services += candidate.ExpectedMinorUnits; break;
+                    case ObligationType.Tax: taxes += candidate.ExpectedMinorUnits; break;
+                    case ObligationType.Credit: credits += candidate.ExpectedMinorUnits; break;
+                    default: otherObligations += candidate.ExpectedMinorUnits; break;
+                }
+            }
+            else if (candidate.SourceType == FinancialCommitmentSource.Maintenance)
+            {
+                maintenance += candidate.ExpectedMinorUnits;
+            }
+            else if (candidate.SourceType == FinancialCommitmentSource.LoanInstallment)
+            {
+                loans += candidate.ExpectedMinorUnits;
+            }
+        }
+
+        foreach (Obligation annual in data.Obligations.Where(item =>
+                     item.Recurrence == RecurrenceFrequency.Annual && item.DueDate.Year == month.Year))
+        {
+            long provision = ProratedAnnualAmount(annual.ExpectedAmount.MinorUnits, month.Month);
+            switch (annual.Type)
+            {
+                case ObligationType.Service: services += provision; break;
+                case ObligationType.Tax: taxes += provision; break;
+                case ObligationType.Credit: credits += provision; break;
+                default: otherObligations += provision; break;
+            }
+        }
+        foreach (ObligationPayment payment in data.ObligationPayments.Where(item => InMonth(item.Date)))
+        {
+            Obligation annual = data.Obligations.Single(item => item.Id == payment.ObligationId);
+            if (annual.Recurrence != RecurrenceFrequency.Annual) continue;
+            long adjustment = payment.Amount.MinorUnits - annual.ExpectedAmount.MinorUnits;
+            switch (annual.Type)
+            {
+                case ObligationType.Service: services += adjustment; break;
+                case ObligationType.Tax: taxes += adjustment; break;
+                case ObligationType.Credit: credits += adjustment; break;
+                default: otherObligations += adjustment; break;
+            }
+        }
+
+        long inventory = checked(
+            expenses.MerchandiseMinorUnits + expenses.MandatorySuppliesMinorUnits
+            + expenses.OptionalSuppliesMinorUnits + expenses.PendingPlansMinorUnits);
+        long generalExpenses = expenses.OtherExpensesMinorUnits;
+        long collaboratorPayments = data.DistributionPayments
+            .Where(item => InMonth(item.Date))
+            .Sum(item => item.Amount.MinorUnits);
+        long knownWithoutAdjustment = checked(
+            inventory + generalExpenses + recurring + expenses.UnexpectedMinorUnits
+            + services + taxes + otherObligations + loans + credits + maintenance);
+        long otherOutflows = checked(snapshot.BreakEvenMinorUnits - knownWithoutAdjustment);
+        long totalSpent = checked(snapshot.BreakEvenMinorUnits + collaboratorPayments);
+        long carryIn = CalculateCarryIn(data, collaboratorPercentage, month);
+        long totalIncome = checked(
+            carryIn + localUse + sales + otherIncome + otherRealIncome);
+        long difference = checked(totalIncome - totalSpent);
+        long carryOut = checked(difference + contributions + financing);
+
+        return new MonthlyCashBreakdown(
+            month,
+            carryIn,
+            localUse,
+            sales,
+            otherIncome,
+            otherRealIncome,
+            contributions,
+            financing,
+            inventory,
+            generalExpenses,
+            recurring,
+            expenses.UnexpectedMinorUnits,
+            services,
+            taxes,
+            otherObligations,
+            loans,
+            credits,
+            maintenance,
+            collaboratorPayments,
+            otherOutflows,
+            totalIncome,
+            totalSpent,
+            totalSpent,
+            difference,
+            carryOut,
+            close is not null);
+    }
+
     public static MonthlySummaryResult MonthlySummary(
         AdministrationData data,
         Percentage collaboratorPercentage,
@@ -122,7 +289,9 @@ public static class AdministrationReports
         bool InMonth(DateOnly date) => YearMonth.From(date) == month;
         long Obligations(ObligationType type) => data.ObligationPayments
             .Where(payment => InMonth(payment.Date)
-                && data.Obligations.Any(item => item.Id == payment.ObligationId && item.Type == type))
+                && data.Obligations.Any(item => item.Id == payment.ObligationId
+                    && item.Type == type
+                    && item.Recurrence != RecurrenceFrequency.Annual))
             .Sum(item => item.Amount.MinorUnits);
         long Purchases(params ProductCategory[] categories) => data.InventoryMovements
             .Where(item => item.Type == InventoryMovementType.Purchase && InMonth(item.Date)
@@ -198,6 +367,46 @@ public static class AdministrationReports
 
     private static long CalculateEarnedLocalUseIncome(AdministrationData data, YearMonth month) =>
         EarnedLocalUseIncome(data).Where(item => YearMonth.From(item.Date) == month).Sum(item => item.MinorUnits);
+
+    private static long CalculateCarryIn(
+        AdministrationData data,
+        Percentage collaboratorPercentage,
+        YearMonth target)
+    {
+        AnnualCarryover? annual = data.AnnualCarryovers
+            .Where(item => item.TargetYear == target.Year)
+            .OrderByDescending(item => item.CreatedUtc)
+            .FirstOrDefault();
+        long carry = annual is null
+            ? 0
+            : checked(annual.SurplusMinorUnits - annual.DeficitMinorUnits);
+        foreach (int monthNumber in Enumerable.Range(1, target.Month - 1))
+        {
+            var month = new YearMonth(target.Year, monthNumber);
+            MonthlyClose? close = data.MonthlyCloses
+                .Where(item => item.Month == month && item.IsConfirmed)
+                .OrderByDescending(item => item.ClosedUtc)
+                .FirstOrDefault();
+            FinancialMonthSnapshot snapshot = close?.ToFinancialSnapshot()
+                ?? FinancialMonthCalculator.Calculate(data, collaboratorPercentage, month);
+            long collaboratorPayments = data.DistributionPayments
+                .Where(item => YearMonth.From(item.Date) == month)
+                .Sum(item => item.Amount.MinorUnits);
+            carry = checked(
+                carry + snapshot.CollectedOperatingIncomeMinorUnits
+                + snapshot.FinancingReceivedMinorUnits
+                - snapshot.BreakEvenMinorUnits
+                - collaboratorPayments);
+        }
+
+        return carry;
+    }
+
+    private static long ProratedAnnualAmount(long annualMinorUnits, int month)
+    {
+        long regular = annualMinorUnits / 12;
+        return month == 12 ? checked(annualMinorUnits - regular * 11) : regular;
+    }
 
     private sealed class RemainingCharge(DateOnly periodEnd, DateTime createdUtc, long remaining)
     {

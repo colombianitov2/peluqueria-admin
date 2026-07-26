@@ -42,14 +42,25 @@ public sealed class ObligationPayment : AuditableEntity
 
     public void Update(DateOnly date, Money amount, DateTime utcNow, string? description = null)
     {
-        if (amount.MinorUnits == 0)
+        if (amount.MinorUnits <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(amount));
+            throw new ArgumentOutOfRangeException(nameof(amount), "El pago debe ser mayor que cero.");
         }
 
         Date = date;
         Amount = amount;
         Description = NormalizeOptionalText(description);
         MarkUpdated(utcNow);
+    }
+
+    public void MoveTo(
+        Guid obligationId,
+        DateOnly date,
+        Money amount,
+        DateTime utcNow,
+        string? description = null)
+    {
+        ObligationId = obligationId;
+        Update(date, amount, utcNow, description);
     }
 }

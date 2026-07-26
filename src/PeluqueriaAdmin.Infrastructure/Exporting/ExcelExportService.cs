@@ -681,21 +681,49 @@ public sealed class ExcelExportService(
 
     private static void AddMonthlySummaries(XLWorkbook workbook, AdministrationData data, GeneralSettings settings, string currency, DateOnly? from, DateOnly? to)
     {
+        string[] headers =
+        [
+            "Mes", "Saldo trasladado del mes anterior", "Alquileres cobrados", "Ventas",
+            "Otros ingresos", "Demás ingresos reales", "Aportes de colaboradores (financiación)",
+            "Préstamos o créditos recibidos (financiación)", "Inventario", "Gastos",
+            "Gastos extraoficiales", "Imprevistos", "Servicios", "Impuestos",
+            "Otras obligaciones", "Pagos de préstamos", "Pagos de créditos", "Mantenimiento",
+            "Ganancias de colaboradores efectivamente pagadas", "Demás salidas reales",
+            "Total ingresado", "Total gastado", "Punto de equilibrio",
+            "Faltó (-) o sobró (+)", "Saldo trasladado al mes siguiente", "Moneda", "Origen",
+        ];
         if (!from.HasValue || !to.HasValue)
         {
-            AddTable(workbook, "Resúmenes mensuales", ["Mes", "Ingresos cobrados", "Cuentas por cobrar", "Egresos pagados", "Cuentas por pagar", "Compromisos del mes aún no pagados", "Compromisos cubiertos de meses anteriores", "Diferencias entre estimado y real", "Préstamos pagados", "Financiación recibida", "Resultado neto del mes", "Punto de equilibrio", "Faltante", "Pago calculado para colaboradores", "Saldo del local después de colaboradores", "Moneda", "Origen"], []);
+            AddTable(workbook, "Resúmenes mensuales", headers, []);
             return;
         }
 
         var months = MonthsBetween(from.Value, to.Value).Select(month =>
         {
             MonthlyClose? close = data.MonthlyCloses.Where(x => x.Month == month && x.IsConfirmed).OrderByDescending(x => x.ClosedUtc).FirstOrDefault();
-            FinancialMonthSnapshot result = close?.ToFinancialSnapshot() ?? FinancialMonthCalculator.Calculate(data, settings.CollaboratorProfit, month);
-            return (object?[])[Date(month.FirstDay), Minor(result.CollectedOperatingIncomeMinorUnits), Minor(result.AccountsReceivableMinorUnits), Minor(result.PaidOutflowsMinorUnits), Minor(result.AccountsPayableMinorUnits), Minor(result.NewReservesMinorUnits), Minor(result.CarriedReservesMinorUnits), Minor(result.ReserveAdjustmentsMinorUnits), Minor(result.LoanPaymentsMinorUnits), Minor(result.FinancingReceivedMinorUnits), Minor(result.DistributableResultMinorUnits), Minor(result.BreakEvenMinorUnits), Minor(result.ShortfallMinorUnits), Minor(result.CollaboratorFundMinorUnits), Minor(result.RetainedLocalMinorUnits), currency, close is not null ? "Snapshot de cierre confirmado" : "Proyección actual"];
+            MonthlyCashBreakdown result = AdministrationReports.MonthlyCash(
+                data, settings.CollaboratorProfit, month);
+            return (object?[])
+            [
+                Date(month.FirstDay), Minor(result.CarryInMinorUnits),
+                Minor(result.LocalUseIncomeMinorUnits), Minor(result.SalesIncomeMinorUnits),
+                Minor(result.OtherIncomeMinorUnits), Minor(result.OtherRealIncomeMinorUnits),
+                Minor(result.CollaboratorContributionsMinorUnits), Minor(result.FinancingReceivedMinorUnits),
+                Minor(-result.InventoryMinorUnits), Minor(-result.GeneralExpensesMinorUnits),
+                Minor(-result.RecurringExpensesMinorUnits), Minor(-result.UnexpectedExpensesMinorUnits),
+                Minor(-result.ServicesMinorUnits), Minor(-result.TaxesMinorUnits),
+                Minor(-result.OtherObligationsMinorUnits), Minor(-result.LoanPaymentsMinorUnits),
+                Minor(-result.CreditPaymentsMinorUnits), Minor(-result.MaintenanceMinorUnits),
+                Minor(-result.CollaboratorPaymentsMinorUnits), Minor(-result.OtherOutflowsMinorUnits),
+                Minor(result.TotalIncomeMinorUnits), Minor(-result.TotalSpentMinorUnits),
+                Minor(result.BreakEvenMinorUnits), Minor(result.DifferenceMinorUnits),
+                Minor(result.CarryOutMinorUnits), currency,
+                close is not null ? "Snapshot de cierre confirmado" : "Mes abierto calculado",
+            ];
         });
-        AddTable(workbook, "Resúmenes mensuales", ["Mes", "Ingresos cobrados", "Cuentas por cobrar", "Egresos pagados", "Cuentas por pagar", "Compromisos del mes aún no pagados", "Compromisos cubiertos de meses anteriores", "Diferencias entre estimado y real", "Préstamos pagados", "Financiación recibida", "Resultado neto del mes", "Punto de equilibrio", "Faltante", "Pago calculado para colaboradores", "Saldo del local después de colaboradores", "Moneda", "Origen"], months,
-            moneyColumns: Enumerable.Range(2, 14).ToArray(),
-            totalColumns: Enumerable.Range(2, 14).ToArray());
+        AddTable(workbook, "Resúmenes mensuales", headers, months,
+            moneyColumns: Enumerable.Range(2, 24).ToArray(),
+            totalColumns: Enumerable.Range(2, 24).ToArray());
     }
 
     private static void AddAnnualBalances(
@@ -715,40 +743,58 @@ public sealed class ExcelExportService(
                 settings.CollaboratorProfit,
                 year,
                 today);
-            MonthlyExpenseBreakdown e = AdministrationReports
-                .Annual(data, settings.CollaboratorProfit, year)
-                .Expenses;
+            MonthlyCashBreakdown[] monthly = Enumerable.Range(1, 12)
+                .Select(month => new YearMonth(year, month))
+                .Where(month => month.FirstDay <= today || data.MonthlyCloses.Any(item =>
+                    item.Month == month && item.IsConfirmed))
+                .Select(month => AdministrationReports.MonthlyCash(data, settings.CollaboratorProfit, month))
+                .ToArray();
+            long Sum(Func<MonthlyCashBreakdown, long> selector) => monthly.Sum(selector);
+            long opening = monthly.FirstOrDefault()?.CarryInMinorUnits ?? 0;
+            long income = checked(opening + Sum(item =>
+                item.LocalUseIncomeMinorUnits + item.SalesIncomeMinorUnits
+                + item.OtherIncomeMinorUnits + item.OtherRealIncomeMinorUnits));
+            long spent = Sum(item => item.TotalSpentMinorUnits);
+            long difference = checked(income - spent);
             return (object?[])
             [
-                year,
-                Minor(report.IncomeMinorUnits),
-                Minor(report.OutflowMinorUnits),
-                Minor(report.ResultMinorUnits),
-                Minor(report.AccountsReceivableMinorUnits),
-                Minor(report.AccountsPayableMinorUnits),
-                Minor(report.PendingReservesMinorUnits),
-                Minor(report.PendingLoansMinorUnits),
-                Minor(report.CollaboratorFundMinorUnits),
-                Minor(report.SurplusMinorUnits),
-                Minor(report.DeficitMinorUnits),
-                Minor(report.ProjectedNextYearBalanceMinorUnits),
-                Minor(e.ServicesMinorUnits),
-                Minor(e.TaxesMinorUnits),
-                Minor(e.CreditsMinorUnits),
-                Minor(e.OtherObligationsMinorUnits),
-                Minor(e.MerchandiseMinorUnits),
-                Minor(e.MandatorySuppliesMinorUnits),
-                Minor(e.OptionalSuppliesMinorUnits), Minor(e.MaintenanceMinorUnits), Minor(e.UnexpectedMinorUnits),
-                Minor(e.OtherExpensesMinorUnits), Minor(e.HistoricalAdjustmentMinorUnits), currency,
+                year, Minor(opening),
+                Minor(Sum(item => item.LocalUseIncomeMinorUnits)),
+                Minor(Sum(item => item.SalesIncomeMinorUnits)),
+                Minor(Sum(item => item.OtherIncomeMinorUnits)),
+                Minor(Sum(item => item.OtherRealIncomeMinorUnits)),
+                Minor(Sum(item => item.CollaboratorContributionsMinorUnits)),
+                Minor(Sum(item => item.FinancingReceivedMinorUnits)),
+                Minor(-Sum(item => item.InventoryMinorUnits)),
+                Minor(-Sum(item => item.GeneralExpensesMinorUnits)),
+                Minor(-Sum(item => item.RecurringExpensesMinorUnits)),
+                Minor(-Sum(item => item.UnexpectedExpensesMinorUnits)),
+                Minor(-Sum(item => item.ServicesMinorUnits)),
+                Minor(-Sum(item => item.TaxesMinorUnits)),
+                Minor(-Sum(item => item.OtherObligationsMinorUnits)),
+                Minor(-Sum(item => item.LoanPaymentsMinorUnits)),
+                Minor(-Sum(item => item.CreditPaymentsMinorUnits)),
+                Minor(-Sum(item => item.MaintenanceMinorUnits)),
+                Minor(-Sum(item => item.CollaboratorPaymentsMinorUnits)),
+                Minor(-Sum(item => item.OtherOutflowsMinorUnits)),
+                Minor(income), Minor(-spent), Minor(spent), Minor(difference),
+                Minor(monthly.LastOrDefault()?.CarryOutMinorUnits ?? opening), currency,
                 report.IsClosed
                     ? "Año cerrado y congelado"
                     : "Año abierto: cierres confirmados y meses abiertos actuales",
             ];
         });
         AddTable(workbook, "Balance anual",
-            ["Año", "Ingresos operativos cobrados", "Egresos y compromisos", "Resultado anual", "Cuentas por cobrar", "Cuentas por pagar", "Compromisos apartados pendientes", "Préstamos pendientes", "Pago calculado para colaboradores", "Superávit", "Déficit", "Saldo proyectado para el siguiente año", "Servicios", "Impuestos", "Créditos", "Otras obligaciones", "Mercancía", "Insumos obligatorios", "Insumos opcionales", "Mantenimiento", "Imprevistos", "Otros gastos", "Ajuste histórico", "Moneda", "Origen"],
+            ["Año", "Saldo trasladado del año anterior", "Alquileres cobrados", "Ventas",
+             "Otros ingresos", "Demás ingresos reales", "Aportes de colaboradores (financiación)",
+             "Préstamos o créditos recibidos (financiación)", "Inventario", "Gastos",
+             "Gastos extraoficiales", "Imprevistos", "Servicios", "Impuestos",
+             "Otras obligaciones", "Pagos de préstamos", "Pagos de créditos", "Mantenimiento",
+             "Ganancias de colaboradores efectivamente pagadas", "Demás salidas reales",
+             "Total ingresado del año", "Total gastado del año", "Punto de equilibrio anual",
+             "Faltó (-) o sobró (+)", "Saldo trasladado al siguiente año", "Moneda", "Origen"],
             rows,
-            moneyColumns: Enumerable.Range(2, 22).ToArray());
+            moneyColumns: Enumerable.Range(2, 24).ToArray());
     }
 
     private static IReadOnlyList<CashMovement> BuildCashMovements(AdministrationData data, DateOnly today)

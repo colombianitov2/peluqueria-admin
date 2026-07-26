@@ -81,6 +81,16 @@ public static class FinancialMonthCalculator
             .Where(item => item.Recurrence == RecurrenceFrequency.Annual
                 && item.DueDate.Year == month.Year)
             .Sum(item => ProratedAnnualAmount(item.ExpectedAmount.MinorUnits, month.Month));
+        long annualPaymentAdjustments = data.ObligationPayments
+            .Where(item => InMonth(item.Date))
+            .Select(item => new
+            {
+                Payment = item,
+                Obligation = data.Obligations.Single(obligation =>
+                    obligation.Id == item.ObligationId),
+            })
+            .Where(item => item.Obligation.Recurrence == RecurrenceFrequency.Annual)
+            .Sum(item => item.Payment.Amount.MinorUnits - item.Obligation.ExpectedAmount.MinorUnits);
         long obligationPayments = data.ObligationPayments
             .Where(item => InMonth(item.Date)
                 && data.Obligations.Any(obligation =>
@@ -103,7 +113,7 @@ public static class FinancialMonthCalculator
                     item.InstallmentId ?? item.LoanId)))
             .Sum(item => item.Amount.MinorUnits);
         long paidOutflows = checked(
-            purchases + entries + recurringExpenses + annualProvisions
+            purchases + entries + recurringExpenses + annualProvisions + annualPaymentAdjustments
             + obligationPayments + maintenance + unreservedLoanPayments);
 
         long financing = data.CollaboratorContributions

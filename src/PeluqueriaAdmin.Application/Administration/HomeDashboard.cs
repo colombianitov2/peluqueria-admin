@@ -68,15 +68,15 @@ public static class HomeDashboardCalculator
                         item.Description ?? string.Empty,
                         item.DueDate < today ? "Vencido" : "Pendiente");
                 }))
-            .Concat(data.MonthlyPurchaseItems
-                .Where(item => MonthlyPurchaseCommitmentPolicy.IsPending(item, data, endOfMonth))
+            .Concat(data.UnofficialExpenses
+                .Where(item => item.AppliesInMonth(YearMonth.From(today)))
                 .Select(item => new PendingHomeObligation(
-                    item.Month.LastDay,
+                    endOfMonth,
                     item.Name,
-                    "Compra mensual",
-                    Money.FromMinorUnits(item.ExpectedTotalMinorUnits),
+                    "Gasto recurrente",
+                    item.MonthlyAmount,
                     item.Description ?? string.Empty,
-                    item.Month.LastDay < today ? "Vencido" : "Pendiente")))
+                    "Pendiente recurrente")))
             .OrderBy(item => item.DueDate)
             .ThenBy(item => item.Name)
             .ToArray();

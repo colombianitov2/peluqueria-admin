@@ -696,6 +696,91 @@ public sealed class AdministrationService(
         return payment;
     }
 
+    public async Task UpdateObligationPaymentAsync(
+        Guid paymentId,
+        Guid seriesId,
+        DateOnly paymentDate,
+        Money actualAmount,
+        string? description = null,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        ObligationPayment payment = data.ObligationPayments.SingleOrDefault(item => item.Id == paymentId)
+            ?? throw new InvalidOperationException("El pago ya no está disponible.");
+        Obligation currentOccurrence = data.Obligations.Single(item => item.Id == payment.ObligationId);
+        Obligation[] targetSeries = data.Obligations
+            .Where(item => item.SeriesId == seriesId)
+            .OrderBy(item => item.DueDate)
+            .ToArray();
+        if (targetSeries.Length == 0)
+            throw new InvalidOperationException("La obligación seleccionada ya no está disponible.");
+        Obligation targetOccurrence = targetSeries.FirstOrDefault(item =>
+            item.Id == currentOccurrence.Id || !item.IsSettled)
+            ?? targetSeries[^1];
+
+        EnsureLoanPaymentMonthIsOpen(data, payment.Date);
+        EnsureLoanPaymentMonthIsOpen(data, paymentDate);
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        if (targetOccurrence.Id != currentOccurrence.Id)
+        {
+            currentOccurrence.ReopenSettlement(utcNow);
+            payment.MoveTo(targetOccurrence.Id, paymentDate, actualAmount, utcNow, description);
+            targetOccurrence.MarkSettled(utcNow);
+        }
+        else
+        {
+            payment.Update(paymentDate, actualAmount, utcNow, description);
+            targetOccurrence.MarkSettled(utcNow);
+        }
+
+        FinancialReserve? currentReserve = data.FinancialReserves.SingleOrDefault(item =>
+            item.SourceType == FinancialCommitmentSource.Obligation
+            && item.SourceId == currentOccurrence.Id
+            && item.IsConsumed);
+        FinancialReserve? targetReserve = data.FinancialReserves.SingleOrDefault(item =>
+            item.SourceType == FinancialCommitmentSource.Obligation
+            && item.SourceId == targetOccurrence.Id);
+        if (currentReserve is not null && currentOccurrence.Id != targetOccurrence.Id)
+            currentReserve.ReopenSettlement(utcNow);
+        if (targetReserve is not null)
+        {
+            if (targetReserve.IsConsumed)
+                targetReserve.CorrectSettlement(paymentDate, actualAmount, utcNow);
+            else
+                targetReserve.Settle(paymentDate, actualAmount, utcNow);
+        }
+
+        var updates = new List<AuditableEntity> { payment, currentOccurrence };
+        if (targetOccurrence.Id != currentOccurrence.Id) updates.Add(targetOccurrence);
+        if (currentReserve is not null) updates.Add(currentReserve);
+        if (targetReserve is not null && !ReferenceEquals(targetReserve, currentReserve)) updates.Add(targetReserve);
+        await SaveAsync([], updates, null, cancellationToken);
+    }
+
+    public async Task DeleteObligationPaymentAsync(
+        Guid paymentId,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        ObligationPayment payment = data.ObligationPayments.SingleOrDefault(item => item.Id == paymentId)
+            ?? throw new InvalidOperationException("El pago ya no está disponible.");
+        EnsureLoanPaymentMonthIsOpen(data, payment.Date);
+        Obligation occurrence = data.Obligations.Single(item => item.Id == payment.ObligationId);
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        payment.MarkDeleted(utcNow);
+        if (!data.ObligationPayments.Any(item =>
+                item.Id != payment.Id && item.ObligationId == occurrence.Id && !item.IsDeleted))
+            occurrence.ReopenSettlement(utcNow);
+
+        FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(item =>
+            item.SourceType == FinancialCommitmentSource.Obligation
+            && item.SourceId == occurrence.Id
+            && item.IsConsumed);
+        reserve?.ReopenSettlement(utcNow);
+        await SaveAsync([], reserve is null ? [payment, occurrence] : [payment, occurrence, reserve],
+            null, cancellationToken);
+    }
+
     public async Task UpdateObligationDefinitionAsync(
         Guid seriesId,
         string name,

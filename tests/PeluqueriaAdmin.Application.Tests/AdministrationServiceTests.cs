@@ -17,6 +17,64 @@ public sealed class AdministrationServiceTests
     private static readonly DateTime UtcNow = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
+    public async Task ObligationPayment_CanBeEditedAndDeletedWithImmediateSettlementRecalculation()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        AdministrationService service = CreateService(repository, settingsRepository);
+        Obligation obligation = Obligation.Create(
+            "Internet",
+            ObligationType.Service,
+            new DateOnly(2026, 7, 20),
+            Money.FromDecimal(80m),
+            RecurrenceFrequency.None,
+            UtcNow);
+        await service.AddAsync(obligation, cancellationToken);
+        FinancialReserve reserve = FinancialReserve.Create(
+            new YearMonth(2026, 7),
+            FinancialCommitmentSource.Obligation,
+            obligation.Id,
+            obligation.Name,
+            obligation.DueDate,
+            obligation.ExpectedAmount,
+            UtcNow);
+        await service.AddAsync(reserve, cancellationToken);
+        ObligationPayment payment = await service.RegisterObligationPaymentAsync(
+            obligation.SeriesId,
+            new DateOnly(2026, 7, 20),
+            Money.FromDecimal(80m),
+            "Pago inicial",
+            cancellationToken);
+
+        await service.UpdateObligationPaymentAsync(
+            payment.Id,
+            obligation.SeriesId,
+            new DateOnly(2026, 7, 21),
+            Money.FromDecimal(75m),
+            "Pago corregido",
+            cancellationToken);
+
+        AdministrationData edited = await service.LoadAsync(cancellationToken);
+        ObligationPayment corrected = Assert.Single(edited.ObligationPayments);
+        Assert.Equal(new DateOnly(2026, 7, 21), corrected.Date);
+        Assert.Equal(7_500, corrected.Amount.MinorUnits);
+        Assert.Equal("Pago corregido", corrected.Description);
+        Assert.True(Assert.Single(edited.Obligations).IsSettled);
+        FinancialReserve correctedReserve = Assert.Single(edited.FinancialReserves);
+        Assert.True(correctedReserve.IsConsumed);
+        Assert.Equal(new DateOnly(2026, 7, 21), correctedReserve.SettledDate);
+        Assert.Equal(7_500, correctedReserve.ActualAmount?.MinorUnits);
+
+        await service.DeleteObligationPaymentAsync(payment.Id, cancellationToken);
+
+        AdministrationData deleted = await service.LoadAsync(cancellationToken);
+        Assert.Empty(deleted.ObligationPayments);
+        Assert.False(Assert.Single(deleted.Obligations).IsSettled);
+        Assert.False(Assert.Single(deleted.FinancialReserves).IsConsumed);
+    }
+
+    [Fact]
     public async Task GenerateScheduledRecords_IsAtomicAndIdempotent()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
@@ -1070,7 +1128,16 @@ public sealed class AdministrationServiceTests
                 Entities.OfType<Chair>().Where(Active).ToArray(),
                 Entities.OfType<PeluqueriaAdmin.Domain.Activity.ActivityRecord>().Where(Active).ToArray(),
                 Entities.OfType<UnofficialExpense>().Where(Active).ToArray(),
-                Entities.OfType<CollaboratorContribution>().Where(Active).ToArray()));
+                Entities.OfType<CollaboratorContribution>().Where(Active).ToArray(),
+                Entities.OfType<CollaboratorContributionEvent>().Where(Active).ToArray(),
+                Entities.OfType<FinancialReserve>().Where(Active).ToArray(),
+                Entities.OfType<FinancialCloseExclusion>().Where(Active).ToArray(),
+                Entities.OfType<MonthlyPurchaseItem>().Where(Active).ToArray(),
+                Entities.OfType<Loan>().Where(Active).ToArray(),
+                Entities.OfType<LoanInstallment>().Where(Active).ToArray(),
+                Entities.OfType<LoanPayment>().Where(Active).ToArray(),
+                Entities.OfType<AnnualClose>().Where(Active).ToArray(),
+                Entities.OfType<AnnualCarryover>().Where(Active).ToArray()));
 
         public Task SaveAsync(
             IReadOnlyCollection<AuditableEntity> additions,
