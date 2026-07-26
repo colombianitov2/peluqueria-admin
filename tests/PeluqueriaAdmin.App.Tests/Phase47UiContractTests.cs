@@ -82,10 +82,11 @@ public sealed class Phase47UiContractTests
 
 
     [Fact]
-    public void ExpensePie_HasExternalScrollableLegendAndNoSliceLabels()
+    public void MonthlyPies_HaveExternalScrollableLegendsAndNoSliceLabels()
     {
         string view = RepositoryFiles.Read("src", "PeluqueriaAdmin.App", "Views", "AdministrationView.xaml");
         string viewModel = RepositoryFiles.Read("src", "PeluqueriaAdmin.App", "ViewModels", "AdministrationViewModel.cs");
+        Assert.Contains("ItemsSource=\"{Binding IncomeLegendRows}\"", view, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding ExpenseLegendRows}\"", view, StringComparison.Ordinal);
         Assert.Contains("VerticalScrollBarVisibility=\"Auto\"", view, StringComparison.Ordinal);
         Assert.Contains("InsideLabelFormat = string.Empty", viewModel, StringComparison.Ordinal);

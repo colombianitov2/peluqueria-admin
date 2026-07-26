@@ -73,8 +73,28 @@ public sealed class ResponsiveLayoutTests
                         AssertInventoryTabRemainsUsable(inventory, inventoryTab, scale);
                     }
 
+                    foreach (var obligationsContext in new[]
+                    {
+                        new LayoutContext { IsAddMode = true },
+                        new LayoutContext { IsPaymentMode = true },
+                        new LayoutContext { IsLoanMode = true },
+                    })
+                    {
+                        var obligations = new ObligationsView { DataContext = obligationsContext };
+                        AssertFits(obligations, width, height, scale, inspectDescendants: true);
+                        AssertGridRemainsUsable(obligations, "ObligationCatalogGrid", scale);
+                        AssertGridRemainsUsable(obligations, "ObligationPaymentsGrid", scale);
+                        if (obligationsContext.IsLoanMode)
+                        {
+                            AssertGridRemainsUsable(obligations, "LoansGrid", scale);
+                            AssertGridRemainsUsable(obligations, "LoanPaymentsGrid", scale);
+                        }
+                    }
+
                     var maintenance = new MaintenanceView { DataContext = new LayoutContext() };
-                    AssertFits(maintenance, width, height, scale);
+                    AssertFits(maintenance, width, height, scale, inspectDescendants: true);
+                    AssertGridRemainsUsable(maintenance, "PendingMaintenanceGrid", scale);
+                    AssertGridRemainsUsable(maintenance, "MaintenanceHistoryGrid", scale);
 
                     var manual = new ManualView();
                     AssertFits(manual, width, height, scale);
@@ -177,8 +197,26 @@ public sealed class ResponsiveLayoutTests
         var grid = Assert.IsType<DataGrid>(inventory.FindName(gridName));
         Assert.True(grid.ActualWidth > 120 && grid.ActualHeight > 60,
             $"La pestaña {selectedTab} de Inventario quedó sin área de tabla a {scale:P0}.");
+        if (selectedTab == 2)
+        {
+            var product = Assert.IsType<TextBox>(inventory.FindName("MonthlyPurchaseProductBox"));
+            var category = Assert.IsType<ComboBox>(inventory.FindName("MonthlyPurchaseCategoryBox"));
+            Assert.True(product.ActualWidth >= 210,
+                $"El nombre del producto quedó demasiado estrecho a {scale:P0}.");
+            Assert.True(category.ActualWidth >= 250,
+                $"La categoría quedó demasiado estrecha a {scale:P0}.");
+        }
     }
 
+    private static void AssertGridRemainsUsable(
+        FrameworkElement view,
+        string gridName,
+        double scale)
+    {
+        var grid = Assert.IsType<DataGrid>(view.FindName(gridName));
+        Assert.True(grid.ActualWidth > 100 && grid.ActualHeight > 60,
+            $"{gridName} quedó sin área útil a {scale:P0}.");
+    }
 
     private static void AssertProfileKeepsHeaderAndHistoryVisible(
         FrameworkElement profile,
@@ -247,6 +285,9 @@ public sealed class ResponsiveLayoutTests
         public bool IsWorkerProfileOpen { get; set; }
         public int ProfileTabIndex { get; set; } = 1;
         public bool IsProfileOpen { get; set; }
+        public bool IsAddMode { get; set; }
+        public bool IsPaymentMode { get; set; }
+        public bool IsLoanMode { get; set; }
         public bool ShowInventoryAddForm => true;
         public bool IsEditingInventorySelection => false;
     }

@@ -45,9 +45,59 @@ public sealed class AdministrationViewModelTests
         Assert.Equal("2026", viewModel.SpecificYearText);
         Assert.Equal("2026-01-01", viewModel.DateText);
         Assert.False(viewModel.HasRecoveredDraft);
+        Assert.False(viewModel.ShowPeriodSelector);
+        Assert.False(viewModel.ShowFinancialClose);
+        Assert.True(viewModel.ShowAnnualClose);
+        Assert.Contains("2026", viewModel.AvailableYearOptions);
+        Assert.Equal(12, viewModel.AnnualMonthRows.Count);
+        Assert.All(viewModel.AnnualMonthRows.Skip(7), row =>
+        {
+            Assert.Contains("0", row.FinalIncome, StringComparison.Ordinal);
+            Assert.Equal("Futuro · cero", row.State);
+        });
+        LineSeries[] annualLines = viewModel.AnnualIncomeChart.Series
+            .Select(Assert.IsType<LineSeries>)
+            .ToArray();
+        Assert.Equal(2, annualLines.Length);
+        Assert.All(annualLines, line => Assert.Equal(12, line.Points.Count));
+        PieSeries annualIncomePie = Assert.IsType<PieSeries>(
+            Assert.Single(viewModel.AnnualIncomeCompositionChart.Series));
+        Assert.Contains(annualIncomePie.Slices, slice => slice.Label == "Otros ingresos");
         OperationRow july = Assert.Single(viewModel.Rows, row => row.Principal == "2026-07");
         Assert.Contains("125", july.Amount, StringComparison.Ordinal);
         Assert.Contains("Mes abierto", july.Status, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SwitchingFromMonthlySummaryToAnnualBalance_NotifiesEveryVisibilityConsumedByWpf()
+    {
+        var repository = new FakeAdministrationRepository();
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
+        var service = new AdministrationService(repository, settingsRepository, timeProvider);
+        var viewModel = new AdministrationViewModel(
+            service,
+            new GetSettingsUseCase(settingsRepository),
+            new FakeFormDraftStore(),
+            timeProvider);
+        await viewModel.SelectModuleAsync(AdministrationViewModel.MonthlySummaryModule);
+        var changedProperties = new List<string>();
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is not null)
+            {
+                changedProperties.Add(args.PropertyName);
+            }
+        };
+
+        await viewModel.SelectModuleAsync(AdministrationViewModel.AnnualBalanceModule);
+
+        Assert.Contains(nameof(viewModel.ShowFinancialClose), changedProperties);
+        Assert.Contains(nameof(viewModel.ShowAnnualClose), changedProperties);
+        Assert.Contains(nameof(viewModel.ShowPeriodSelector), changedProperties);
+        Assert.False(viewModel.ShowFinancialClose);
+        Assert.True(viewModel.ShowAnnualClose);
+        Assert.False(viewModel.ShowPeriodSelector);
     }
 
     [Fact]
@@ -285,6 +335,8 @@ public sealed class AdministrationViewModelTests
 
         PieSeries incomePie = Assert.IsType<PieSeries>(Assert.Single(viewModel.IncomeGoalChart.Series));
         Assert.Equal(100d, Assert.Single(incomePie.Slices).Value);
+        Assert.Contains(viewModel.IncomeLegendRows, row =>
+            row.Category == "Otros ingresos" && row.Amount.Contains("100", StringComparison.Ordinal));
         Assert.NotEmpty(viewModel.ExpenseCompositionChart.Series);
         LineSeries[] lines = viewModel.ResultEvolutionChart.Series
             .Select(Assert.IsType<LineSeries>)
@@ -295,7 +347,7 @@ public sealed class AdministrationViewModelTests
     }
 
     [Fact]
-    public async Task ExpenseChart_IncludesObligationsLoansAndFinancialReservesWithoutFinancingIncome()
+    public async Task ExpenseChart_UsesVisibleExpenseCategoriesWithoutInternalReserveMetrics()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
@@ -320,6 +372,15 @@ public sealed class AdministrationViewModelTests
         await service.AddAsync(FinancialReserve.Create(new YearMonth(2026, 7),
             FinancialCommitmentSource.Maintenance, Guid.NewGuid(), "Aire", new DateOnly(2026, 7, 31),
             Money.FromDecimal(15m), UtcNow), cancellationToken);
+        await service.AddAsync(MaintenanceRecord.Schedule(
+            "Aire",
+            "Limpieza",
+            new DateOnly(2026, 7, 25),
+            Money.FromDecimal(15m),
+            MaintenanceFrequency.Once,
+            null,
+            null,
+            UtcNow), cancellationToken);
         var viewModel = new AdministrationViewModel(
             service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
 
@@ -327,10 +388,14 @@ public sealed class AdministrationViewModelTests
         viewModel.SelectedPeriod = "Este mes";
         await viewModel.RefreshCommand.ExecuteAsync(null);
 
-        Assert.Contains(viewModel.ExpenseLegendRows, row => row.Category == "Obligaciones");
+        Assert.Contains(viewModel.ExpenseLegendRows, row => row.Category == "Servicios");
         Assert.Contains(viewModel.ExpenseLegendRows, row => row.Category == "Créditos");
         Assert.Contains(viewModel.ExpenseLegendRows, row => row.Category == "Préstamos");
-        Assert.Contains(viewModel.ExpenseLegendRows, row => row.Category == "Reservas");
+        Assert.DoesNotContain(viewModel.ExpenseLegendRows, row => row.Category == "Reservas");
+        Assert.DoesNotContain(viewModel.FinancialCommitmentRows, row =>
+            row.Origin.Contains("Mantenimiento", StringComparison.OrdinalIgnoreCase));
+        PieSeries incomePie = Assert.IsType<PieSeries>(Assert.Single(viewModel.IncomeGoalChart.Series));
+        Assert.Contains(incomePie.Slices, slice => slice.Label == "Financiación (no operativa)");
     }
 
     [Theory]

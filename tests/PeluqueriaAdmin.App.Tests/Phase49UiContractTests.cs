@@ -102,8 +102,8 @@ public sealed class Phase49UiContractTests
     {
         string text = View("src", "PeluqueriaAdmin.App", "ViewModels", "AdministrationViewModel.cs");
         Assert.Contains("Title = \"Ingresos\"", text, StringComparison.Ordinal);
-        Assert.Contains("for (int index = 0; index < report.Months.Count; index++)", text, StringComparison.Ordinal);
-        Assert.Contains("incomes.Points.Add(new DataPoint(index, month.IncomeMinorUnits / 100d))", text, StringComparison.Ordinal);
+        Assert.Contains("for (int index = 0; index < 12; index++)", text, StringComparison.Ordinal);
+        Assert.Contains("(breakdown?.TotalIncomeMinorUnits ?? 0) / 100d", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class Phase49UiContractTests
     {
         string text = View("src", "PeluqueriaAdmin.App", "ViewModels", "AdministrationViewModel.cs");
         Assert.Contains("Title = \"Egresos\"", text, StringComparison.Ordinal);
-        Assert.Contains("outflows.Points.Add(new DataPoint(index, month.OutflowMinorUnits / 100d))", text, StringComparison.Ordinal);
+        Assert.Contains("(breakdown?.TotalSpentMinorUnits ?? 0) / 100d", text, StringComparison.Ordinal);
         Assert.DoesNotContain("BarSeries", text, StringComparison.Ordinal);
     }
 

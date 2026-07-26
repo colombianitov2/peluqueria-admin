@@ -57,11 +57,12 @@
 
     <TabControl x:Name="InventoryTabs" Grid.Row="2" SelectedIndex="0">
       <TabItem Header="Inventario actual">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <Grid Margin="8">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
 
           <Border Grid.Row="0"
@@ -185,29 +186,29 @@
                            FontWeight="SemiBold"
                            Text="Editar selección del inventario" />
                 <WrapPanel>
-                  <StackPanel Width="155" Margin="0,0,8,7">
+                  <StackPanel Width="220" Margin="0,0,12,8">
                     <TextBlock Style="{StaticResource FormLabel}" Text="Producto" />
                     <TextBox Style="{StaticResource FieldBox}"
                              Text="{Binding InventoryEditName, UpdateSourceTrigger=PropertyChanged}" />
                   </StackPanel>
-                  <StackPanel Width="165" Margin="0,0,8,7">
+                  <StackPanel Width="260" Margin="0,0,12,8">
                     <TextBlock Style="{StaticResource FormLabel}" Text="Categoría" />
                     <ComboBox Style="{StaticResource FieldBox}"
                               IsEditable="False"
                               ItemsSource="{Binding ProductCategoryOptions}"
                               SelectedItem="{Binding InventoryEditCategory}" />
                   </StackPanel>
-                  <StackPanel Width="125" Margin="0,0,8,7">
+                  <StackPanel Width="150" Margin="0,0,12,8">
                     <TextBlock Style="{StaticResource FormLabel}" Text="Cantidad esperada" />
                     <TextBox Style="{StaticResource FieldBox}"
                              Text="{Binding InventoryEditExpectedQuantity, UpdateSourceTrigger=PropertyChanged}" />
                   </StackPanel>
-                  <StackPanel Width="170" Margin="0,0,8,7">
+                  <StackPanel Width="220" Margin="0,0,12,8">
                     <TextBlock Style="{StaticResource FormLabel}" Text="Precio unitario o por paquete" />
                     <TextBox Style="{StaticResource FieldBox}"
                              Text="{Binding InventoryEditExpectedUnitCost, UpdateSourceTrigger=PropertyChanged}" />
                   </StackPanel>
-                  <StackPanel Width="205" Margin="0,0,8,7">
+                  <StackPanel Width="320" Margin="0,0,12,8">
                     <TextBlock Style="{StaticResource FormLabel}" Text="Descripción de la lista" />
                     <TextBox MinHeight="42"
                              Padding="9,6"
@@ -263,10 +264,12 @@
 
           <DataGrid x:Name="InventoryCurrentGrid"
                     Grid.Row="2"
-                    MinHeight="90"
+                    Height="330"
                     AutoGenerateColumns="False"
                     CanUserAddRows="False"
                     IsReadOnly="True"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto"
                     ItemsSource="{Binding CurrentInventory}"
                     SelectedItem="{Binding SelectedCurrentRow}">
             <DataGrid.Columns>
@@ -287,6 +290,7 @@
             </DataGrid.Columns>
           </DataGrid>
         </Grid>
+        </ScrollViewer>
       </TabItem>
 
       <TabItem Header="Movimientos">
@@ -320,6 +324,8 @@
                     AutoGenerateColumns="False"
                     CanUserAddRows="False"
                     IsReadOnly="True"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto"
                     ItemsSource="{Binding MovementHistory}">
             <DataGrid.Columns>
               <DataGridTextColumn Width="110" Binding="{Binding Date}" Header="Fecha" />
@@ -336,10 +342,11 @@
       </TabItem>
 
       <TabItem Header="Lista mensual de compra">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <Grid Margin="12">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
 
           <Border Grid.Row="0"
@@ -355,29 +362,29 @@
                            FontWeight="SemiBold"
                            Text="Añadir producto a la lista de compra" />
                 <WrapPanel>
-                  <StackPanel Width="110" Margin="0,0,8,6">
+                  <StackPanel Width="220" Margin="0,0,12,8">
                     <TextBlock Style="{StaticResource FormLabel}" Text="Producto" />
-                    <TextBox Style="{StaticResource FieldBox}"
+                    <TextBox x:Name="MonthlyPurchaseProductBox" Style="{StaticResource FieldBox}"
                              Text="{Binding MonthlyPurchaseName, UpdateSourceTrigger=PropertyChanged}" />
                   </StackPanel>
-                  <StackPanel Width="115" Margin="0,0,8,6">
+                  <StackPanel Width="260" Margin="0,0,12,8">
                     <TextBlock Style="{StaticResource FormLabel}" Text="Categoría" />
-                    <ComboBox Style="{StaticResource FieldBox}"
+                    <ComboBox x:Name="MonthlyPurchaseCategoryBox" Style="{StaticResource FieldBox}"
                               IsEditable="False"
                               ItemsSource="{Binding ProductCategoryOptions}"
                               SelectedItem="{Binding SelectedMonthlyPurchaseCategory}" />
                   </StackPanel>
-                  <StackPanel Width="80" Margin="0,0,8,6">
+                  <StackPanel Width="150" Margin="0,0,12,8">
                     <TextBlock Style="{StaticResource FormLabel}" Text="Cantidad esperada" />
                     <TextBox Style="{StaticResource FieldBox}"
                              Text="{Binding MonthlyPurchaseQuantity, UpdateSourceTrigger=PropertyChanged}" />
                   </StackPanel>
-                  <StackPanel Width="105" Margin="0,0,8,6">
+                  <StackPanel Width="220" Margin="0,0,12,8">
                     <TextBlock Style="{StaticResource FormLabel}" Text="Precio unitario o por paquete" />
                     <TextBox Style="{StaticResource FieldBox}"
                              Text="{Binding MonthlyPurchaseUnitCost, UpdateSourceTrigger=PropertyChanged}" />
                   </StackPanel>
-                  <StackPanel Width="120" Margin="0,0,8,6">
+                  <StackPanel Width="320" Margin="0,0,12,8">
                     <TextBlock Style="{StaticResource FormLabel}" Text="Descripción" />
                     <TextBox MinHeight="42"
                              Padding="9,6"
@@ -429,9 +436,12 @@
 
           <DataGrid x:Name="MonthlyPurchaseGrid"
                     Grid.Row="1"
+                    Height="330"
                     AutoGenerateColumns="False"
                     CanUserAddRows="False"
                     IsReadOnly="True"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto"
                     ItemsSource="{Binding MonthlyPurchaseRows}"
                     SelectedItem="{Binding SelectedMonthlyPurchaseRow}">
             <DataGrid.Columns>
@@ -440,15 +450,16 @@
               <DataGridTextColumn Width="135" Binding="{Binding Quantity}" Header="Cantidad esperada" />
               <DataGridTextColumn Width="190" Binding="{Binding UnitPrice}" Header="Precio unitario o por paquete" />
               <DataGridTextColumn Width="170" Binding="{Binding TotalExpected}" Header="Precio total esperado" />
+              <DataGridTextColumn Width="300" Binding="{Binding Description}" ElementStyle="{StaticResource WrappingCellText}" Header="Descripción" />
               <DataGridTextColumn Width="145" Binding="{Binding ActualQuantity}" Header="Cantidad comprada" />
               <DataGridTextColumn Width="155" Binding="{Binding ActualUnitPrice}" Header="Costo unitario real" />
               <DataGridTextColumn Width="155" Binding="{Binding ActualTotal}" Header="Total real" />
               <DataGridTextColumn Width="145" Binding="{Binding CurrentQuantity}" Header="Existencia actual" />
               <DataGridTextColumn Width="160" Binding="{Binding State}" Header="Estado" />
-              <DataGridTextColumn Width="300" Binding="{Binding Description}" ElementStyle="{StaticResource WrappingCellText}" Header="Descripción" />
             </DataGrid.Columns>
           </DataGrid>
         </Grid>
+        </ScrollViewer>
       </TabItem>
     </TabControl>
   </Grid>

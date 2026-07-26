@@ -20,8 +20,10 @@ public sealed class Phase50BLoanUiTests
         Assert.Contains("Content=\"Guardar pago\"", view, StringComparison.Ordinal);
         Assert.Contains("Content=\"Eliminar pago\"", view, StringComparison.Ordinal);
         Assert.Contains("SelectedItem=\"{Binding SelectedLoanPayment}\"", view, StringComparison.Ordinal);
-        Assert.Contains("Header=\"Tasa mensual\"", view, StringComparison.Ordinal);
-        Assert.Contains("Header=\"Tasa equivalente\"", view, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Cantidad final acordada\"", view, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Periodicidad\"", view, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Última fecha\"", view, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Total pagado\"", view, StringComparison.Ordinal);
         Assert.Contains("Header=\"Descripción\"", view, StringComparison.Ordinal);
     }
 }

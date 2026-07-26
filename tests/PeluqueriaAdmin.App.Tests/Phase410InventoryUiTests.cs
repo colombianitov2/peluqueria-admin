@@ -31,7 +31,9 @@ public sealed class Phase410InventoryUiTests
         Assert.Contains("UpdateRegisteredMonthlyPurchaseAsync", viewModel, StringComparison.Ordinal);
         Assert.Contains("InventoryCurrentRow", viewModel, StringComparison.Ordinal);
         Assert.DoesNotContain("<TabItem Header=\"Agregar al inventario\">", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("<ScrollViewer", view, StringComparison.Ordinal);
+        Assert.Contains("VerticalScrollBarVisibility=\"Auto\"", view, StringComparison.Ordinal);
+        Assert.Contains("ScrollViewer.HorizontalScrollBarVisibility=\"Auto\"", view, StringComparison.Ordinal);
+        Assert.Contains("ScrollViewer.VerticalScrollBarVisibility=\"Auto\"", view, StringComparison.Ordinal);
     }
 
     [Fact]

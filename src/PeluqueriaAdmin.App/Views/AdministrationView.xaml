@@ -60,8 +60,10 @@
         </WrapPanel>
         <WrapPanel Visibility="{Binding ShowSpecificYearQuery, Converter={StaticResource BooleanToVisibilityConverter}}">
           <TextBlock Margin="0,8,8,0" Style="{StaticResource FieldLabel}" Text="Año a consultar" />
-          <TextBox Width="110" Margin="0,0,8,8" Style="{StaticResource FieldBox}" Text="{Binding SpecificYearText, UpdateSourceTrigger=PropertyChanged}" />
-          <Button Style="{StaticResource ActionButton}" Command="{Binding ConsultPeriodCommand}" Content="Consultar" />
+          <ComboBox Width="140" Margin="0,0,8,8" Style="{StaticResource FieldBox}"
+                    ItemsSource="{Binding AvailableYearOptions}"
+                    SelectedItem="{Binding SpecificYearText}" />
+          <Button Style="{StaticResource ActionButton}" Command="{Binding ConsultPeriodCommand}" Content="Consultar año" />
         </WrapPanel>
       </WrapPanel>
       <TextBlock Grid.Row="2" Margin="0,0,0,8" Foreground="#64748B" Text="{Binding HistoricalRecordsWithoutTime}" TextWrapping="Wrap" />
@@ -76,10 +78,29 @@
             <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate><DataTemplate><Border Margin="3" Padding="8" Background="#F8FAFC" CornerRadius="4"><StackPanel><TextBlock FontSize="11" Foreground="#64748B" Text="{Binding Concept}" TextWrapping="Wrap" /><TextBlock FontWeight="SemiBold" Text="{Binding Amount}" /></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate>
           </ItemsControl>
-          <TextBlock Margin="0,12,0,6" FontSize="16" FontWeight="SemiBold" Text="Compromisos considerados para el cierre" />
-          <DataGrid MaxHeight="230" AutoGenerateColumns="False" CanUserAddRows="False" ItemsSource="{Binding FinancialCommitmentRows}">
+          <TextBlock Margin="0,12,0,6" FontSize="16" FontWeight="SemiBold" Text="Alquileres de silla pendientes" />
+          <DataGrid MaxHeight="170" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                    ItemsSource="{Binding SeatRentalDebtRows}"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto">
             <DataGrid.Columns>
-              <DataGridTextColumn Width="130" IsReadOnly="True" Header="Origen" Binding="{Binding Origin}" /><DataGridTextColumn Width="210" IsReadOnly="True" Header="Nombre" Binding="{Binding Name}" /><DataGridTextColumn Width="105" IsReadOnly="True" Header="Fecha" Binding="{Binding DueDate}" /><DataGridTextColumn Width="120" IsReadOnly="True" Header="Esperado" Binding="{Binding Expected}" /><DataGridTextColumn Width="120" IsReadOnly="True" Header="Real" Binding="{Binding Actual}" /><DataGridTextColumn Width="100" IsReadOnly="True" Header="Estado" Binding="{Binding State}" /><DataGridCheckBoxColumn Width="75" Header="Ignorar" Binding="{Binding IsIgnored}" /><DataGridTextColumn Width="250" Header="Motivo obligatorio" Binding="{Binding ExclusionReason, UpdateSourceTrigger=PropertyChanged}" />
+              <DataGridTextColumn Width="220" Header="Trabajador" Binding="{Binding Worker}" />
+              <DataGridTextColumn Width="250" Header="Periodo" Binding="{Binding Period}" />
+              <DataGridTextColumn Width="140" Header="Valor" Binding="{Binding Amount}" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <TextBlock Margin="0,12,0,6" FontSize="16" FontWeight="SemiBold" Text="Pagos pendientes" />
+          <DataGrid MaxHeight="230" AutoGenerateColumns="False" CanUserAddRows="False" ItemsSource="{Binding FinancialCommitmentRows}"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto">
+            <DataGrid.Columns>
+              <DataGridTextColumn Width="170" IsReadOnly="True" Header="Sección" Binding="{Binding Origin}" />
+              <DataGridTextColumn Width="230" IsReadOnly="True" Header="Nombre" Binding="{Binding Name}" />
+              <DataGridTextColumn Width="115" IsReadOnly="True" Header="Fecha" Binding="{Binding DueDate}" />
+              <DataGridTextColumn Width="145" IsReadOnly="True" Header="Valor esperado" Binding="{Binding Expected}" />
+              <DataGridTextColumn Width="140" IsReadOnly="True" Header="Estado" Binding="{Binding State}" />
+              <DataGridCheckBoxColumn Width="75" Header="Ignorar" Binding="{Binding IsIgnored}" />
+              <DataGridTextColumn Width="250" Header="Motivo obligatorio" Binding="{Binding ExclusionReason, UpdateSourceTrigger=PropertyChanged}" />
             </DataGrid.Columns>
           </DataGrid>
           <WrapPanel Margin="0,10,0,0"><Button Style="{StaticResource ActionButton}" Command="{Binding SaveFinancialExclusionsCommand}" Content="Guardar exclusiones" /><Button Style="{StaticResource ActionButton}" Command="{Binding CloseFinancialMonthCommand}" Content="Cerrar mes" /><CheckBox Margin="8,8,8,0" IsChecked="{Binding ConfirmReopenMonth}" Content="Confirmo reabrir" /><Button Style="{StaticResource ActionButton}" Command="{Binding ReopenFinancialMonthCommand}" Content="Reabrir mes" /></WrapPanel>
@@ -96,15 +117,18 @@
             <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate><DataTemplate><Border Margin="3" Padding="8" Background="#F8FAFC" CornerRadius="4"><StackPanel><TextBlock FontSize="11" Foreground="#64748B" Text="{Binding Concept}" TextWrapping="Wrap" /><TextBlock FontWeight="SemiBold" Text="{Binding Amount}" /></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate>
           </ItemsControl>
-          <TextBlock Margin="0,12,0,6" FontSize="16" FontWeight="SemiBold" Text="Compromisos pendientes conocidos del año" />
-          <DataGrid MaxHeight="230" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding AnnualCommitmentRows}">
+          <TextBlock Margin="0,12,0,6" FontSize="16" FontWeight="SemiBold" Text="Detalle mensual del año" />
+          <DataGrid MaxHeight="300" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                    ItemsSource="{Binding AnnualMonthRows}"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto">
             <DataGrid.Columns>
-              <DataGridTextColumn Width="105" Header="Fecha" Binding="{Binding DueDate}" />
-              <DataGridTextColumn Width="200" Header="Nombre" Binding="{Binding Name}" />
-              <DataGridTextColumn Width="150" Header="Tipo" Binding="{Binding Type}" />
-              <DataGridTextColumn Width="125" Header="Valor" Binding="{Binding Amount}" />
-              <DataGridTextColumn Width="280" ElementStyle="{StaticResource WrappingCellText}" Header="Descripción" Binding="{Binding Description}" />
-              <DataGridTextColumn Width="100" Header="Estado" Binding="{Binding Status}" />
+              <DataGridTextColumn Width="130" Header="Mes" Binding="{Binding Month}" />
+              <DataGridTextColumn Width="150" Header="Ingresos finales" Binding="{Binding FinalIncome}" />
+              <DataGridTextColumn Width="150" Header="Gastos finales" Binding="{Binding FinalExpenses}" />
+              <DataGridTextColumn Width="155" Header="Punto de equilibrio" Binding="{Binding BreakEven}" />
+              <DataGridTextColumn Width="190" Header="Faltó o sobró" Binding="{Binding Difference}" />
+              <DataGridTextColumn Width="130" Header="Estado" Binding="{Binding State}" />
             </DataGrid.Columns>
           </DataGrid>
           <TextBlock Margin="0,12,0,6" FontSize="16" FontWeight="SemiBold" Text="Gráficos estrictamente del año consultado" />
@@ -137,7 +161,15 @@
         <TextBlock Margin="0,0,0,8" FontSize="16" FontWeight="SemiBold" Text="Gráficos del periodo seleccionado" />
         <UniformGrid Columns="2" Rows="2">
           <GroupBox Margin="0,0,8,8" Header="Composición de ingresos por categoría">
-            <oxy:PlotView Height="260" Model="{Binding IncomeGoalChart}" />
+            <Grid Height="300">
+              <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+              <oxy:PlotView Model="{Binding IncomeGoalChart}" />
+              <ScrollViewer Grid.Row="1" MaxHeight="105" HorizontalAlignment="Right" VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding IncomeLegendRows}">
+                  <ItemsControl.ItemTemplate><DataTemplate><StackPanel Margin="4,2" Orientation="Horizontal"><Border Width="12" Height="12" Margin="0,2,7,0" Background="{Binding Color}" /><TextBlock MaxWidth="240" Text="{Binding Category}" TextWrapping="Wrap" /><TextBlock Margin="8,0,0,0" FontWeight="SemiBold" Text="{Binding Amount}" /><TextBlock Margin="6,0,0,0" Foreground="#64748B" Text="{Binding Percentage}" /></StackPanel></DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Grid>
           </GroupBox>
           <GroupBox Margin="8,0,0,8" Header="Composición de gastos por categoría">
             <Grid Height="300">

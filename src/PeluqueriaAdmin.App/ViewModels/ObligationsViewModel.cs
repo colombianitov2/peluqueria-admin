@@ -40,6 +40,9 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
     [ObservableProperty] private DateTime? paymentDate = DateTime.Today;
     [ObservableProperty] private string paymentAmountText = string.Empty;
     [ObservableProperty] private string paymentDescription = string.Empty;
+    [ObservableProperty] private ObligationPaymentListRow? selectedObligationPayment;
+    [ObservableProperty] private bool isEditingObligationPayment;
+    [ObservableProperty] private bool confirmObligationPaymentDelete;
     [ObservableProperty] private string statusMessage = string.Empty;
     [ObservableProperty] private bool isError;
 
@@ -77,6 +80,7 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
         AdministrationData data = await service.GenerateScheduledRecordsAsync(
             YearMonth.From(today).LastDay);
         Guid? selectedSeries = SelectedObligation?.SeriesId;
+        Guid? selectedObligationPaymentId = SelectedObligationPayment?.Payment.Id;
         Obligations.Clear();
         PaymentOptions.Clear();
         foreach (IGrouping<Guid, Obligation> group in data.Obligations.GroupBy(item => item.SeriesId)
@@ -102,29 +106,44 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
         {
             Obligation? occurrence = data.Obligations.SingleOrDefault(item => item.Id == payment.ObligationId);
             Payments.Add(new ObligationPaymentListRow(
+                payment,
+                occurrence?.SeriesId ?? Guid.Empty,
                 payment.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 occurrence?.Name ?? "Obligación eliminada",
                 occurrence?.DueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
                 $"{ApplicationCurrency.Code} {payment.Amount.ToDecimal():N2}",
                 payment.Description ?? string.Empty));
         }
+        SelectedObligationPayment = selectedObligationPaymentId.HasValue
+            ? Payments.SingleOrDefault(item => item.Payment.Id == selectedObligationPaymentId.Value)
+            : null;
         SelectedObligation = selectedSeries.HasValue ? Obligations.SingleOrDefault(item => item.SeriesId == selectedSeries) : null;
         Loans.Clear();
         foreach (Loan loan in data.Loans.OrderBy(item => item.NextDueDate))
+        {
+            LoanInstallment[] installments = data.LoanInstallments
+                .Where(item => item.LoanId == loan.Id)
+                .OrderBy(item => item.Number)
+                .ToArray();
+            long paidMinorUnits = data.LoanPayments
+                .Where(item => item.LoanId == loan.Id)
+                .Sum(item => item.Amount.MinorUnits);
             Loans.Add(new LoanRow(loan, loan.Name, $"{ApplicationCurrency.Code} {loan.InitialBalance.ToDecimal():N2}",
                 $"{ApplicationCurrency.Code} {loan.PendingBalance.ToDecimal():N2}",
                 $"{ApplicationCurrency.Code} {loan.UsualInstallment.ToDecimal():N2}",
                 $"{ApplicationCurrency.Code} {loan.ExpectedTotal.ToDecimal():N2}",
+                $"{ApplicationCurrency.Code} {loan.ExpectedTotal.ToDecimal():N2}",
                 $"{ApplicationCurrency.Code} {loan.TotalInterest.ToDecimal():N2}",
                 LoanMethodName(loan.CalculationMethod),
-                loan.CalculationMethod == LoanCalculationMethod.AgreedFinalAmount
-                    ? "No aplica"
-                    : $"{loan.MonthlyInterestBasisPoints / 100m:N2} %",
-                $"{loan.EquivalentMonthlyRateBasisPoints / 100m:N4} %",
                 loan.InstallmentCount?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                "Mensual",
                 loan.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                installments.LastOrDefault()?.DueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                    ?? loan.NextDueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                $"{ApplicationCurrency.Code} {Money.FromMinorUnits(paidMinorUnits).ToDecimal():N2}",
                 loan.NextDueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 loan.IsPaid ? "Pagado" : "Pendiente", loan.Description ?? string.Empty));
+        }
         LoanInstallments.Clear();
         foreach (LoanInstallment installment in data.LoanInstallments.OrderBy(item => item.DueDate).ThenBy(item => item.Number))
         {
@@ -476,6 +495,73 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
         }
     }
 
+    [RelayCommand(CanExecute = nameof(CanEditObligationPayment))]
+    private void EditSelectedObligationPayment()
+    {
+        if (SelectedObligationPayment is null) return;
+        SelectedPaymentOption = PaymentOptions.SingleOrDefault(item =>
+            item.SeriesId == SelectedObligationPayment.SeriesId);
+        PaymentDate = SelectedObligationPayment.Payment.Date.ToDateTime(TimeOnly.MinValue);
+        PaymentAmountText = SelectedObligationPayment.Payment.Amount.ToDecimal()
+            .ToString("0.00", CultureInfo.CurrentCulture);
+        PaymentDescription = SelectedObligationPayment.Payment.Description ?? string.Empty;
+        IsEditingObligationPayment = true;
+        StatusMessage = "Edición del pago activa.";
+        IsError = false;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSaveObligationPayment))]
+    private async Task SaveObligationPaymentAsync()
+    {
+        if (SelectedObligationPayment is null || SelectedPaymentOption is null) return;
+        try
+        {
+            Guid paymentId = SelectedObligationPayment.Payment.Id;
+            await service.UpdateObligationPaymentAsync(
+                paymentId,
+                SelectedPaymentOption.SeriesId,
+                RequiredDate(PaymentDate, "fecha de pago"),
+                ParseMoney(PaymentAmountText),
+                PaymentDescription);
+            IsEditingObligationPayment = false;
+            await RefreshAsync();
+            SelectedObligationPayment = Payments.SingleOrDefault(item => item.Payment.Id == paymentId);
+            StatusMessage = "El pago se actualizó y todos los saldos se recalcularon.";
+            IsError = false;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            StatusMessage = exception.Message;
+            IsError = true;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDeleteObligationPayment))]
+    private async Task DeleteSelectedObligationPaymentAsync()
+    {
+        if (SelectedObligationPayment is null || !ConfirmObligationPaymentDelete) return;
+        try
+        {
+            await service.DeleteObligationPaymentAsync(SelectedObligationPayment.Payment.Id);
+            ConfirmObligationPaymentDelete = false;
+            IsEditingObligationPayment = false;
+            await RefreshAsync();
+            StatusMessage = "El pago se eliminó lógicamente y el vencimiento volvió a quedar pendiente.";
+            IsError = false;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            StatusMessage = exception.Message;
+            IsError = true;
+        }
+    }
+
+    private bool CanEditObligationPayment() => SelectedObligationPayment is not null;
+    private bool CanSaveObligationPayment() =>
+        IsEditingObligationPayment && SelectedObligationPayment is not null;
+    private bool CanDeleteObligationPayment() =>
+        SelectedObligationPayment is not null && ConfirmObligationPaymentDelete;
+
     public Task FlushPendingAsync() => Task.CompletedTask;
 
     partial void OnIsAddModeChanged(bool value) => OnPropertyChanged(nameof(IsPaymentMode));
@@ -496,6 +582,16 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
         if (value is null) return;
         _ = PrefillNextLoanInstallmentAsync(value.Loan.Id);
     }
+    partial void OnSelectedObligationPaymentChanged(ObligationPaymentListRow? value)
+    {
+        EditSelectedObligationPaymentCommand.NotifyCanExecuteChanged();
+        SaveObligationPaymentCommand.NotifyCanExecuteChanged();
+        DeleteSelectedObligationPaymentCommand.NotifyCanExecuteChanged();
+    }
+    partial void OnIsEditingObligationPaymentChanged(bool value) =>
+        SaveObligationPaymentCommand.NotifyCanExecuteChanged();
+    partial void OnConfirmObligationPaymentDeleteChanged(bool value) =>
+        DeleteSelectedObligationPaymentCommand.NotifyCanExecuteChanged();
 
     private async Task PrefillNextLoanInstallmentAsync(Guid loanId)
     {
@@ -653,13 +749,33 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
 
 public sealed record ObligationCatalogRow(Guid SeriesId, Obligation Definition, string Name, string Type,
     string Recurrence, string NextDueDate, string ExpectedAmount, string Description);
-public sealed record ObligationPaymentListRow(string Date, string Obligation, string CoveredDueDate,
-    string ActualAmount, string Description);
+public sealed record ObligationPaymentListRow(
+    ObligationPayment Payment,
+    Guid SeriesId,
+    string Date,
+    string Obligation,
+    string CoveredDueDate,
+    string ActualAmount,
+    string Description);
 public sealed record ObligationSeriesOption(Guid SeriesId, string Display);
-public sealed record LoanRow(Loan Loan, string Name, string InitialBalance, string PendingBalance,
-    string Installment, string ExpectedTotal, string TotalInterest, string Method,
-    string StatedMonthlyRate, string EquivalentMonthlyRate, string InstallmentCount,
-    string StartDate, string NextDueDate, string State, string Description);
+public sealed record LoanRow(
+    Loan Loan,
+    string Name,
+    string InitialBalance,
+    string PendingBalance,
+    string Installment,
+    string ExpectedTotal,
+    string AgreedFinalAmount,
+    string TotalInterest,
+    string Method,
+    string InstallmentCount,
+    string Periodicity,
+    string StartDate,
+    string EndDate,
+    string TotalPaid,
+    string NextDueDate,
+    string State,
+    string Description);
 public sealed record LoanInstallmentRow(LoanInstallment Installment, string Loan, int Number,
     string DueDate, string Amount, string Principal, string Interest, string PrincipalBalance,
     string State, string Description);

@@ -1,7 +1,8 @@
 <UserControl x:Class="PeluqueriaAdmin.App.Views.MaintenanceView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:d="http://schemas.microsoft.com/expression/blend/2008" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:viewModels="clr-namespace:PeluqueriaAdmin.App.ViewModels" d:DataContext="{d:DesignInstance Type=viewModels:MaintenanceViewModel, IsDesignTimeCreatable=False}" d:DesignHeight="760" d:DesignWidth="990" Language="es-ES" mc:Ignorable="d">
   <UserControl.Resources><Style x:Key="FieldLabel" TargetType="TextBlock"><Setter Property="Margin" Value="0,0,0,5" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="#273449" /></Style><Style x:Key="FieldBox" TargetType="Control"><Setter Property="MinHeight" Value="36" /><Setter Property="Padding" Value="9,6" /></Style><Style x:Key="ActionButton" TargetType="Button"><Setter Property="Margin" Value="0,0,8,8" /><Setter Property="Padding" Value="12,7" /><Setter Property="Background" Value="#EEF2FF" /><Setter Property="BorderBrush" Value="#A5B4FC" /></Style></UserControl.Resources>
+  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
   <Grid Margin="26" Background="#F5F7FA">
-    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
     <StackPanel Margin="0,0,0,12"><TextBlock FontSize="28" FontWeight="SemiBold" Text="Mantenimiento" /><TextBlock Margin="0,5,0,0" Foreground="#5B6575" Text="Programación y realización separadas; la recurrencia conserva su fecha original." /></StackPanel>
     <Grid Grid.Row="1">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
@@ -29,12 +30,12 @@
           </StackPanel>
         </GroupBox>
     </Grid>
-    <Grid Grid.Row="2" Margin="0,14,0,0">
+    <Grid Grid.Row="2" Height="390" Margin="0,14,0,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
       <GroupBox Header="Equipos para mantenimiento" Padding="6">
         <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
           <WrapPanel Margin="0,0,0,6"><Button Style="{StaticResource ActionButton}" Command="{Binding EditSelectedPendingCommand}" Content="Editar pendiente" /><CheckBox Margin="8,8,8,0" IsChecked="{Binding ConfirmStop}" Content="Confirmo eliminar ocurrencia futura" /><Button Style="{StaticResource ActionButton}" Command="{Binding StopFutureCommand}" Content="Eliminar ocurrencia" /></WrapPanel>
-          <DataGrid Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding PendingRecords}" SelectedItem="{Binding SelectedRow}">
+        <DataGrid x:Name="PendingMaintenanceGrid" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding PendingRecords}" SelectedItem="{Binding SelectedRow}" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto">
             <DataGrid.Columns><DataGridTextColumn Width="190" Binding="{Binding Asset}" Header="Equipo" /><DataGridTextColumn Width="180" Binding="{Binding Type}" Header="Tipo" /><DataGridTextColumn Width="115" Binding="{Binding ScheduledDate}" Header="Fecha" /><DataGridTextColumn Width="145" Binding="{Binding Frequency}" Header="Frecuencia" /><DataGridTextColumn Width="145" Binding="{Binding EstimatedCost}" Header="Costo estimado" /><DataGridTextColumn Width="100" Binding="{Binding State}" Header="Estado" /><DataGridTextColumn Width="280" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Description}" Header="Descripción" /></DataGrid.Columns>
           </DataGrid>
         </Grid>
@@ -42,7 +43,7 @@
       <GroupBox Grid.Column="2" Header="Historial de mantenimiento de equipos" Padding="6">
         <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
           <WrapPanel HorizontalAlignment="Right" Margin="0,0,0,6"><Button Style="{StaticResource ActionButton}" Command="{Binding EditSelectedCompletedCommand}" Content="Editar realizado" /><Button Style="{StaticResource ActionButton}" Command="{Binding SaveCompletedEditCommand}" Content="Guardar realizado" /><ComboBox Width="240" Style="{StaticResource FieldBox}" ItemsSource="{Binding HistoryAssetOptions}" SelectedItem="{Binding SelectedHistoryAsset}" /><ComboBox Width="170" Margin="8,0,0,0" Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" /><DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodFrom}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" /><DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodThrough}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" /></WrapPanel>
-          <DataGrid Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding HistoryRecords}" SelectedItem="{Binding SelectedHistoryRow}">
+        <DataGrid x:Name="MaintenanceHistoryGrid" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding HistoryRecords}" SelectedItem="{Binding SelectedHistoryRow}" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto">
             <DataGrid.Columns><DataGridTextColumn Width="190" Binding="{Binding Asset}" Header="Equipo" /><DataGridTextColumn Width="180" Binding="{Binding Type}" Header="Tipo" /><DataGridTextColumn Width="120" Binding="{Binding ScheduledDate}" Header="Programada" /><DataGridTextColumn Width="120" Binding="{Binding CompletedDate}" Header="Realizada" /><DataGridTextColumn Width="145" Binding="{Binding EstimatedCost}" Header="Costo estimado" /><DataGridTextColumn Width="135" Binding="{Binding ActualCost}" Header="Costo real" /><DataGridTextColumn Width="280" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Description}" Header="Descripción" /><DataGridTextColumn Width="100" Binding="{Binding State}" Header="Estado" /></DataGrid.Columns>
           </DataGrid>
         </Grid>
@@ -50,4 +51,5 @@
     </Grid>
     <TextBlock Grid.Row="3" Margin="0,8,0,0" Foreground="#0F766E" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
   </Grid>
+  </ScrollViewer>
 </UserControl>
