@@ -17,6 +17,7 @@ public sealed class Phase50BFinancialUiTests
         Assert.Contains("new PieSeries", viewModel, StringComparison.Ordinal);
         Assert.Contains("var incomeLine = new LineSeries", viewModel, StringComparison.Ordinal);
         Assert.Contains("var expenseLine = new LineSeries", viewModel, StringComparison.Ordinal);
+        Assert.Contains("Title = \"Ingresos vs. egresos\"", viewModel, StringComparison.Ordinal);
         Assert.DoesNotContain("\"Reservas nuevas\"", viewModel, StringComparison.Ordinal);
         Assert.DoesNotContain("\"Reservas arrastradas\"", viewModel, StringComparison.Ordinal);
         Assert.DoesNotContain("\"Ajustes de reservas\"", viewModel, StringComparison.Ordinal);

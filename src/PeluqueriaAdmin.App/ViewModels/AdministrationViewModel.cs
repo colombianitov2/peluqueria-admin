@@ -325,7 +325,7 @@ public sealed partial class AdministrationViewModel(
 
     public PlotModel ResultEvolutionChart { get; } = new() { Title = "Ingresos y egresos en el tiempo" };
 
-    public PlotModel AnnualIncomeChart { get; } = new() { Title = "Ingresos y egresos mensuales" };
+    public PlotModel AnnualIncomeChart { get; } = new() { Title = "Ingresos vs. egresos" };
     public PlotModel AnnualIncomeCompositionChart { get; } = new() { Title = "Ingresos del año por categoría" };
     public PlotModel AnnualExpenseCompositionChart { get; } = new() { Title = "Egresos del año por categoría" };
 
