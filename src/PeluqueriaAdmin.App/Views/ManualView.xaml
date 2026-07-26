@@ -68,7 +68,31 @@
             no cambia cálculos y no modifica la base de datos.
           </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">1. Propósito y límites del programa</Paragraph>
+          <Paragraph Style="{StaticResource SubTitle}">Índice</Paragraph>
+          <Paragraph LineHeight="25">
+            <Hyperlink NavigateUri="#Inicio" RequestNavigate="NavigateToSection">1. Inicio</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#UsoDelLocal" RequestNavigate="NavigateToSection">2. Uso del local</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Colaboradores" RequestNavigate="NavigateToSection">3. Colaboradores</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Ventas" RequestNavigate="NavigateToSection">4. Ventas</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Inventario" RequestNavigate="NavigateToSection">5. Inventario</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#OtrosIngresos" RequestNavigate="NavigateToSection">6. Otros ingresos</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Gastos" RequestNavigate="NavigateToSection">7. Gastos</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Imprevistos" RequestNavigate="NavigateToSection">8. Imprevistos</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Obligaciones" RequestNavigate="NavigateToSection">9. Obligaciones</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Prestamos" RequestNavigate="NavigateToSection">10. Préstamos</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Mantenimiento" RequestNavigate="NavigateToSection">11. Mantenimiento</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#ResumenMensual" RequestNavigate="NavigateToSection">12. Resumen mensual</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Graficos" RequestNavigate="NavigateToSection">13. Gráficos</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#BalanceAnual" RequestNavigate="NavigateToSection">14. Balance anual</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Ajustes" RequestNavigate="NavigateToSection">15. Ajustes</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Notas" RequestNavigate="NavigateToSection">16. Notas</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Manual" RequestNavigate="NavigateToSection">17. Manual</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Autoguardado" RequestNavigate="NavigateToSection">18. Autoguardado y seguridad</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Excel" RequestNavigate="NavigateToSection">19. Excel</Hyperlink><LineBreak />
+            <Hyperlink NavigateUri="#Actualizaciones" RequestNavigate="NavigateToSection">20. Actualizaciones</Hyperlink>
+          </Paragraph>
+
+          <Paragraph Style="{StaticResource SubTitle}">Propósito y límites del programa</Paragraph>
           <Paragraph>
             Peluquería Admin es una herramienta interna para registrar el dinero propio del local,
             sus obligaciones, inventario, mantenimiento, financiación y resultados. Su moneda
@@ -81,7 +105,7 @@
             <ListItem><Paragraph>Los trabajadores usan sillas y pagan por usar el local. Los colaboradores son inversionistas y nunca ocupan sillas.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">2. Reglas generales de uso</Paragraph>
+          <Paragraph Style="{StaticResource SubTitle}">Reglas generales de uso</Paragraph>
           <Paragraph>
             Revise siempre la fecha visible antes de guardar. Las fechas representan el día real de
             la operación; los importes admiten como máximo dos decimales y las cantidades de
@@ -96,11 +120,13 @@
             <ListItem><Paragraph>Las tablas tienen columnas fijas y barras internas. Use sus barras para consultar columnas o filas que no caben en la pantalla.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">3. Inicio</Paragraph>
+          <Paragraph x:Name="Inicio" Style="{StaticResource SectionTitle}">1. Inicio</Paragraph>
           <Paragraph>
             Inicio resume lo que requiere atención sin reemplazar los módulos donde se registran
             operaciones. Los valores se actualizan al entrar, después de una operación pertinente y
-            al cambiar el día.
+            al cambiar el día. La fecha actual usa el calendario local del equipo. En Movimientos del
+            día, el selector de fecha y Consultar son el filtro disponible; las demás tarjetas muestran
+            automáticamente el estado del mes actual.
           </Paragraph>
           <List MarkerStyle="Disc">
             <ListItem><Paragraph><Bold>Pagos pendientes:</Bold> servicios, impuestos, créditos, otras obligaciones, gastos recurrentes y cuotas de préstamos vencidas o exigibles. Las compras previstas y los mantenimientos se muestran en sus módulos propios.</Paragraph></ListItem>
@@ -115,7 +141,7 @@
             dato, abra el módulo que originó la operación.
           </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">4. Uso del local</Paragraph>
+          <Paragraph x:Name="UsoDelLocal" Style="{StaticResource SectionTitle}">2. Uso del local</Paragraph>
           <Paragraph>
             Este módulo administra sillas y trabajadores. Use <Bold>Añadir silla</Bold> para crear
             una silla individual y <Bold>Añadir trabajador</Bold> para registrar nombre, fecha de
@@ -146,7 +172,7 @@
             <ListItem><Paragraph>Eliminar trabajador libera la silla, detiene cuotas futuras y conserva pagos, crédito e historial. Esta versión no realiza devoluciones automáticas.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">5. Colaboradores</Paragraph>
+          <Paragraph x:Name="Colaboradores" Style="{StaticResource SectionTitle}">3. Colaboradores</Paragraph>
           <Paragraph>
             Los colaboradores aportan capital y participan en un fondo de ganancia; no son
             trabajadores, no usan sillas y sus aportes no son ventas ni otros ingresos operativos.
@@ -165,7 +191,7 @@
             <ListItem><Paragraph>Si el resultado es cero o negativo, el fondo es cero y el colaborador nunca queda debiendo dinero.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">6. Ventas</Paragraph>
+          <Paragraph x:Name="Ventas" Style="{StaticResource SectionTitle}">4. Ventas</Paragraph>
           <Paragraph>
             Ventas permite buscar por nombre, sin distinguir mayúsculas, únicamente productos de
             categorías vendibles. Al elegir uno se muestran existencia y precio predeterminado.
@@ -176,9 +202,10 @@
             <ListItem><Paragraph>La venta reduce existencias y registra el ingreso bruto recibido.</Paragraph></ListItem>
             <ListItem><Paragraph>El costo promedio de lo vendido y el margen son informativos; no crean una segunda salida de caja.</Paragraph></ListItem>
             <ListItem><Paragraph>Los servicios personales de los trabajadores no se registran aquí.</Paragraph></ListItem>
+            <ListItem><Paragraph>Ventas registradas es un historial de solo lectura. Esta versión no permite editar ni eliminar una venta desde esa pantalla; una corrección requiere revisar el movimiento original con soporte técnico para conservar inventario y caja consistentes.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">7. Inventario actual y movimientos</Paragraph>
+          <Paragraph x:Name="Inventario" Style="{StaticResource SectionTitle}">5. Inventario</Paragraph>
           <Paragraph>
             Inventario actual incorpora únicamente productos creados previamente en la
             <Bold>Lista mensual de compra</Bold>. Use la lupa de búsqueda, seleccione una fila pendiente
@@ -191,6 +218,14 @@
             descripción de inventario y fecha agregada. El precio total esperado se consulta solo en
             la Lista mensual de compra y no se repite en Inventario actual.
           </Paragraph>
+          <Paragraph>
+            Cantidad esperada y precio esperado describen el plan. Total esperado = cantidad esperada ×
+            precio unitario o por paquete. Al comprar, cantidad comprada es la entrada real y el costo
+            real del movimiento = cantidad comprada × ese precio; puede corregir el precio al editar la
+            selección vinculada. Existencia = entradas acumuladas − ventas y demás salidas. La compra
+            real se incluye una sola vez en gastos y punto de equilibrio; el plan pendiente solo sirve
+            como compromiso conocido hasta ser reemplazado por la compra.
+          </Paragraph>
           <List MarkerStyle="Disc">
             <ListItem><Paragraph><Bold>Editar selección</Bold> permite modificar los datos de la lista y de la compra vinculada en una sola operación.</Paragraph></ListItem>
             <ListItem><Paragraph>La existencia actual continúa calculándose a partir de todas las entradas y salidas del producto.</Paragraph></ListItem>
@@ -198,7 +233,7 @@
             <ListItem><Paragraph>Las categorías autorizadas siguen siendo alimento o bebida para venta, otro producto para venta, cortesía para clientes, aseo, insumo del local y otro producto del local.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">8. Lista mensual de compra</Paragraph>
+          <Paragraph Style="{StaticResource SubTitle}">Lista mensual de compra</Paragraph>
           <Paragraph>
             Esta lista reúne los productos que se desean comprar. No solicita fecha ni mes. Cada fila
             contiene producto, categoría, cantidad esperada, precio unitario o por paquete y
@@ -212,19 +247,39 @@
             desde Inventario actual para mantener vinculados el producto, la lista y su movimiento.
           </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">9. Otros ingresos, Gastos e Imprevistos</Paragraph>
+          <Paragraph x:Name="OtrosIngresos" Style="{StaticResource SectionTitle}">6. Otros ingresos</Paragraph>
           <Paragraph>
-            Registre la fecha real, concepto, valor y descripción opcional. Otros ingresos contiene
-            dinero propio del local que no proviene de ventas ni Uso del local. Gastos contiene
-            egresos ordinarios, e Imprevistos daños, reparaciones o acontecimientos no planificados.
+            Registre la fecha real, concepto, valor y descripción opcional. Use esta sección solo para
+            dinero propio del local que no proviene de Ventas ni de Uso del local. Guardar lo incluye
+            como ingreso operativo del mes; Editar selección corrige el registro y Eliminar selección
+            exige confirmación y lo excluye de cálculos sin borrar su trazabilidad.
           </Paragraph>
-          <List MarkerStyle="Disc">
-            <ListItem><Paragraph>Seleccione la categoría de gasto que describe su finalidad real.</Paragraph></ListItem>
-            <ListItem><Paragraph>No repita una compra de inventario, pago de obligación, mantenimiento o cuota de préstamo ya registrado en su módulo.</Paragraph></ListItem>
-            <ListItem><Paragraph>Los aportes de colaboradores y préstamos recibidos son financiación, no otros ingresos.</Paragraph></ListItem>
-          </List>
+          <Paragraph>
+            Los aportes de colaboradores y los préstamos recibidos son financiación: aumentan la
+            disponibilidad, pero no se registran aquí ni se convierten en ganancia.
+          </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">10. Obligaciones y créditos</Paragraph>
+          <Paragraph x:Name="Gastos" Style="{StaticResource SectionTitle}">7. Gastos</Paragraph>
+          <Paragraph>
+            Registre fecha, concepto, categoría, valor y descripción del egreso ordinario. El valor
+            reduce el resultado, aumenta el punto de equilibrio y forma parte del total gastado del
+            mes. Editar sustituye los datos de la misma operación; eliminar exige confirmación y es
+            lógico, por lo que el historial sigue disponible para auditoría y Excel.
+          </Paragraph>
+          <Paragraph>
+            No duplique aquí una compra de inventario, un pago de obligación, mantenimiento o cuota
+            de préstamo ya registrado en su módulo, porque cada uno ya alimenta la fórmula compartida.
+          </Paragraph>
+
+          <Paragraph x:Name="Imprevistos" Style="{StaticResource SectionTitle}">8. Imprevistos</Paragraph>
+          <Paragraph>
+            Imprevistos es para una salida extraordinaria no planificada, como un daño o reparación
+            inesperada. Gastos es para egresos ordinarios. Ambos solicitan fecha, concepto, valor y
+            descripción, permiten editar y eliminar lógicamente, y reducen resultado y punto de
+            equilibrio una sola vez en la fecha registrada.
+          </Paragraph>
+
+          <Paragraph x:Name="Obligaciones" Style="{StaticResource SectionTitle}">9. Obligaciones</Paragraph>
           <Paragraph>
             Agregar obligación define un compromiso con nombre, tipo, recurrencia, vencimiento
             inicial, valor esperado y descripción. Los tipos disponibles son
@@ -241,9 +296,10 @@
             <ListItem><Paragraph>El valor esperado sirve como previsión. Al registrar el pago real, la ocurrencia queda liquidada por ese valor, aunque sea diferente; no queda una diferencia ficticia pendiente.</Paragraph></ListItem>
             <ListItem><Paragraph>Servicios, impuestos, créditos y otras obligaciones exigibles aparecen en Pagos pendientes y afectan el punto de equilibrio e Inicio por la misma fórmula compartida.</Paragraph></ListItem>
             <ListItem><Paragraph>El tipo Crédito identifica una obligación de pago. No crea automáticamente un desembolso recibido ni un calendario de amortización.</Paragraph></ListItem>
+            <ListItem><Paragraph>Editar obligación cambia el catálogo futuro; editar o eliminar un pago corrige su historial. Las eliminaciones exigen confirmación y permanecen en la trazabilidad.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">11. Préstamos</Paragraph>
+          <Paragraph x:Name="Prestamos" Style="{StaticResource SectionTitle}">10. Préstamos</Paragraph>
           <Paragraph>
             Los préstamos se administran dentro de Obligaciones, pero se diferencian de una
             obligación de tipo Crédito porque registran financiación recibida y un calendario exacto.
@@ -259,8 +315,15 @@
             <ListItem><Paragraph>Antes del primer pago puede editarse todo el plan. Después, solo nombre y descripción. Los pagos de meses abiertos admiten corrección o eliminación lógica con recálculo; un mes cerrado debe reabrirse primero.</Paragraph></ListItem>
             <ListItem><Paragraph>Las cuotas vencidas o exigibles aparecen en Inicio y en la tabla única Pagos pendientes.</Paragraph></ListItem>
           </List>
+          <Paragraph>
+            <Bold>Ejemplo de cantidad final acordada:</Bold> si se reciben USD 1.000 y se pactan
+            USD 1.500 en 25 cuotas, cada cuota es USD 60. El capital recibido es financiación,
+            los USD 500 adicionales son el costo financiero total y el calendario distribuye
+            capital e interés sin alterar el total pactado. La primera y última fecha delimitan
+            el calendario; el saldo baja al registrar cada cuota completa.
+          </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">12. Mantenimiento</Paragraph>
+          <Paragraph x:Name="Mantenimiento" Style="{StaticResource SectionTitle}">11. Mantenimiento</Paragraph>
           <Paragraph>
             Programe el equipo o bien, tipo de mantenimiento, fecha prevista, costo estimado si se
             conoce, recurrencia y descripción. Completar mantenimiento registra fecha realizada y
@@ -274,29 +337,60 @@
             <ListItem><Paragraph>No se registran técnico, proveedor, ubicación, medio de pago ni comprobante.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">13. Resumen mensual y cierre</Paragraph>
+          <Paragraph x:Name="ResumenMensual" Style="{StaticResource SectionTitle}">12. Resumen mensual</Paragraph>
           <Paragraph>
             Resumen mensual es el único lugar que muestra el resumen financiero completo y permite
             cerrar un mes. Las deudas de trabajadores aparecen como Alquileres de silla pendientes.
             Los aportes y préstamos recibidos se muestran como financiación separada y no como ganancia.
           </Paragraph>
           <Paragraph>
-            <Bold>Total ingresado = saldo trasladado + alquileres cobrados + ventas + otros ingresos reales.</Bold>
+            Las tarjetas de entrada separan saldo anterior, alquileres, ventas, otros ingresos, demás
+            ingresos, aportes y financiación. Las de salida separan inventario, gastos, extraoficiales,
+            imprevistos, servicios, impuestos, otras obligaciones, préstamos, créditos, mantenimiento,
+            colaboradores pagados y demás salidas. Luego muestran total disponible, total gastado,
+            punto de equilibrio, faltó o sobró y saldo siguiente.
+          </Paragraph>
+          <Paragraph>
+            <Bold>Total disponible del mes = saldo trasladado + alquileres cobrados + ventas + otros ingresos reales.</Bold>
             <Bold> Total gastado y punto de equilibrio = inventario + gastos + gastos extraoficiales +
             imprevistos + servicios + impuestos + otras obligaciones + préstamos + créditos +
             mantenimiento + ganancias de colaboradores efectivamente pagadas + demás salidas.</Bold>
-            Si Total ingresado menos Total gastado es negativo se muestra cuánto faltó; si es positivo,
+            Si Total disponible menos Total gastado es negativo se muestra cuánto faltó; si es positivo,
             cuánto sobró. La financiación se suma al saldo trasladado, pero no convierte el resultado en ganancia.
           </Paragraph>
+          <Paragraph>
+            <Bold>Ejemplo:</Bold> saldo anterior USD 1.205 + alquileres USD 42,86 + otros ingresos
+            USD 450 = total disponible USD 1.697,86. Extraoficiales USD 45 + servicios USD 75 +
+            préstamos USD 60 = total gastado USD 180. El saldo siguiente es
+            1.697,86 − 180 = <Bold>USD 1.517,86</Bold>.
+          </Paragraph>
           <List MarkerStyle="Disc">
-            <ListItem><Paragraph>Antes de cerrar, complete importes faltantes o excluya justificadamente el compromiso solo para ese cierre.</Paragraph></ListItem>
+            <ListItem><Paragraph><Bold>Ingreso operativo:</Bold> cobros reales por sillas, ventas y otros ingresos propios. <Bold>Financiación:</Bold> aportes y préstamos recibidos; aumenta caja, no ganancia. <Bold>Gasto:</Bold> salida real. <Bold>Compromiso pendiente:</Bold> importe conocido aún no pagado. <Bold>Saldo trasladado:</Bold> dinero que ya existía al comenzar el mes.</Paragraph></ListItem>
+            <ListItem><Paragraph>Alquileres pendientes muestra cuotas de silla causadas y no pagadas. Pagos pendientes reúne obligaciones y cuotas exigibles conocidas.</Paragraph></ListItem>
+            <ListItem><Paragraph>Antes de cerrar, complete importes faltantes o use Ignorar con un motivo obligatorio y después Guardar exclusiones.</Paragraph></ListItem>
             <ListItem><Paragraph>Guardar exclusiones conserva la razón; Cerrar mes congela cifras, fórmula, porcentajes y asignaciones.</Paragraph></ListItem>
+            <ListItem><Paragraph><Bold>Ignorar un compromiso en el cierre no lo paga, no lo elimina y no cancela la deuda.</Bold> Solo permite cerrar ese mes sin incluirlo en la fotografía del cierre.</Paragraph></ListItem>
             <ListItem><Paragraph>Las obligaciones anuales se prorratean entre doce meses; diciembre absorbe cualquier centavo residual y el pago no vuelve a descontar el total.</Paragraph></ListItem>
             <ListItem><Paragraph>Los gastos recurrentes definidos en Ajustes afectan punto de equilibrio, resultado, pago calculado para colaboradores, Balance anual y gráficos desde su mes inicial.</Paragraph></ListItem>
             <ListItem><Paragraph>Reabrir exige confirmación, restaura el cálculo dinámico y se bloquea si ya se pagó una distribución.</Paragraph></ListItem>
+            <ListItem><Paragraph>Un ajuste histórico a favor aparece con signo positivo cuando un snapshot cerrado necesita compensar una categoría vigente que no formó parte de esa fotografía. Reduce salidas; no debe sumarse como un gasto nuevo.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">14. Balance anual</Paragraph>
+          <Paragraph x:Name="Graficos" Style="{StaticResource SectionTitle}">13. Gráficos</Paragraph>
+          <Paragraph>
+            Resumen mensual incluye un pastel de ingresos, un pastel de gastos y líneas de ingresos
+            frente a egresos. Cada color identifica una categoría y cada porción muestra su proporción;
+            las líneas comparan importes por intervalo. Seleccione Día, Semana, Mes, Fecha específica
+            o Año específico y use la fecha o el año de referencia cuando aparezca. Los gráficos
+            usan los mismos movimientos que las tarjetas y no crean cálculos independientes.
+          </Paragraph>
+          <Paragraph>
+            Balance anual muestra además ingresos frente a egresos por mes y dos pasteles de composición
+            anual. Una categoría sin valor no genera porción. Pase el puntero por los elementos para
+            leer la etiqueta y el valor; si el periodo no tiene datos, el gráfico permanece vacío.
+          </Paragraph>
+
+          <Paragraph x:Name="BalanceAnual" Style="{StaticResource SectionTitle}">14. Balance anual</Paragraph>
           <Paragraph>
             Seleccione únicamente un año de la lista. La vista siempre presenta enero a diciembre: un mes cerrado
             usa su fotografía histórica y uno abierto usa el cálculo vigente. Los gráficos utilizan
@@ -309,8 +403,20 @@
             <ListItem><Paragraph>El resumen anual suma las categorías finales de los doce meses. Los meses futuros permanecen en cero.</Paragraph></ListItem>
             <ListItem><Paragraph>La tabla mensual muestra ingresos, gastos, punto de equilibrio, faltó o sobró y estado abierto o cerrado.</Paragraph></ListItem>
           </List>
+          <Paragraph>
+            Los pagos de préstamos son salidas: se incluyen una sola vez en el mes correspondiente,
+            en el punto de equilibrio, en el resultado y en el saldo trasladado. El total anual es
+            exactamente la suma de los doce totales mensuales; aportes y financiación recibida se
+            presentan aparte de los ingresos operativos.
+          </Paragraph>
+          <Paragraph>
+            <Bold>Ejemplo anual consistente:</Bold> ingresos operativos USD 1.692,86 menos gastos
+            USD 715 = resultado USD 977,86. Si además existen USD 350 en aportes y USD 100 de
+            financiación recibida, la disponibilidad resultante es
+            977,86 + 450 = <Bold>USD 1.427,86</Bold>, siempre que no haya otro saldo previo.
+          </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">15. Ajustes</Paragraph>
+          <Paragraph x:Name="Ajustes" Style="{StaticResource SectionTitle}">15. Ajustes</Paragraph>
           <Paragraph>
             Ajustes contiene la tarifa semanal general, el porcentaje global de ganancia de
             colaboradores, la carpeta de exportación y gastos recurrentes. La moneda es siempre
@@ -322,21 +428,33 @@
             <ListItem><Paragraph>Cambiar el porcentaje no modifica cierres ya confirmados.</Paragraph></ListItem>
             <ListItem><Paragraph>Un gasto recurrente se descuenta una vez por mes desde su fecha inicial. Al eliminarlo se finaliza su vigencia y los meses históricos permanecen calculables y exportables.</Paragraph></ListItem>
             <ListItem><Paragraph>La sección Datos reúne copia, restauración y exportación Excel; Actualizaciones reúne búsqueda, descarga y aplicación.</Paragraph></ListItem>
+            <ListItem><Paragraph>En Gastos extraoficiales, Agregar crea un importe mensual desde su fecha efectiva; Editar y Guardar edición corrigen nombre, valor o vigencia, y Eliminar finaliza su efecto sin destruir el historial anterior.</Paragraph></ListItem>
           </List>
 
-          <Paragraph Style="{StaticResource SectionTitle}">16. Notas y Manual</Paragraph>
+          <Paragraph x:Name="Notas" Style="{StaticResource SectionTitle}">16. Notas</Paragraph>
           <Paragraph>
             Notas es un único bloc editable, sin límite configurado y sin ajuste automático de línea; use sus barras horizontal y vertical. Se guarda después de una pausa breve, al perder el foco
             y al cerrar. Su contenido vive en SQLite y forma parte de copias, restauración y Excel.
-            No necesita pulsar Guardar.
+            No necesita pulsar Guardar. El programa no borra el texto automáticamente: para eliminarlo,
+            selecciónelo y bórrelo manualmente; el autoguardado conservará el nuevo contenido.
           </Paragraph>
+
+          <Paragraph x:Name="Manual" Style="{StaticResource SectionTitle}">17. Manual</Paragraph>
           <Paragraph>
-            Manual, en cambio, es documentación estática de la versión instalada. Leerlo no lo
+            Use el índice del comienzo para saltar a un capítulo y la barra vertical para continuar
+            leyendo o volver al inicio. Manual es documentación estática de la versión instalada. Leerlo no lo
             guarda en SQLite, no genera borradores ni movimientos y no cambia información. Cuando
             cambien funciones del programa, la siguiente versión actualizará también este manual.
           </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">17. Copias de seguridad y restauración</Paragraph>
+          <Paragraph x:Name="Autoguardado" Style="{StaticResource SectionTitle}">18. Autoguardado y seguridad</Paragraph>
+          <Paragraph>
+            Ajustes válidos, porcentajes editables, Notas y formularios recuperables se guardan
+            automáticamente después de una pausa o al salir de la sección. Un borrador conserva campos
+            incompletos después de un cierre inesperado, pero no afecta inventario, dinero ni reportes.
+            Guardar operaciones, cerrar o reabrir periodos, eliminar registros, restaurar copias y
+            aplicar actualizaciones requieren botones y, cuando corresponde, confirmación explícita.
+          </Paragraph>
           <Paragraph>
             Una copia <Bold>.db</Bold> es la copia completa y restaurable de SQLite. Incluye tablas,
             relaciones, Notas, borradores, históricos, eliminados lógicamente y registros futuros.
@@ -352,10 +470,11 @@
             Para restaurar, seleccione una copia conocida, confirme la operación y espere el mensaje
             final. La aplicación valida compatibilidad, usa archivos temporales y recupera la base
             anterior si falla. Reinicie el programa después de una restauración correcta. No cierre
-            Windows durante el reemplazo.
+            Windows durante el reemplazo. No borre manualmente la base SQLite, sus archivos auxiliares
+            ni la carpeta de copias: use las acciones del programa y conserve una copia externa conocida.
           </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">18. Exportación completa a Excel</Paragraph>
+          <Paragraph x:Name="Excel" Style="{StaticResource SectionTitle}">19. Excel</Paragraph>
           <Paragraph>
             Exportar toda la información a Excel crea un único archivo <Bold>.xlsx</Bold> legible,
             sin necesitar Microsoft Excel instalado. Usa una fecha de corte única, incluye datos
@@ -375,7 +494,7 @@
             .db.
           </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">19. Actualizaciones mediante GitHub</Paragraph>
+          <Paragraph x:Name="Actualizaciones" Style="{StaticResource SectionTitle}">20. Actualizaciones</Paragraph>
           <Paragraph>
             La sección Actualizaciones consulta versiones públicas del repositorio de GitHub sin
             guardar tokens personales. Puede buscar manualmente, descargar una versión publicada y
@@ -387,6 +506,7 @@
             <ListItem><Paragraph>Los datos viven fuera de la carpeta del ejecutable y deben conservarse entre versiones.</Paragraph></ListItem>
             <ListItem><Paragraph>Antes de una prueba importante, cree además una copia manual .db.</Paragraph></ListItem>
             <ListItem><Paragraph>El instalador alpha no está firmado y Windows puede mostrar SmartScreen.</Paragraph></ListItem>
+            <ListItem><Paragraph>Si la descarga o instalación falla, conserve abierta la versión actual, no desinstale ni borre datos, compruebe Internet y vuelva a Buscar actualización. Si el error persiste, cree una copia manual .db y reporte el mensaje exacto.</Paragraph></ListItem>
           </List>
           <Paragraph>
             La prueba real de actualización entre dos Releases aún está pendiente. La siguiente
@@ -395,7 +515,7 @@
             declarar esa prueba aprobada hasta ejecutarla y verificar la base de datos después.
           </Paragraph>
 
-          <Paragraph Style="{StaticResource SectionTitle}">20. Solución de problemas y glosario</Paragraph>
+          <Paragraph Style="{StaticResource SubTitle}">Solución de problemas y glosario</Paragraph>
           <Paragraph Style="{StaticResource SubTitle}">Si una operación no se guarda</Paragraph>
           <List MarkerStyle="Disc">
             <ListItem><Paragraph>Revise campos obligatorios, fecha, selección y cantidad de decimales.</Paragraph></ListItem>

@@ -1,83 +1,264 @@
 # Manual de usuario
 
-## Primer inicio
+Peluquería Admin es una herramienta interna en USD. No es un sistema contable, fiscal ni
+tributario oficial y no registra clientes, proveedores, comprobantes, medios de pago ni los
+servicios personales de los trabajadores. La ayuda incluida en la aplicación funciona sin
+Internet y contiene el mismo contenido esencial de este documento.
 
-La aplicación crea sus carpetas locales y aplica migraciones automáticamente. Inicio muestra **Pagos pendientes** —servicios, impuestos, créditos, otras obligaciones, gastos recurrentes y cuotas de préstamos—, deudas por Uso del local, el faltante mensual y una única campana para mantenimientos vencidos, de hoy y futuros con costo estimado. Las compras previstas permanecen en Inventario y los mantenimientos pendientes no se mezclan con Pagos pendientes.
+Antes de guardar, revise la fecha visible. Los importes admiten dos decimales y las cantidades
+de inventario hasta tres. Un guardado correcto prepara el siguiente formulario; un error conserva
+lo escrito. Un borrador recuperable nunca se cuenta como operación confirmada. Las eliminaciones
+solicitadas por la interfaz exigen confirmación y son lógicas: dejan trazabilidad.
 
-Los formularios usan fechas `AAAA-MM-DD`, meses `AAAA-MM`, importes con dos decimales y cantidades de inventario con hasta tres. Los botones deshabilitados indican que falta una selección o dato válido.
+## Índice
 
-## Operación habitual
+1. [Inicio](#1-inicio)
+2. [Uso del local](#2-uso-del-local)
+3. [Colaboradores](#3-colaboradores)
+4. [Ventas](#4-ventas)
+5. [Inventario](#5-inventario)
+6. [Otros ingresos](#6-otros-ingresos)
+7. [Gastos](#7-gastos)
+8. [Imprevistos](#8-imprevistos)
+9. [Obligaciones](#9-obligaciones)
+10. [Préstamos](#10-préstamos)
+11. [Mantenimiento](#11-mantenimiento)
+12. [Resumen mensual](#12-resumen-mensual)
+13. [Gráficos](#13-gráficos)
+14. [Balance anual](#14-balance-anual)
+15. [Ajustes](#15-ajustes)
+16. [Notas](#16-notas)
+17. [Manual](#17-manual)
+18. [Autoguardado y seguridad](#18-autoguardado-y-seguridad)
+19. [Excel](#19-excel)
+20. [Actualizaciones](#20-actualizaciones)
 
-### Uso del local
+## 1. Inicio
 
-Registre nombre e ingreso; la silla inicial es opcional. La fecha visible es la que se guarda y, después de cada alta, el formulario vuelve a la fecha local actual. Si se recuperó un borrador, aparece un aviso para revisar su fecha antes de guardar. Si no hay sillas vacías, el trabajador puede guardarse igualmente y asignarse después desde su perfil. Al guardar, las cuotas aplicables aparecen solo por periodos completos de siete días desde el ingreso.
+**Fecha actual** usa la fecha local del equipo. **Pagos pendientes** reúne servicios, impuestos,
+créditos, otras obligaciones, gastos recurrentes y cuotas de préstamos vencidas o exigibles.
+**Personas con pagos pendientes por uso del local** muestra trabajadores con deuda, no saldos a
+favor. **Cantidad faltante para alcanzar el punto de equilibrio** usa la misma fórmula del resumen
+mensual. **Precio sugerido por silla** reparte el faltante entre sillas ocupadas sin duplicar gastos
+ni otros ingresos.
 
-El perfil permite registrar cualquier pago positivo, aunque la deuda sea cero. El excedente aparece como **Saldo a favor** y se aplica automáticamente a las próximas cuotas sin cambiar el ciclo semanal. Allí también se muestran **Deuda acumulada**, próxima cuota y valor, próximo pago requerido con fecha e importe, y cobertura estimada. Cada trabajador mantiene su cuenta independiente. El historial abre en **Todo el historial** y, después de un pago, vuelve a ese filtro para mostrarlo inmediatamente incluso si su fecha queda fuera del filtro usado antes. La pestaña **Silla** permite asignar, cambiar o retirar la silla. **Eliminar trabajador** exige confirmación, libera la silla, detiene cuotas futuras y conserva pagos, crédito e historial mediante eliminación lógica.
+La campanita abre mantenimientos vencidos, de hoy y futuros, con costo estimado y acceso directo a
+Mantenimiento. En **Movimientos del día**, elija fecha y pulse **Consultar**; ese es el filtro de
+esta lista. Muestra hora, módulo, operación, entidad, detalle, valor y estado, del más reciente al
+más antiguo. Inicio se refresca al entrar, después de operaciones relacionadas y al cambiar el día.
 
-La cabecera del módulo muestra total de sillas, personas vigentes, sillas disponibles y cualquier sobrecupo. Esta capacidad no aparece en Inicio.
+## 2. Uso del local
 
-### Colaboradores y distribución
+Use **Añadir silla** para crear una silla y **Añadir trabajador** para guardar nombre, fecha de
+ingreso, descripción y una silla inicial opcional. Si no hay silla libre, puede asignarla después
+desde el perfil.
 
-Registre colaboradores por fechas y abra el perfil con doble clic o **Abrir perfil seleccionado**. `Ganancia colaboradores (%)` crea el fondo global. En cada perfil, **Porcentaje de ganancia asignado al colaborador (%)** asigna de 0 % a 100 % del fondo; la suma activa no puede superar 100 %. La pantalla principal muestra únicamente porcentaje global, fondo total, porcentaje individual, **Pago del mes** y estado. Antes del cierre el pago es una proyección; después queda congelado. **Pagar ganancia completa** toma automáticamente la asignación mensual más antigua pendiente y no permite escribir un valor parcial. No existe un selector adicional para ese pago.
+La cuenta comienza en cero. La primera cuota se causa el sábado inmediato:
 
-Aportes y pagos son operaciones distintas. El único historial cronológico integra ediciones, aportes, cierres, porcentajes congelados y pagos reales. Seleccione una fila **Aporte original** o **Aporte editado** cuyo aporte continúe vigente para cargar su fecha, valor y descripción. El botón principal cambia a **Guardar edición**; al guardar se actualizan inmediatamente el total y el historial, que conserva los valores anteriores. Para eliminar, seleccione el aporte, marque **Confirmo eliminar** y pulse **Eliminar aporte**. El registro deja de sumar, pero permanece como **Aporte eliminado**. Las filas de cierres, pagos y aportes ya eliminados no habilitan estos botones.
+`primera cuota = tarifa semanal × días usados ÷ 7`
 
-### Inventario y ventas
+Se cuentan ingreso y sábado. Con USD 12 por semana, entrar un martes genera USD 8,57; entrar un
+domingo genera USD 12. Después, cada periodo completo va de domingo a sábado. Las cuotas existentes
+conservan su tarifa y las futuras usan la tarifa vigente al comenzar su periodo.
 
-No se admiten nombres activos duplicados aunque cambien las mayúsculas. Una venta calcula total, costo estimado y margen y no permite existencia negativa.
+El perfil muestra deuda, saldo a favor, próxima cuota, próximo pago realmente requerido y cobertura
+estimada. Acepta cualquier pago positivo, incluso adelantado o mayor que la deuda; el excedente
+cubre cuotas futuras en orden. Allí puede asignar, cambiar o retirar silla y consultar el historial.
+**Eliminar trabajador** exige confirmación, libera la silla, detiene cuotas futuras y conserva cuenta,
+pagos e historial. No se generan devoluciones automáticas.
 
-En **Lista mensual de compra**, pulse **Agregar** para registrar nombre, categoría, mes, cantidad prevista, costo esperado unitario y descripción. Para corregir una fila, selecciónela, pulse **Editar**, cambie los campos y pulse **Guardar**. Para retirarla, marque **Confirmo eliminar** y pulse **Eliminar**. No existen activación, desactivación ni reserva al agotarse: toda fila no comprada representa una compra conocida para su mes.
+## 3. Colaboradores
 
-En **Agregar al inventario** siempre se registra una compra. Use la lupa para buscar por nombre, categoría o mes entre las filas mensuales pendientes y seleccione una. Indique la fecha y cantidad realmente comprada, el precio de venta si se trata de un producto vendible y una descripción opcional. El programa toma el costo esperado unitario de la fila mensual y calcula `costo de compra = costo esperado unitario × cantidad real`; el precio de venta es lo que se cobrará al cliente y no reemplaza ese costo. **Registrar compra** crea o vincula el producto, añade existencias y marca la fila como comprada en una sola operación. Una fila comprada deja de aparecer en la búsqueda y no se vuelve a contabilizar como compromiso.
+Un trabajador usa una silla y paga al local; un colaborador aporta capital y participa en un fondo
+de ganancia. Los aportes son financiación, no ventas ni otros ingresos. En el perfil puede crear,
+editar o eliminar lógicamente aportes; un historial conserva valor anterior, valor nuevo y evento.
 
-### Otros ingresos, gastos e imprevistos
+El porcentaje global crea el fondo:
 
-Registre fecha, concepto y monto. No repita aquí una compra creada desde Inventario ni otro movimiento generado por un módulo específico.
+`fondo = máximo(resultado repartible, 0) × porcentaje global`
 
-### Obligaciones y mantenimiento
+El porcentaje individual aplica sobre ese fondo. La suma individual activa no puede superar 100 %;
+la parte no asignada queda en el local. Antes de cerrar, el pago del mes es una proyección; el cierre
+congela porcentajes e importes. **Pagar ganancia completa** paga toda la asignación pendiente, no una
+fracción arbitraria. Si no hay ganancia, el fondo es cero y nadie queda debiendo dinero.
 
-En **Obligaciones**, use **Agregar obligación** una sola vez para definir nombre, tipo —Servicio, Impuesto, Crédito u Otra obligación—, recurrencia —Sin recurrencia, Semanal, Mensual o Anual—, vencimiento inicial y valor esperado. Semanal crea vencimientos cada siete días; mensual conserva el día ancla, por lo que una obligación del día 31 usa el último día en meses cortos y vuelve al 31 cuando exista.
+## 4. Ventas
 
-Use **Registrar pago** para elegir la serie y guardar el valor real de la ocurrencia pendiente más antigua. Confirmar el pago deja esa ocurrencia con saldo cero aunque el valor real resulte menor o mayor que el esperado; Inicio, cierres, reportes y Excel usan el valor real una sola vez. Las ocurrencias siguientes conservan su propio valor esperado. Para corregir un pago, selecciónelo en **Pagos registrados**, pulse **Editar pago**, modifique fecha, obligación, valor o descripción y pulse **Guardar pago**. Para retirarlo, marque **Confirmo eliminar pago** y pulse **Eliminar pago**; el vencimiento vuelve a quedar pendiente y todos los saldos se refrescan al terminar.
+Busque y seleccione un producto vendible. La pantalla muestra existencia; escriba fecha, cantidad,
+precio unitario y descripción. El total se calcula antes de confirmar. **Registrar venta** impide
+superar la existencia, descuenta inventario y registra el ingreso bruto. El costo promedio y margen
+son informativos y no crean otra salida de caja.
 
-**Añadir préstamo** permite elegir interés mensual sobre saldo, interés fijo sobre capital inicial o cantidad final acordada. La vista previa muestra todas las cuotas con fecha, capital, interés y saldo. Antes del primer pago puede editarse todo el plan; después solo nombre y descripción. Los pagos de meses abiertos se pueden corregir o eliminar con recálculo. El dinero recibido es financiación, no ingreso operativo.
+**Ventas registradas** es de solo lectura: esta versión no edita ni elimina ventas desde esa pantalla.
+No registre aquí servicios personales de trabajadores.
 
-### Reportes
+## 5. Inventario
 
-- Resumen mensual: consulte el mes y revise saldo trasladado, ingresos reales, financiación separada, gastos por categoría, total ingresado, total gastado, punto de equilibrio, faltó o sobró y saldo siguiente. Las deudas de trabajadores aparecen como **Alquileres de silla pendientes** y existe una sola tabla **Pagos pendientes**. Para cerrar, resuelva importes faltantes o marque **Ignorar en este cierre**, escriba el motivo, pulse **Guardar exclusiones** y luego **Cerrar mes**. Reabrir exige confirmación y no es posible si ya se pagó una distribución.
-- Balance anual: seleccione únicamente un año disponible y pulse **Consultar año**; verá una fila por cada mes, líneas de ingresos/gastos y composiciones circulares. Un mes cerrado usa su snapshot, uno abierto se actualiza en vivo y uno futuro permanece en cero. **Cerrar año** exige confirmación y doce meses cerrados; **Reabrir año** invalida el arrastre y se bloquea si existe un año posterior cerrado.
-- Manual: abra **Manual**, debajo de Notas, para consultar sin conexión la explicación detallada de todos los módulos, cálculos, copias, Excel, cierres y actualizaciones. Es contenido de ayuda; leerlo no modifica datos.
+Las tres pestañas son:
 
-### Editar y eliminar
+- **Inventario actual**: busca con la lupa una fila pendiente de la Lista mensual, registra fecha,
+  cantidad comprada, precio de venta si aplica y descripción; después muestra existencias.
+- **Movimientos**: historial de solo lectura de entradas y salidas.
+- **Lista mensual de compra**: registra producto, categoría, cantidad esperada, precio unitario o por
+  paquete y descripción. Sus acciones son Agregar, Editar selección, Guardar cambios y Eliminar.
 
-Seleccione una fila y use **Editar/Cargar** para llevar sus valores al formulario. Editar no exige confirmación de borrado. Para eliminar, marque **Confirmo eliminar** y pulse **Eliminar**; la marca se limpia después de la operación. La eliminación es lógica. No se pueden eliminar padres con historial dependiente, cierres ni asignaciones calculadas; use la reapertura segura cuando corresponda.
+`total esperado = cantidad esperada × precio esperado`
 
-## Ajustes
+Al comprar, `costo real del movimiento = cantidad comprada × precio de la fila`. Ese precio puede
+corregirse editando la selección vinculada. `existencia = entradas acumuladas − ventas y otras salidas`.
+La compra real reemplaza el compromiso previsto para que gasto y punto de equilibrio la incluyan una
+sola vez. Las categorías son productos para venta, cortesías, aseo, insumos y otros productos del local.
 
-Permite configurar tarifa semanal, porcentaje global de colaboradores, carpeta de exportación y gastos recurrentes persistentes. Cada gasto recurrente afecta mensualmente el punto de equilibrio, resultado, colaboradores, Balance anual, gráficos, Excel y precio sugerido desde su fecha inicial. Eliminar finaliza su vigencia sin borrar los meses históricos. La única moneda es USD y no existe presupuesto opcional.
+## 6. Otros ingresos
 
-En **Datos** puede crear/restaurar copias y crear una exportación completa a Excel. Cada pulsación genera un solo `.xlsx` en la carpeta configurada —Escritorio de forma predeterminada— y nunca genera CSV. El libro incluye operaciones actuales, históricos, futuro conocido, tarifas semanales, lista mensual, compras, créditos, recurrencias, saldos, cierres, eliminados, borradores separados y datos heredados todavía presentes. Puede abrir el archivo o su carpeta al terminar. Reinicie después de restaurar. Los Ajustes válidos se guardan automáticamente; una entrada temporalmente inválida queda como borrador recuperable.
+Registre fecha, concepto, valor y descripción del dinero propio que no proviene de Ventas ni Uso del
+local. Guardar lo suma como ingreso operativo. Editar corrige el mismo registro; eliminar exige
+confirmación y deja trazabilidad. Aportes y préstamos recibidos no se registran aquí.
 
-En **Inicio**, la campana muestra mantenimientos vencidos, de hoy y futuros. Al final, **Movimientos del día** consulta la fecha local elegida, reemplaza la lista anterior y muestra operaciones exactas en orden descendente. En **Ventas**, escriba cantidad y precio unitario: el total USD se actualiza antes de registrar y la cantidad no puede superar la existencia. En **Resumen mensual**, las cifras usan ingresos cobrados y una sola deducción por cada pago, compromiso o diferencia.
+## 7. Gastos
 
-En **Uso del local**, seleccione **Añadir silla** o **Añadir trabajador**. Cambiar de acción prepara la fecha local actual para evitar reutilizar una fecha anterior; un borrador recuperado conserva y muestra expresamente su propia fecha. Las tablas de trabajadores y sillas permanecen visibles independientemente del filtro de actividad. Abra un perfil con doble clic para registrar pagos anticipados, administrar la silla, eliminar lógicamente al trabajador o consultar **Todo el historial** del más reciente al más antiguo. Solo el historial se desplaza; la cabecera del perfil permanece fija.
+Registre fecha, concepto, categoría, valor y descripción del egreso ordinario. Reduce el resultado,
+aumenta el punto de equilibrio y forma parte del total gastado. Editar sustituye los datos de la
+operación y eliminar es lógico. No duplique compras, obligaciones, mantenimientos o préstamos ya
+registrados en sus módulos.
 
-En **Inventario**, las pestañas son **Inventario actual**, **Movimientos** y **Lista mensual de compra**. La primera integra el formulario para agregar desde la lista y compara cantidades/costos esperados con los reales, existencia, valor y última actualización. Los indicadores heredados de activación y reserva no aparecen ni alteran cálculos; solo se conservan como compatibilidad técnica.
+## 8. Imprevistos
 
-El **Resumen financiero del mes** existe una sola vez, en **Resumen mensual**, y usa el mismo cálculo compartido por Colaboradores, Inicio, Balance anual y Excel. `Total ingresado = saldo anterior + alquileres cobrados + ventas + otros ingresos reales`. `Total gastado` y `Punto de equilibrio` reúnen inventario, gastos, extraoficiales, imprevistos, servicios, impuestos, obligaciones, préstamos, créditos, mantenimiento, ganancias de colaboradores efectivamente pagadas y demás salidas. La diferencia muestra únicamente **Faltó** o **Sobró**. Aportes y préstamos recibidos aumentan el saldo disponible, pero permanecen separados de la ganancia.
+Use Imprevistos para daños, reparaciones o salidas extraordinarias no planificadas; use Gastos para
+egresos ordinarios. Fecha, concepto, valor, descripción, edición y eliminación funcionan del mismo
+modo. El importe afecta resultado y punto de equilibrio una sola vez.
 
-En **Notas**, escriba libremente en el bloc único sin límite configurado ni ajuste automático de línea; use las barras horizontal y vertical. Se guarda después de una pausa breve, al perder foco y al cerrar; no hay botones Guardar o Limpiar. El contenido vuelve exactamente al abrir y forma parte de SQLite, copias y Excel.
+## 9. Obligaciones
 
-En **Manual**, use el desplazamiento interno y sus títulos para localizar la sección deseada. El manual no se edita, no es una nota, no se exporta como dato del negocio y no genera movimientos.
+**Agregar obligación** solicita nombre, tipo —Servicio, Impuesto, Crédito u Otra obligación—,
+recurrencia —Sin recurrencia, Semanal, Mensual o Anual—, vencimiento inicial, valor esperado y
+descripción. Semanal avanza siete días; Mensual conserva el día ancla y usa el último día de un mes
+corto cuando sea necesario.
 
-En todo el programa las tablas tienen columnas fijas y barras internas. No existe el botón **Limpiar formulario**: un guardado correcto prepara el formulario siguiente, mientras un error conserva lo escrito.
+**Registrar pago** guarda fecha, valor real y descripción para la ocurrencia pendiente. El pago real
+liquida esa ocurrencia aunque difiera del esperado. Puede editar obligación, editar pago y eliminar
+lógicamente con confirmación; el historial permanece. Lo exigible aparece en Pagos pendientes.
+Crédito identifica una obligación de pago, pero no crea financiación recibida ni calendario de préstamo.
 
-En **Actualizaciones** puede buscar, descargar e instalar una versión publicada. Sin Internet, el resto de la administración local continúa funcionando.
+## 10. Préstamos
 
-## Límites de esta alpha
+Un préstamo registra capital recibido como financiación y genera calendario. Métodos disponibles:
+interés mensual sobre saldo, interés fijo sobre capital inicial y cantidad final acordada. La vista
+previa muestra primera y última fecha, cuota, capital, interés y saldo. Se calcula en centavos y la
+última cuota absorbe el residuo.
 
-- No es contabilidad oficial ni calcula impuestos legales.
-- No registra servicios personales, clientes, proveedores, medios de pago ni comprobantes.
-- El instalador no está firmado y SmartScreen puede advertirlo.
-- La actualización real entre Releases no se ha verificado todavía.
-- El logotipo de la empresa y la prueba del salto de actualización se incorporarán en una versión posterior; esta fase no publica `alpha.2`.
+Ejemplo: USD 1.000 recibidos y USD 1.500 acordados en 25 cuotas producen USD 60 por cuota y USD 500
+de costo financiero. **Registrar cuota** paga completa la siguiente cuota. Antes del primer pago puede
+editarse todo el plan; después, solo nombre y descripción. Pagos de meses abiertos admiten corrección
+o eliminación lógica; un mes cerrado debe reabrirse primero.
+
+## 11. Mantenimiento
+
+Programe equipo, tipo, fecha prevista, costo estimado opcional, frecuencia y descripción. **Marcar como
+realizado** registra fecha y costo real; este sustituye la estimación sin doble conteo. Una recurrencia
+completada crea como máximo la siguiente ocurrencia. La campanita muestra pendientes; un mantenimiento
+pendiente solo afecta el punto de equilibrio como proyección opcional. Puede editar pendientes y
+realizados; eliminar una ocurrencia futura exige confirmación.
+
+## 12. Resumen mensual
+
+Las tarjetas separan saldo anterior; alquileres, ventas, otros y demás ingresos; aportes y financiación;
+inventario, gastos, extraoficiales, imprevistos, servicios, impuestos, obligaciones, préstamos, créditos,
+mantenimiento, colaboradores pagados y demás salidas; y finalmente total disponible, total gastado,
+punto de equilibrio, faltó o sobró y saldo siguiente.
+
+`total disponible = saldo anterior + alquileres + ventas + otros ingresos operativos`
+
+`total gastado = inventario + gastos + extraoficiales + imprevistos + servicios + impuestos + obligaciones + préstamos + créditos + mantenimiento + colaboradores pagados + demás salidas`
+
+`faltó o sobró = total disponible − total gastado`
+
+La financiación aumenta el saldo disponible final, pero se presenta aparte y no se convierte en
+ingreso operativo ni ganancia.
+
+Ejemplo: USD 1.205 + USD 42,86 + USD 450 = USD 1.697,86 disponibles. USD 45 + USD 75
++ USD 60 = USD 180 gastados. Saldo siguiente: USD 1.517,86.
+
+Alquileres pendientes son cuotas causadas y no pagadas. Pagos pendientes son compromisos conocidos
+aún no pagados. Para cerrar, complete importes o marque **Ignorar**, escriba el motivo obligatorio,
+pulse **Guardar exclusiones** y después **Cerrar mes**. **Reabrir mes** exige confirmación.
+
+> **Ignorar un compromiso en el cierre no lo paga, no lo elimina y no cancela la deuda.**
+
+Un ajuste histórico a favor puede aparecer positivo para reconciliar un snapshot cerrado con categorías
+vigentes; reduce salidas y no se suma como gasto nuevo.
+
+## 13. Gráficos
+
+El pastel de ingresos y el pastel de gastos muestran categorías, colores y porcentajes. Las líneas
+comparan ingresos frente a egresos. Use Día, Semana, Mes, Fecha específica o Año específico y la fecha
+de referencia cuando aparezca. Balance anual añade líneas por mes y pasteles anuales. Todos usan los
+mismos movimientos que las tarjetas; si no hay datos, no inventan porciones.
+
+## 14. Balance anual
+
+Seleccione un año y pulse **Consultar año**. Se suman enero a diciembre: meses cerrados usan snapshots,
+abiertos usan valores actuales y futuros quedan en cero. No es una segunda consulta mensual. El detalle
+muestra estado, ingresos, gastos, punto de equilibrio y faltó o sobró. Las tarjetas incluyen saldo
+anterior, acumulados y saldo siguiente.
+
+Los pagos de préstamos son salidas y se incluyen exactamente una vez en mes, total anual, punto de
+equilibrio, resultado y saldo trasladado. El total anual es la suma de los doce meses. Ejemplo coherente:
+USD 1.692,86 operativos − USD 715 gastados = USD 977,86; con USD 350 de aportes y USD 100 de
+financiación, sin otro saldo, quedan USD 1.427,86 disponibles.
+
+**Cerrar año** requiere confirmación y doce meses cerrados. **Reabrir año** invalida el arrastre y se
+bloquea si existe un año posterior cerrado.
+
+## 15. Ajustes
+
+Configura cuota semanal, porcentaje global de colaboradores, gastos extraoficiales y carpeta de
+exportación. Los valores válidos se autoguardan. Un gasto extraoficial usa nombre, importe y fecha
+efectiva; afecta mensualmente resultado, punto de equilibrio, colaboradores, Balance, gráficos y Excel.
+Editar corrige su vigencia y eliminar la finaliza sin borrar historia.
+
+Datos permite crear copias, restaurar y exportar Excel. La ruta predeterminada de exportación es el
+Escritorio y **Cambiar carpeta** permite elegir otra.
+
+## 16. Notas
+
+Es un bloc único, sin límite configurado y sin ajuste automático de línea. Use las barras horizontal
+y vertical. Se guarda tras una pausa, al perder el foco y al cerrar. No hay borrado automático:
+seleccione y elimine manualmente el texto que no quiera conservar. Vive en SQLite y forma parte de
+copias y Excel.
+
+## 17. Manual
+
+Abra Manual debajo de Notas, use su índice para saltar a un capítulo y la barra vertical para recorrerlo.
+Es estático, funciona sin Internet y leerlo no guarda datos, movimientos ni borradores.
+
+## 18. Autoguardado y seguridad
+
+Ajustes válidos, porcentajes, Notas y formularios recuperables se autoguardan. Un borrador recupera
+campos tras un cierre inesperado, pero no afecta cálculos. Guardar operaciones, eliminar, cerrar o
+reabrir periodos, restaurar y actualizar requieren acciones explícitas y las operaciones peligrosas
+incluyen confirmación.
+
+SQLite almacena los datos. Una copia `.db` es completa y restaurable: incluye actuales, históricos,
+eliminados, futuros, Notas y borradores. Hay copias automáticas, manuales, previas a migración y previas
+a restauración. Reinicie después de restaurar. No borre manualmente la base, sus archivos auxiliares
+ni la carpeta de copias.
+
+## 19. Excel
+
+Cada exportación crea un solo `.xlsx`, sin necesitar Microsoft Excel. Incluye hojas de resumen, ajustes,
+operaciones, inventario, obligaciones, préstamos, cierres, históricos, eliminados, Notas y borradores
+separados. Usa una fecha de corte única, formatos reales y neutraliza textos que podrían ejecutarse como
+fórmula. Se guarda en la carpeta configurada, con fecha/hora y sin sobrescribir.
+
+Excel es una fotografía de consulta y no se importa ni restaura. Para recuperar use una copia `.db`.
+
+## 20. Actualizaciones
+
+En Ajustes, Actualizaciones puede buscar una versión pública, descargarla e **Instalar y reiniciar**.
+Los datos viven fuera del ejecutable y deben conservarse. No desinstale ni borre datos para actualizar.
+Si falla, mantenga la versión actual, compruebe Internet, cree una copia manual y reporte el mensaje.
+
+La aplicación administrativa funciona sin Internet. La actualización real entre Releases todavía no
+ha sido probada; no debe considerarse aprobada hasta verificar un salto de versión y la base posterior.
+El instalador alpha no está firmado y Windows puede mostrar SmartScreen.
