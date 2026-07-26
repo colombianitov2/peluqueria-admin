@@ -30,7 +30,11 @@ public static class FinancialMonthCalculator
 
         long accountsReceivable = CalculateLocalUseDebt(data, end);
         IReadOnlyList<FinancialCommitmentCandidate> candidates = BuildCandidates(data, month, end);
-        long accountsPayable = candidates.Sum(item => item.ExpectedMinorUnits);
+        long annualAccountsPayable = data.Obligations
+            .Where(item => item.Recurrence == RecurrenceFrequency.Annual && item.DueDate <= end)
+            .Sum(item => ObligationOutstandingAt(item, data.ObligationPayments, end));
+        long accountsPayable = checked(
+            candidates.Sum(item => item.ExpectedMinorUnits) + annualAccountsPayable);
 
         FinancialReserve[] activeReserves = data.FinancialReserves
             .Where(item => ReserveIsActiveAt(item, end))
@@ -70,8 +74,18 @@ public static class FinancialMonthCalculator
         long entries = data.FinancialEntries
             .Where(item => item.Type != FinancialEntryType.OtherIncome && InMonth(item.Date))
             .Sum(item => item.Amount.MinorUnits);
+        long recurringExpenses = data.UnofficialExpenses
+            .Where(item => item.AppliesInMonth(month))
+            .Sum(item => item.MonthlyAmount.MinorUnits);
+        long annualProvisions = data.Obligations
+            .Where(item => item.Recurrence == RecurrenceFrequency.Annual
+                && item.DueDate.Year == month.Year)
+            .Sum(item => ProratedAnnualAmount(item.ExpectedAmount.MinorUnits, month.Month));
         long obligationPayments = data.ObligationPayments
             .Where(item => InMonth(item.Date)
+                && data.Obligations.Any(obligation =>
+                    obligation.Id == item.ObligationId
+                    && obligation.Recurrence != RecurrenceFrequency.Annual)
                 && !reservedActualIds.Contains((FinancialCommitmentSource.Obligation, item.ObligationId)))
             .Sum(item => item.Amount.MinorUnits);
         long maintenance = data.MaintenanceRecords
@@ -89,7 +103,8 @@ public static class FinancialMonthCalculator
                     item.InstallmentId ?? item.LoanId)))
             .Sum(item => item.Amount.MinorUnits);
         long paidOutflows = checked(
-            purchases + entries + obligationPayments + maintenance + unreservedLoanPayments);
+            purchases + entries + recurringExpenses + annualProvisions
+            + obligationPayments + maintenance + unreservedLoanPayments);
 
         long financing = data.CollaboratorContributions
             .Where(item => InMonth(item.Date))
@@ -141,7 +156,8 @@ public static class FinancialMonthCalculator
         DateOnly end)
     {
         var result = new List<FinancialCommitmentCandidate>();
-        foreach (Obligation obligation in data.Obligations.Where(item => item.DueDate <= end))
+        foreach (Obligation obligation in data.Obligations.Where(item =>
+                     item.DueDate <= end && item.Recurrence != RecurrenceFrequency.Annual))
         {
             ObligationPayment[] payments = data.ObligationPayments
                 .Where(item => item.ObligationId == obligation.Id && item.Date <= end)
@@ -242,6 +258,14 @@ public static class FinancialMonthCalculator
         }
 
         return result.OrderBy(item => item.DueDate).ThenBy(item => item.Name).ToArray();
+    }
+
+    private static long ProratedAnnualAmount(long annualMinorUnits, int month)
+    {
+        long regular = annualMinorUnits / 12;
+        return month == 12
+            ? checked(annualMinorUnits - regular * 11)
+            : regular;
     }
 
     private static FinancialCommitmentCandidate Candidate(

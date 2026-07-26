@@ -42,7 +42,7 @@ public static class SuggestedChairPriceCalculator
                 .Sum(item => item.CashAmount?.MinorUnits ?? 0)
             + data.FinancialEntries.Where(item => item.Type == FinancialEntryType.OtherIncome && InMonth(item.Date))
                 .Sum(item => item.Amount.MinorUnits));
-        long amountToCover = Math.Max(0, checked(officialGoal + unofficial - nonChairIncome));
+        long amountToCover = Math.Max(0, checked(officialGoal - nonChairIncome));
         int occupied = data.Chairs.Count(item => item.AssignedPersonId.HasValue
             && data.LocalUsePeople.Any(person => person.Id == item.AssignedPersonId && person.IsCurrentOn(today)));
 
@@ -57,7 +57,7 @@ public static class SuggestedChairPriceCalculator
 
         string explanation = occupied == 0
             ? "No se puede calcular: no hay sillas ocupadas"
-            : "Incluye la meta mensual oficial y los gastos extraoficiales vigentes; resta ventas y otros ingresos esperados. No resta los pagos actuales por sillas.";
+            : "Incluye todos los gastos recurrentes vigentes, también los antes llamados extraoficiales; resta ventas y otros ingresos esperados. No resta los pagos actuales por sillas.";
 
         return new SuggestedChairPrice(
             occupied,

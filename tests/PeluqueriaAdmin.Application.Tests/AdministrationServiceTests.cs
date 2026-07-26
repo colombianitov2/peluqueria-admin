@@ -788,7 +788,7 @@ public sealed class AdministrationServiceTests
             new YearMonth(2026, 7), today);
 
         Assert.Equal(1, result.OccupiedChairs);
-        Assert.Equal(50_000, result.OfficialGoalMinorUnits);
+        Assert.Equal(60_000, result.OfficialGoalMinorUnits);
         Assert.Equal(10_000, result.UnofficialExpensesMinorUnits);
         Assert.Equal(5_000, result.ExpectedNonChairIncomeMinorUnits);
         Assert.Equal(55_000, result.SuggestedMonthlyPerChairMinorUnits);

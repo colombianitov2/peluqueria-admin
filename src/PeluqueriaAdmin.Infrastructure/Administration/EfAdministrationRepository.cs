@@ -37,7 +37,7 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
             await context.DistributionPayments.AsNoTracking().OrderBy(item => item.Date).ToListAsync(cancellationToken),
             await context.Chairs.AsNoTracking().OrderBy(item => item.Name).ToListAsync(cancellationToken),
             await context.ActivityRecords.AsNoTracking().OrderByDescending(item => item.OccurredUtc).ToListAsync(cancellationToken),
-            await context.UnofficialExpenses.AsNoTracking().OrderBy(item => item.Name).ToListAsync(cancellationToken),
+            await context.UnofficialExpenses.IgnoreQueryFilters().AsNoTracking().OrderBy(item => item.Name).ToListAsync(cancellationToken),
             await context.CollaboratorContributions.AsNoTracking().OrderBy(item => item.Date).ThenBy(item => item.CreatedUtc).ToListAsync(cancellationToken),
             await context.CollaboratorContributionEvents.AsNoTracking().OrderBy(item => item.OccurredUtc).ToListAsync(cancellationToken),
             await context.FinancialReserves.AsNoTracking().OrderBy(item => item.DueDate).ToListAsync(cancellationToken),

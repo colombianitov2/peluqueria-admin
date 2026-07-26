@@ -1,5 +1,6 @@
 using PeluqueriaAdmin.Domain.Collaborators;
 using PeluqueriaAdmin.Domain.Common;
+using PeluqueriaAdmin.Domain.Finance;
 using PeluqueriaAdmin.Domain.Inventory;
 using PeluqueriaAdmin.Domain.LocalUse;
 using PeluqueriaAdmin.Domain.Obligations;
@@ -194,6 +195,22 @@ public sealed class Phase49DomainTests
         Assert.Equal(
             [new DateOnly(2026, 8, 31), new DateOnly(2026, 9, 30), new DateOnly(2026, 10, 31)],
             plan.Installments.Select(item => item.DueDate));
+    }
+
+    [Fact]
+    public void Phase50B_DeletedRecurringExpenseRemainsInHistoricalMonths()
+    {
+        UnofficialExpense expense = UnofficialExpense.Create(
+            "Administración",
+            Money.FromDecimal(100m),
+            new DateOnly(2026, 7, 10),
+            null,
+            Utc);
+        expense.MarkDeleted(new DateTime(2026, 8, 5, 12, 0, 0, DateTimeKind.Utc));
+
+        Assert.True(expense.AppliesInMonth(new YearMonth(2026, 7)));
+        Assert.True(expense.AppliesInMonth(new YearMonth(2026, 8)));
+        Assert.False(expense.AppliesInMonth(new YearMonth(2026, 9)));
     }
 
     private static CollaboratorContribution Contribution(decimal amount) =>

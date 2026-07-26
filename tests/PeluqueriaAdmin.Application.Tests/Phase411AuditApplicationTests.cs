@@ -193,6 +193,93 @@ public sealed class Phase411AuditApplicationTests
         Assert.Equal(45_000, result.IncomeMinorUnits);
     }
 
+    [Fact]
+    public void Phase50B_RecurringExpenseAffectsResultBreakEvenAndCollaboratorFundOnce()
+    {
+        UnofficialExpense expense = UnofficialExpense.Create(
+            "Administración",
+            Money.FromDecimal(100m),
+            new DateOnly(2026, 7, 10),
+            "Gasto mensual real",
+            Utc);
+        FinancialEntry income = FinancialEntry.CreateIncome(
+            new DateOnly(2026, 7, 20),
+            "Ingreso",
+            Money.FromDecimal(150m),
+            Utc);
+
+        FinancialMonthSnapshot result = FinancialMonthCalculator.Calculate(
+            EmptyData() with
+            {
+                UnofficialExpenses = [expense],
+                FinancialEntries = [income],
+            },
+            Percentage.FromPercent(20m),
+            new YearMonth(2026, 7));
+
+        Assert.Equal(10_000, result.PaidOutflowsMinorUnits);
+        Assert.Equal(10_000, result.BreakEvenMinorUnits);
+        Assert.Equal(5_000, result.DistributableResultMinorUnits);
+        Assert.Equal(1_000, result.CollaboratorFundMinorUnits);
+        Assert.Equal(4_000, result.RetainedLocalMinorUnits);
+    }
+
+    [Fact]
+    public void Phase50B_AnnualLiveMonthsIncludeRecurringExpenses()
+    {
+        UnofficialExpense expense = UnofficialExpense.Create(
+            "Administración",
+            Money.FromDecimal(100m),
+            new DateOnly(2026, 7, 10),
+            null,
+            Utc);
+
+        AnnualFinancialReport report = AnnualFinancialCalculator.Calculate(
+            EmptyData() with { UnofficialExpenses = [expense] },
+            Percentage.FromPercent(0m),
+            2026,
+            new DateOnly(2026, 8, 31));
+
+        Assert.Equal(10_000, report.Months[6].OutflowMinorUnits);
+        Assert.Equal(10_000, report.Months[7].OutflowMinorUnits);
+        Assert.Equal(20_000, report.OutflowMinorUnits);
+        Assert.Equal(-20_000, report.ResultMinorUnits);
+    }
+
+    [Fact]
+    public void Phase50B_AnnualObligationIsProratedAcrossTwelveMonthsWithoutDoubleCountingPayment()
+    {
+        Obligation annual = Obligation.Create(
+            "Seguro anual",
+            ObligationType.Service,
+            new DateOnly(2026, 12, 15),
+            Money.FromDecimal(1_200m),
+            RecurrenceFrequency.Annual,
+            Utc);
+        ObligationPayment payment = ObligationPayment.Create(
+            annual.Id,
+            new DateOnly(2026, 12, 15),
+            Money.FromDecimal(1_200m),
+            Utc);
+        AdministrationData data = EmptyData() with
+        {
+            Obligations = [annual],
+            ObligationPayments = [payment],
+        };
+
+        FinancialMonthSnapshot january = FinancialMonthCalculator.Calculate(
+            data, Percentage.FromPercent(0m), new YearMonth(2026, 1));
+        FinancialMonthSnapshot december = FinancialMonthCalculator.Calculate(
+            data, Percentage.FromPercent(0m), new YearMonth(2026, 12));
+        AnnualFinancialReport report = AnnualFinancialCalculator.Calculate(
+            data, Percentage.FromPercent(0m), 2026, new DateOnly(2026, 12, 31));
+
+        Assert.Equal(10_000, january.PaidOutflowsMinorUnits);
+        Assert.Equal(10_000, december.PaidOutflowsMinorUnits);
+        Assert.Equal(120_000, report.OutflowMinorUnits);
+        Assert.Equal(-120_000, report.ResultMinorUnits);
+    }
+
     private static FinancialMonthSnapshot Snapshot(YearMonth month, long income, long result) => new(
         month,
         income,

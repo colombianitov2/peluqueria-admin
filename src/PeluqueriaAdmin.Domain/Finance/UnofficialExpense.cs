@@ -40,6 +40,19 @@ public sealed class UnofficialExpense : AuditableEntity
 
     public bool AppliesOn(DateOnly date) => !IsDeleted && EffectiveFrom <= date;
 
+    public bool AppliesInMonth(YearMonth month)
+    {
+        if (EffectiveFrom > month.LastDay)
+        {
+            return false;
+        }
+
+        DateOnly? deletedOn = DeletedUtc.HasValue
+            ? DateOnly.FromDateTime(DeletedUtc.Value)
+            : null;
+        return !deletedOn.HasValue || deletedOn.Value >= month.FirstDay;
+    }
+
     public void Update(
         string name,
         Money monthlyAmount,

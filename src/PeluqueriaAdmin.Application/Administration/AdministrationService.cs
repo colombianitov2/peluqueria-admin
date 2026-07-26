@@ -79,7 +79,7 @@ public sealed class AdministrationService(
 
         if (additions.Count > 0 || updates.Count > 0)
         {
-            await repository.SaveAsync(additions, updates, cancellationToken);
+            await SaveAsync(additions, updates, null, cancellationToken);
         }
 
         return await repository.LoadAsync(cancellationToken);
@@ -282,7 +282,7 @@ public sealed class AdministrationService(
                 $"Trabajador: {person.Name}. Silla: {target.Name}.",
                 utcNow));
         }
-        await repository.SaveAsync(activities, updates, cancellationToken);
+        await SaveAsync(activities, updates, null, cancellationToken);
     }
 
     public async Task UpdateLocalUsePersonAsync(
@@ -394,7 +394,7 @@ public sealed class AdministrationService(
             .Concat(invalid)
             .Concat(chair is null ? [] : [chair])
             .ToArray();
-        await repository.SaveAsync(added, updated, cancellationToken);
+        await SaveAsync(added, updated, null, cancellationToken);
     }
 
     public async Task DeleteLocalUsePersonAsync(
@@ -430,9 +430,10 @@ public sealed class AdministrationService(
                 chair.Id,
                 $"Trabajador: {person.Name}. Silla: {chair.Name}.",
                 utcNow)];
-        await repository.SaveAsync(
+        await SaveAsync(
             activities,
             new AuditableEntity[] { person }.Concat(chair is null ? [] : [chair]).ToArray(),
+            null,
             cancellationToken);
     }
 
@@ -453,7 +454,7 @@ public sealed class AdministrationService(
             collaborator.Id,
             "Los aportes, cierres, distribuciones y pagos históricos se conservan.",
             utcNow);
-        await repository.SaveAsync([activity], [collaborator], cancellationToken);
+        await SaveAsync([activity], [collaborator], null, cancellationToken);
     }
 
     public async Task UpdateCollaboratorProfitShareAsync(
@@ -475,7 +476,7 @@ public sealed class AdministrationService(
         }
 
         collaborator.UpdateProfitShare(share, timeProvider.GetUtcNow().UtcDateTime);
-        await repository.SaveAsync([], [collaborator], cancellationToken);
+        await SaveAsync([], [collaborator], null, cancellationToken);
     }
 
     public async Task UpdateCollaboratorFundParticipationAsync(
@@ -531,7 +532,7 @@ public sealed class AdministrationService(
                 ? $"La silla ocupada fue desasignada antes de eliminarse; {formerPersonName ?? "el trabajador"} permanece sin silla."
                 : "La silla vacía fue eliminada lógicamente.",
             utcNow);
-        await repository.SaveAsync([activity], [chair], cancellationToken);
+        await SaveAsync([activity], [chair], null, cancellationToken);
     }
 
     public async Task AddCollaboratorContributionAsync(
@@ -1357,7 +1358,7 @@ public sealed class AdministrationService(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(expense);
-        await repository.SaveAsync([expense], [], cancellationToken);
+        await SaveAsync([expense], [], null, cancellationToken);
     }
 
     public async Task AddInventoryMovementAsync(
@@ -1396,7 +1397,7 @@ public sealed class AdministrationService(
         movement.MarkDeleted(timeProvider.GetUtcNow().UtcDateTime);
         InventoryCalculator.EnsureNonNegative(data.InventoryMovements
             .Where(item => item.ProductId == movement.ProductId && item.Id != movement.Id));
-        await repository.SaveAsync([], [movement], cancellationToken);
+        await SaveAsync([], [movement], null, cancellationToken);
     }
 
     public async Task<(MonthlyClose Close, IReadOnlyList<MonthlyCloseParticipant> Participants)> CloseMonthAsync(
@@ -1796,6 +1797,24 @@ public sealed class AdministrationService(
         return annual;
     }
 
+    public async Task ReopenYearAsync(int year, CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        AnnualClose close = data.AnnualCloses.SingleOrDefault(item => item.Year == year)
+            ?? throw new InvalidOperationException("El año no tiene un cierre confirmado.");
+        if (data.AnnualCloses.Any(item => item.Year > year))
+            throw new InvalidOperationException(
+                "No se puede reabrir este año mientras exista un año posterior cerrado.");
+
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        close.MarkDeleted(utcNow);
+        AnnualCarryover[] carryovers = data.AnnualCarryovers
+            .Where(item => item.SourceYear == year)
+            .ToArray();
+        foreach (AnnualCarryover carryover in carryovers) carryover.MarkDeleted(utcNow);
+        await SaveAsync([], new AuditableEntity[] { close }.Concat(carryovers).ToArray(), null, cancellationToken);
+    }
+
     public async Task ReopenMonthAsync(Guid closeId, CancellationToken cancellationToken = default)
     {
         AdministrationData data = await repository.LoadAsync(cancellationToken);
@@ -1821,8 +1840,11 @@ public sealed class AdministrationService(
         FinancialReserve[] reserves = data.FinancialReserves.Where(item => item.Month == close.Month && !item.IsConsumed).ToArray();
         foreach (FinancialReserve reserve in reserves) reserve.MarkDeleted(utcNow);
 
-        await repository.SaveAsync([], new AuditableEntity[] { close }.Concat(participants).Concat(reserves).ToArray(), cancellationToken);
-        DataChanged?.Invoke(this, EventArgs.Empty);
+        await SaveAsync(
+            [],
+            new AuditableEntity[] { close }.Concat(participants).Concat(reserves).ToArray(),
+            null,
+            cancellationToken);
     }
 
     public async Task<DistributionPayment> RegisterDistributionPaymentAsync(
