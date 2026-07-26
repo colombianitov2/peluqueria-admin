@@ -689,7 +689,7 @@ public sealed class ExcelExportService(
             "Gastos extraoficiales", "Imprevistos", "Servicios", "Impuestos",
             "Otras obligaciones", "Pagos de préstamos", "Pagos de créditos", "Mantenimiento",
             "Ganancias de colaboradores efectivamente pagadas", "Demás salidas reales",
-            "Total ingresado", "Total gastado", "Punto de equilibrio",
+            "Total disponible del mes", "Total gastado", "Punto de equilibrio",
             "Faltó (-) o sobró (+)", "Saldo trasladado al mes siguiente", "Moneda", "Origen",
         ];
         if (!from.HasValue || !to.HasValue)

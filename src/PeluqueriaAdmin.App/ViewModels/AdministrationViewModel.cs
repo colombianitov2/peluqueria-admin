@@ -536,8 +536,12 @@ public sealed partial class AdministrationViewModel(
         Add("Pagos de créditos", -breakdown.CreditPaymentsMinorUnits);
         Add("Mantenimiento", -breakdown.MaintenanceMinorUnits);
         Add("Ganancias de colaboradores efectivamente pagadas", -breakdown.CollaboratorPaymentsMinorUnits);
-        Add("Demás salidas reales", -breakdown.OtherOutflowsMinorUnits);
-        Add("Total ingresado", breakdown.TotalIncomeMinorUnits);
+        Add(
+            breakdown.OtherOutflowsMinorUnits < 0
+                ? "Ajuste histórico a favor (reduce salidas)"
+                : "Demás salidas reales",
+            -breakdown.OtherOutflowsMinorUnits);
+        Add("Total disponible del mes", breakdown.TotalIncomeMinorUnits);
         Add("Total gastado", -breakdown.TotalSpentMinorUnits);
         Add("Punto de equilibrio", breakdown.BreakEvenMinorUnits);
         Add(breakdown.DifferenceMinorUnits < 0
@@ -619,7 +623,12 @@ public sealed partial class AdministrationViewModel(
         Add("Pagos de créditos", -Sum(item => item.CreditPaymentsMinorUnits));
         Add("Mantenimiento", -Sum(item => item.MaintenanceMinorUnits));
         Add("Ganancias de colaboradores efectivamente pagadas", -Sum(item => item.CollaboratorPaymentsMinorUnits));
-        Add("Demás salidas reales", -Sum(item => item.OtherOutflowsMinorUnits));
+        long annualOtherOutflows = Sum(item => item.OtherOutflowsMinorUnits);
+        Add(
+            annualOtherOutflows < 0
+                ? "Ajuste histórico a favor (reduce salidas)"
+                : "Demás salidas reales",
+            -annualOtherOutflows);
         long annualIncome = checked(openingCarry
             + Sum(item => item.LocalUseIncomeMinorUnits + item.SalesIncomeMinorUnits
                 + item.OtherIncomeMinorUnits + item.OtherRealIncomeMinorUnits));
@@ -1630,7 +1639,7 @@ public sealed partial class AdministrationViewModel(
             month);
         return
         [
-            SummaryRow(month, "Total ingresado", result.TotalIncomeMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "Total disponible del mes", result.TotalIncomeMinorUnits, ApplicationCurrency.Code),
             SummaryRow(month, "Total gastado", -result.TotalSpentMinorUnits, ApplicationCurrency.Code),
             SummaryRow(month, "Punto de equilibrio", result.BreakEvenMinorUnits, ApplicationCurrency.Code),
             SummaryRow(month, result.DifferenceMinorUnits < 0
