@@ -377,6 +377,116 @@ public sealed class Phase411AuditApplicationTests
         Assert.Equal(16_000, december.BreakEvenMinorUnits);
     }
 
+    [Fact]
+    public void Phase50D_LoanOutflowsAreIncludedOnceAndFinancingStaysSeparateFromOperatingIncome()
+    {
+        FinancialEntry income = FinancialEntry.CreateIncome(
+            new DateOnly(2026, 7, 10),
+            "Ingresos operativos",
+            Money.FromDecimal(1_692.86m),
+            Utc);
+        FinancialEntry expense = FinancialEntry.CreateExpense(
+            new DateOnly(2026, 7, 10),
+            "Gastos",
+            ExpenseCategory.Other,
+            Money.FromDecimal(370m),
+            Utc);
+        UnofficialExpense recurring = UnofficialExpense.Create(
+            "Extraoficial",
+            Money.FromDecimal(45m),
+            new DateOnly(2026, 5, 1),
+            null,
+            Utc);
+        Obligation service = Obligation.Create(
+            "Servicio",
+            ObligationType.Service,
+            new DateOnly(2026, 7, 20),
+            Money.FromDecimal(75m),
+            RecurrenceFrequency.None,
+            Utc);
+        Loan loan = Loan.Create(
+            "Préstamo",
+            Money.FromDecimal(100m),
+            Money.FromDecimal(30m),
+            new DateOnly(2026, 5, 1),
+            LoanFrequency.Monthly,
+            5,
+            new DateOnly(2026, 5, 31),
+            Utc);
+        Collaborator collaborator = Collaborator.Create("Socio", new DateOnly(2026, 5, 1), null, Utc);
+        CollaboratorContribution contribution = CollaboratorContribution.Create(
+            collaborator.Id,
+            new DateOnly(2026, 5, 1),
+            Money.FromDecimal(350m),
+            null,
+            Utc);
+        AdministrationData data = EmptyData() with
+        {
+            FinancialEntries = [income, expense],
+            UnofficialExpenses = [recurring],
+            Obligations = [service],
+            Loans = [loan],
+            Collaborators = [collaborator],
+            CollaboratorContributions = [contribution],
+        };
+
+        MonthlyCashBreakdown july = AdministrationReports.MonthlyCash(
+            data, Percentage.FromPercent(0m), new YearMonth(2026, 7));
+        MonthlyCashBreakdown may = AdministrationReports.MonthlyCash(
+            data, Percentage.FromPercent(0m), new YearMonth(2026, 5));
+        MonthlyCashBreakdown june = AdministrationReports.MonthlyCash(
+            data, Percentage.FromPercent(0m), new YearMonth(2026, 6));
+        MonthlyCashBreakdown[] months = Enumerable.Range(1, 7)
+            .Select(month => AdministrationReports.MonthlyCash(
+                data, Percentage.FromPercent(0m), new YearMonth(2026, month)))
+            .ToArray();
+
+        Assert.Equal(
+            169_286,
+            july.LocalUseIncomeMinorUnits + july.SalesIncomeMinorUnits
+            + july.OtherIncomeMinorUnits + july.OtherRealIncomeMinorUnits);
+        Assert.Equal(0, may.LocalUseIncomeMinorUnits + may.SalesIncomeMinorUnits
+            + may.OtherIncomeMinorUnits + may.OtherRealIncomeMinorUnits);
+        Assert.Equal(35_000, may.CollaboratorContributionsMinorUnits);
+        Assert.Equal(0, june.LocalUseIncomeMinorUnits + june.SalesIncomeMinorUnits
+            + june.OtherIncomeMinorUnits + june.OtherRealIncomeMinorUnits);
+        Assert.Equal(10_000, may.FinancingReceivedMinorUnits);
+        Assert.Equal(3_000, july.LoanPaymentsMinorUnits);
+        Assert.Equal(
+            july.InventoryMinorUnits + july.GeneralExpensesMinorUnits
+            + july.RecurringExpensesMinorUnits + july.UnexpectedExpensesMinorUnits
+            + july.ServicesMinorUnits + july.TaxesMinorUnits
+            + july.OtherObligationsMinorUnits + july.LoanPaymentsMinorUnits
+            + july.CreditPaymentsMinorUnits + july.MaintenanceMinorUnits
+            + july.CollaboratorPaymentsMinorUnits + july.OtherOutflowsMinorUnits,
+            july.TotalSpentMinorUnits);
+        Assert.Equal(july.TotalSpentMinorUnits, july.BreakEvenMinorUnits);
+        Assert.Equal(
+            july.TotalIncomeMinorUnits - july.TotalSpentMinorUnits
+            + july.CollaboratorContributionsMinorUnits + july.FinancingReceivedMinorUnits,
+            july.CarryOutMinorUnits);
+        Assert.Equal(9_000, months.Sum(month => month.LoanPaymentsMinorUnits));
+        Assert.Equal(
+            months.Sum(month => month.TotalSpentMinorUnits),
+            months.Sum(month => month.BreakEvenMinorUnits));
+    }
+
+    [Fact]
+    public void Phase50D_DocumentedMonthlyAndAnnualExamplesRemainExact()
+    {
+        const long monthlyAvailable = 120_500 + 4_286 + 45_000;
+        const long monthlySpent = 4_500 + 7_500 + 6_000;
+        Assert.Equal(169_786, monthlyAvailable);
+        Assert.Equal(18_000, monthlySpent);
+        Assert.Equal(151_786, monthlyAvailable - monthlySpent);
+
+        const long annualOperating = 169_286;
+        const long annualSpent = 71_500;
+        const long financing = 35_000 + 10_000;
+        Assert.Equal(97_786, annualOperating - annualSpent);
+        Assert.Equal(142_786, annualOperating - annualSpent + financing);
+    }
+
     private static FinancialMonthSnapshot Snapshot(YearMonth month, long income, long result) => new(
         month,
         income,

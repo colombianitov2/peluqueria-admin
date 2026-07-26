@@ -25,6 +25,9 @@ public sealed class Phase50BFinancialUiTests
         Assert.DoesNotContain("\"Fondo de colaboradores\"", viewModel, StringComparison.Ordinal);
         Assert.DoesNotContain("\"Retenido por el local\"", viewModel, StringComparison.Ordinal);
         Assert.Contains("Content=\"Reabrir año\"", view, StringComparison.Ordinal);
+        Assert.Contains("Add(\"Total disponible del mes\", breakdown.TotalIncomeMinorUnits)", viewModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("Add(\"Total ingresado\", breakdown.TotalIncomeMinorUnits)", viewModel, StringComparison.Ordinal);
+        Assert.Contains("\"Ajuste histórico a favor (reduce salidas)\"", viewModel, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -46,6 +46,8 @@ public sealed class ManualUiContractTests
         Assert.DoesNotContain("<TextBox", view, StringComparison.Ordinal);
         Assert.DoesNotContain("<Button", view, StringComparison.Ordinal);
         Assert.DoesNotContain("{Binding", view, StringComparison.Ordinal);
+        Assert.DoesNotMatch("NavigateUri=\"https?://", view);
+        Assert.DoesNotContain("Participación pendiente", view, StringComparison.OrdinalIgnoreCase);
 
         MatchCollection headings = Regex.Matches(
             view,
@@ -63,20 +65,22 @@ public sealed class ManualUiContractTests
             "Colaboradores",
             "Ventas",
             "Inventario",
-
-            "Lista mensual de compra",
-            "Otros ingresos, Gastos e Imprevistos",
-            "Obligaciones y créditos",
+            "Otros ingresos",
+            "Gastos",
+            "Imprevistos",
+            "Obligaciones",
             "Sin recurrencia, Semanal, Mensual y Anual",
             "Préstamos",
             "Mantenimiento",
             "Resumen mensual",
+            "Gráficos",
             "Balance anual",
             "Ajustes",
-            "Notas y Manual",
-            "Copias de seguridad y restauración",
-            "Exportación completa a Excel",
-            "Actualizaciones mediante GitHub",
+            "Notas",
+            "Manual",
+            "Autoguardado y seguridad",
+            "Excel",
+            "Actualizaciones",
             "Solución de problemas y glosario",
             "No desinstale el programa para actualizarlo",
             "copia completa y restaurable de SQLite",
@@ -84,8 +88,45 @@ public sealed class ManualUiContractTests
             "lupa de búsqueda",
             "Agregar, Editar, Guardar y Eliminar",
             "Servicio, Impuesto, Crédito y Otra obligación",
+            "Total disponible del mes",
+            "Ignorar un compromiso en el cierre no lo paga, no lo elimina y no cancela la deuda.",
+            "USD 1.000",
+            "USD 1.500",
+            "25 cuotas",
+            "USD 60",
+            "USD 500",
         ];
         Assert.All(requiredTopics, topic => Assert.Contains(topic, view, StringComparison.Ordinal));
+
+        string[] anchors =
+        [
+            "Inicio", "UsoDelLocal", "Colaboradores", "Ventas", "Inventario",
+            "OtrosIngresos", "Gastos", "Imprevistos", "Obligaciones", "Prestamos",
+            "Mantenimiento", "ResumenMensual", "Graficos", "BalanceAnual", "Ajustes",
+            "Notas", "Manual", "Autoguardado", "Excel", "Actualizaciones",
+        ];
+        Assert.All(anchors, anchor =>
+        {
+            Assert.Contains($"NavigateUri=\"#{anchor}\"", view, StringComparison.Ordinal);
+            Assert.Contains($"x:Name=\"{anchor}\"", view, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void Manual_IndexNavigationIsLocalAndDoesNotInventUnsupportedSaleEditing()
+    {
+        string view = RepositoryFiles.Read(
+            "src", "PeluqueriaAdmin.App", "Views", "ManualView.xaml");
+        string codeBehind = RepositoryFiles.Read(
+            "src", "PeluqueriaAdmin.App", "Views", "ManualView.xaml.cs");
+
+        Assert.Contains("RequestNavigate=\"NavigateToSection\"", view, StringComparison.Ordinal);
+        Assert.Contains("ManualDocumentViewer.Document.FindName(sectionName)", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("section.BringIntoView();", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("Ventas registradas es un historial de solo lectura", view, StringComparison.Ordinal);
+        Assert.Contains("no permite editar ni eliminar una venta", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Importar desde Excel", view, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("conversión de moneda", view, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
