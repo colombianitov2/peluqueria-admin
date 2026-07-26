@@ -487,10 +487,7 @@ public sealed class AdministrationViewModelTests
         AdministrationData paid =
             await service.LoadAsync(cancellationToken);
         Assert.Single(paid.LocalUsePayments);
-        Assert.Contains(
-            "974,29",
-            viewModel.ProfileCredit,
-            StringComparison.Ordinal);
+        Assert.Matches(@"974[,.]29", viewModel.ProfileCredit);
         Assert.Equal(string.Empty, viewModel.PaymentAmount);
         Assert.Equal(string.Empty, viewModel.PaymentDescription);
         Assert.Equal(UtcNow.Date, viewModel.PaymentDate?.Date);
@@ -652,10 +649,7 @@ public sealed class AdministrationViewModelTests
         Assert.Equal(
             "Todo el historial",
             viewModel.SelectedWorkerHistoryPeriod);
-        Assert.Contains(
-            "56,57",
-            viewModel.ProfileDebt,
-            StringComparison.Ordinal);
+        Assert.Matches(@"56[,.]57", viewModel.ProfileDebt);
         viewModel.SelectedWorkerHistoryPeriod = "Esta semana";
         await viewModel.RefreshCommand.ExecuteAsync(null);
         Assert.Empty(viewModel.WorkerHistoryRows);

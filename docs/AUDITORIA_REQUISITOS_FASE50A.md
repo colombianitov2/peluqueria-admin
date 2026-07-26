@@ -27,6 +27,7 @@ Fecha: 25 de julio de 2026.
 - Modelo EF Core: sin cambios pendientes.
 - Auditoría NuGet con dependencias transitivas: sin vulnerabilidades conocidas ni paquetes en desuso.
 - Gitleaks 8.30.1 con `--redact`: sin hallazgos en historial ni worktree.
+- El primer CI remoto detectó dos aserciones antiguas de “Uso del local” dependientes de la coma decimal. Se hicieron independientes de la cultura sin modificar código de producción ni fórmulas y se repitió la suite Release completa.
 - Revisión visual Release con datos temporales aislados: dos aportes creados, segundo aporte seleccionado desde el historial, editado de USD 25,00 a USD 35,50 y eliminado lógicamente; formulario y botones quedaron limpios tras cada operación.
 - Base temporal de la revisión: `integrity_check=ok`, cero infracciones de claves foráneas, diez migraciones, dos aportes históricos, un aporte activo por USD 10,00 y cuatro eventos trazables.
 
