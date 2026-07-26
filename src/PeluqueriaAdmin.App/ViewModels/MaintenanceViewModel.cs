@@ -45,9 +45,11 @@ public sealed partial class MaintenanceViewModel(
     [ObservableProperty] private bool showCustomInterval;
     [ObservableProperty] private string descriptionText = string.Empty;
     [ObservableProperty] private MaintenanceRow? selectedRow;
+    [ObservableProperty] private MaintenanceRow? selectedHistoryRow;
     [ObservableProperty] private MaintenanceRow? selectedPendingToComplete;
     [ObservableProperty] private string selectedHistoryAsset = "Historial de todos los equipos";
     [ObservableProperty] private bool isEditing;
+    [ObservableProperty] private bool isEditingCompleted;
     private Guid? editingMaintenanceId;
     [ObservableProperty] private DateTime? completedDate = DateTime.Today;
     [ObservableProperty] private string actualCostText = string.Empty;
@@ -215,6 +217,65 @@ public sealed partial class MaintenanceViewModel(
     }
 
     [RelayCommand]
+    private void EditSelectedCompleted()
+    {
+        if (SelectedHistoryRow is null)
+        {
+            StatusMessage = "Selecciona un mantenimiento realizado del historial.";
+            IsError = true;
+            return;
+        }
+        MaintenanceRecord record = SelectedHistoryRow.Record;
+        editingMaintenanceId = record.Id;
+        IsEditing = false;
+        IsEditingCompleted = true;
+        suppressChanges = true;
+        AssetText = record.Asset;
+        MaintenanceTypeText = record.MaintenanceType;
+        ScheduledDate = record.ScheduledDate.ToDateTime(TimeOnly.MinValue);
+        EstimatedCostText = record.EstimatedCost?.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture) ?? string.Empty;
+        SelectedFrequency = FrequencyName(record);
+        DescriptionText = record.Description ?? string.Empty;
+        CompletedDate = record.CompletedDate?.ToDateTime(TimeOnly.MinValue);
+        ActualCostText = record.ActualCost?.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture) ?? string.Empty;
+        suppressChanges = false;
+        StatusMessage = "Edición del historial activa. Guardar no generará otra recurrencia.";
+        IsError = false;
+    }
+
+    [RelayCommand]
+    private async Task SaveCompletedEditAsync()
+    {
+        if (!IsEditingCompleted || !editingMaintenanceId.HasValue)
+        {
+            StatusMessage = "Selecciona Editar realizado antes de guardar.";
+            IsError = true;
+            return;
+        }
+        try
+        {
+            await service.UpdateCompletedMaintenanceAsync(
+                editingMaintenanceId.Value,
+                AssetText,
+                MaintenanceTypeText,
+                RequiredDate(ScheduledDate, "fecha programada"),
+                ParseOptionalMoney(EstimatedCostText),
+                RequiredDate(CompletedDate, "fecha realizada"),
+                ParseRequiredMoney(ActualCostText),
+                DescriptionText);
+            ClearScheduleForm();
+            StatusMessage = "El mantenimiento realizado se corrigió sin crear otra recurrencia.";
+            IsError = false;
+            await RefreshAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            StatusMessage = exception.Message;
+            IsError = true;
+        }
+    }
+
+    [RelayCommand]
     private async Task StopFutureAsync()
     {
         if (SelectedRow is null || !ConfirmStop)
@@ -246,7 +307,7 @@ public sealed partial class MaintenanceViewModel(
         AssetText = string.Empty; MaintenanceTypeText = string.Empty; ScheduledDate = DateTime.Today;
         EstimatedCostText = string.Empty; SelectedFrequency = "Una vez"; CustomIntervalText = string.Empty;
         SelectedCustomUnit = "Días"; DescriptionText = string.Empty;
-        IsEditing = false; editingMaintenanceId = null;
+        IsEditing = false; IsEditingCompleted = false; editingMaintenanceId = null;
         suppressChanges = false;
     }
 

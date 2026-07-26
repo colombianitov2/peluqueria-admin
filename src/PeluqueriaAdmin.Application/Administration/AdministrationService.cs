@@ -816,6 +816,37 @@ public sealed class AdministrationService(
         await SaveAsync(additions, reserve is null ? [maintenance] : [maintenance, reserve], completedDraftKey, cancellationToken);
     }
 
+    public async Task UpdateCompletedMaintenanceAsync(
+        Guid maintenanceId,
+        string asset,
+        string maintenanceType,
+        DateOnly scheduledDate,
+        Money? estimatedCost,
+        DateOnly completedDate,
+        Money actualCost,
+        string? description = null,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        MaintenanceRecord maintenance = data.MaintenanceRecords.SingleOrDefault(item => item.Id == maintenanceId)
+            ?? throw new InvalidOperationException("El mantenimiento seleccionado ya no está disponible.");
+        if (!maintenance.CompletedDate.HasValue)
+            throw new InvalidOperationException("El mantenimiento todavía está pendiente; usa la edición de pendientes.");
+        EnsureLoanPaymentMonthIsOpen(data, maintenance.CompletedDate.Value);
+        EnsureLoanPaymentMonthIsOpen(data, completedDate);
+
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        maintenance.Update(
+            asset, maintenanceType, scheduledDate, estimatedCost, completedDate, actualCost,
+            utcNow, description);
+        FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(item =>
+            item.SourceType == FinancialCommitmentSource.Maintenance
+            && item.SourceId == maintenance.Id
+            && item.IsConsumed);
+        reserve?.CorrectSettlement(completedDate, actualCost, utcNow);
+        await SaveAsync([], reserve is null ? [maintenance] : [maintenance, reserve], null, cancellationToken);
+    }
+
     public async Task StopFutureMaintenanceAsync(
         Guid maintenanceId,
         CancellationToken cancellationToken = default)

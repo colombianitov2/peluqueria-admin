@@ -3,8 +3,7 @@
   <Grid Margin="26" Background="#F5F7FA">
     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
     <StackPanel Margin="0,0,0,12"><TextBlock FontSize="28" FontWeight="SemiBold" Text="Mantenimiento" /><TextBlock Margin="0,5,0,0" Foreground="#5B6575" Text="Programación y realización separadas; la recurrencia conserva su fecha original." /></StackPanel>
-    <ScrollViewer Grid.Row="1" MaxHeight="330" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <Grid>
+    <Grid Grid.Row="1">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
         <GroupBox Header="Programar mantenimiento" Padding="12">
           <StackPanel>
@@ -29,8 +28,7 @@
             <Button HorizontalAlignment="Left" Style="{StaticResource ActionButton}" Command="{Binding CompleteCommand}" Content="Marcar como realizado" />
           </StackPanel>
         </GroupBox>
-      </Grid>
-    </ScrollViewer>
+    </Grid>
     <Grid Grid.Row="2" Margin="0,14,0,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
       <GroupBox Header="Equipos para mantenimiento" Padding="6">
@@ -43,8 +41,8 @@
       </GroupBox>
       <GroupBox Grid.Column="2" Header="Historial de mantenimiento de equipos" Padding="6">
         <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-          <WrapPanel HorizontalAlignment="Right" Margin="0,0,0,6"><ComboBox Width="240" Style="{StaticResource FieldBox}" ItemsSource="{Binding HistoryAssetOptions}" SelectedItem="{Binding SelectedHistoryAsset}" /><ComboBox Width="170" Margin="8,0,0,0" Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" /><DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodFrom}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" /><DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodThrough}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" /></WrapPanel>
-          <DataGrid Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding HistoryRecords}">
+          <WrapPanel HorizontalAlignment="Right" Margin="0,0,0,6"><Button Style="{StaticResource ActionButton}" Command="{Binding EditSelectedCompletedCommand}" Content="Editar realizado" /><Button Style="{StaticResource ActionButton}" Command="{Binding SaveCompletedEditCommand}" Content="Guardar realizado" /><ComboBox Width="240" Style="{StaticResource FieldBox}" ItemsSource="{Binding HistoryAssetOptions}" SelectedItem="{Binding SelectedHistoryAsset}" /><ComboBox Width="170" Margin="8,0,0,0" Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" /><DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodFrom}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" /><DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodThrough}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" /></WrapPanel>
+          <DataGrid Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding HistoryRecords}" SelectedItem="{Binding SelectedHistoryRow}">
             <DataGrid.Columns><DataGridTextColumn Width="190" Binding="{Binding Asset}" Header="Equipo" /><DataGridTextColumn Width="180" Binding="{Binding Type}" Header="Tipo" /><DataGridTextColumn Width="120" Binding="{Binding ScheduledDate}" Header="Programada" /><DataGridTextColumn Width="120" Binding="{Binding CompletedDate}" Header="Realizada" /><DataGridTextColumn Width="145" Binding="{Binding EstimatedCost}" Header="Costo estimado" /><DataGridTextColumn Width="135" Binding="{Binding ActualCost}" Header="Costo real" /><DataGridTextColumn Width="280" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Description}" Header="Descripción" /><DataGridTextColumn Width="100" Binding="{Binding State}" Header="Estado" /></DataGrid.Columns>
           </DataGrid>
         </Grid>

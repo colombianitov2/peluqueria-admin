@@ -30,7 +30,9 @@ public sealed class Phase47UiContractTests
     {
         string home = RepositoryFiles.Read("src", "PeluqueriaAdmin.App", "Views", "HomeView.xaml");
         Assert.Contains("AutomationProperties.Name=\"Notificaciones de mantenimiento\"", home, StringComparison.Ordinal);
-        Assert.Contains("Width=\"660\"", home, StringComparison.Ordinal);
+        Assert.Contains("Width=\"800\"", home, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Costo estimado\"", home, StringComparison.Ordinal);
+        Assert.Contains("Mantenimientos pendientes y próximos", home, StringComparison.Ordinal);
         Assert.Contains("ElementStyle=\"{StaticResource WrappingCellText}\"", home, StringComparison.Ordinal);
         Assert.Contains("Content=\"Ir a Mantenimiento\"", home, StringComparison.Ordinal);
         Assert.DoesNotContain("ObligationNotification", home, StringComparison.Ordinal);
@@ -72,6 +74,10 @@ public sealed class Phase47UiContractTests
         Assert.Contains("Header=\"Equipos para mantenimiento\"", maintenance, StringComparison.Ordinal);
         Assert.Contains("Header=\"Historial de mantenimiento de equipos\"", maintenance, StringComparison.Ordinal);
         Assert.Contains("HistoryAssetOptions", maintenance, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Editar realizado\"", maintenance, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Guardar realizado\"", maintenance, StringComparison.Ordinal);
+        Assert.Contains("SelectedItem=\"{Binding SelectedHistoryRow}\"", maintenance, StringComparison.Ordinal);
+        Assert.DoesNotContain("<ScrollViewer Grid.Row=\"1\"", maintenance, StringComparison.Ordinal);
     }
 
 

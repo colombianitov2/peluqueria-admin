@@ -267,7 +267,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         MaintenanceNotifications.Clear();
         foreach (MaintenanceRecord maintenance in data.MaintenanceRecords
-            .Where(item => item.NeedsAttention(today))
+            .Where(item => !item.CompletedDate.HasValue)
             .OrderBy(item => item.ScheduledDate)
             .ThenBy(item => item.Asset))
         {
@@ -275,7 +275,12 @@ public sealed partial class MainViewModel : ObservableObject
                 maintenance.Asset,
                 maintenance.MaintenanceType,
                 maintenance.ScheduledDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                maintenance.ScheduledDate == today ? "Hoy" : "Vencido"));
+                maintenance.EstimatedCost.HasValue
+                    ? $"{ApplicationCurrency.Code} {maintenance.EstimatedCost.Value.ToDecimal():N2}"
+                    : "Sin costo estimado",
+                maintenance.ScheduledDate == today
+                    ? "Hoy"
+                    : maintenance.ScheduledDate < today ? "Vencido" : "Futuro"));
         }
         MaintenanceNotificationCount = MaintenanceNotifications.Count;
 
@@ -425,7 +430,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 }
 
-public sealed record MaintenanceNotificationRow(string Asset, string Type, string Date, string Status);
+public sealed record MaintenanceNotificationRow(string Asset, string Type, string Date, string Cost, string Status);
 public sealed record DailyMovementRow(string Time, string Module, string Operation, string Entity,
     string Detail, string Amount, string State);
 public sealed record PendingPaymentRow(
