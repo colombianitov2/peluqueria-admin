@@ -223,41 +223,53 @@ No incluir:
 
 La necesidad de atención se calcula a partir de las fechas y de la existencia o ausencia de costo y fecha real, sin un campo manual de estado.
 
-## 10. Punto de equilibrio mensual y resultado repartible
+## 10. Resumen mensual, punto de equilibrio y traslado
 
-El punto de equilibrio se maneja por mes y separa ingresos operativos cobrados, cuentas por cobrar, egresos pagados, cuentas por pagar, reservas y financiación. Las deudas de trabajadores no son ingreso hasta cobrarse; préstamos y aportes no son ganancia operativa.
+Resumen mensual es el único módulo que contiene Cierre mensual. Muestra conceptos de negocio claros y no expone nombres técnicos del mecanismo histórico.
 
 Ingresos del mes:
 
-- pagos recibidos por uso del local;
-- ingreso bruto recibido por ventas;
-- otros ingresos.
+- saldo trasladado del mes anterior;
+- alquileres cobrados;
+- ventas;
+- otros ingresos;
+- demás ingresos reales.
 
-Salidas del mes:
+La financiación se presenta separada: aportes de colaboradores y préstamos o créditos recibidos aumentan el saldo disponible, pero no son ganancia ni ingreso operativo.
 
-- pagos reales de servicios y obligaciones no cubiertos por una reserva anterior;
-- insumos obligatorios comprados;
-- insumos opcionales realmente comprados o consumidos y registrados;
-- compras de mercancía;
-- costos reales de mantenimientos realizados;
-- gastos imprevistos;
-- otros gastos;
-- nuevas reservas y ajustes de reservas anteriores;
-- cuotas de préstamos y compromisos anteriores no cubiertos.
+Gastos del mes:
+
+- inventario;
+- gastos;
+- gastos extraoficiales recurrentes;
+- imprevistos;
+- servicios;
+- impuestos;
+- otras obligaciones;
+- pagos de préstamos;
+- pagos de créditos;
+- mantenimiento;
+- ganancias de colaboradores efectivamente pagadas;
+- demás salidas reales.
 
 Reglas:
 
-- Una reserva se descuenta una sola vez. Al pagar, se consume y solo la diferencia entre valor real y reservado afecta el nuevo periodo.
-- Las compras de inventario se cuentan solamente cuando se realizan o mediante su reserva previa, nunca por ambas vías.
+- Cada salida se incorpora una sola vez. Una compra prevista es sustituida por la compra real y no se suman ambas.
 - El inventario sobrante no vuelve a contarse como gasto.
-- No se mezclan ingresos por servicios personales de quienes trabajan en el local.
+- Una obligación anual se prorratea entre doce meses. El mes de pago solo aplica la diferencia entre lo pagado y lo ya acumulado.
+- Las deudas de trabajadores se muestran como **Alquileres de silla pendientes** y no son ingreso hasta cobrarse.
+- Existe una sola tabla **Pagos pendientes**. Los mantenimientos pendientes permanecen en la campana y en Mantenimiento, separados de esa tabla.
+- El faltante o sobrante de un mes se traslada exactamente una vez al siguiente.
 
 Mostrar:
 
-- total requerido del mes;
 - total ingresado;
-- cantidad faltante para llegar al punto de equilibrio;
-- resultado positivo o negativo.
+- total gastado;
+- punto de equilibrio;
+- faltó para el punto de equilibrio o sobró sobre el punto de equilibrio, nunca ambos;
+- saldo trasladado al mes siguiente.
+
+Balance anual contiene únicamente el selector de año, el cierre anual, el resumen anual y una fila por cada mes. Un mes cerrado usa su fotografía histórica, uno abierto usa el valor vigente y uno futuro permanece en cero.
 
 ## 11. Colaboradores y distribución de ganancias
 
@@ -317,15 +329,17 @@ Los importes de Ajustes se persisten en unidades menores enteras y los porcentaj
 
 ## 13. Balance anual
 
-El balance usa únicamente un selector de año, muestra siempre enero a diciembre a partir de snapshots mensuales y permite cerrar el año solo cuando los doce meses están cerrados, incluidos meses en cero. El cierre anual no elimina años anteriores. Muestra:
+El balance usa únicamente una lista de años disponibles y el botón **Consultar año**. Muestra siempre enero a diciembre: snapshot final para un mes cerrado, cálculo vivo para uno abierto y cero para uno futuro. Permite cerrar el año solo cuando los doce meses están cerrados, incluidos meses en cero. El cierre anual no elimina años anteriores. Muestra:
 
-- ingresos acumulados;
+- saldo trasladado del año anterior;
+- ingresos acumulados por categoría;
+- financiación separada;
 - gastos acumulados por categoría;
-- distribuciones pagadas a colaboradores;
-- impuestos u obligaciones anuales;
-- resultado retenido por el local;
-- indicador positivo o negativo.
-- gráfico de ingresos operativos cobrados por mes.
+- total ingresado, total gastado y punto de equilibrio anual;
+- una sola cantidad faltante o sobrante;
+- saldo trasladado al año siguiente;
+- tabla mensual con ingresos finales, gastos finales, punto de equilibrio, faltó o sobró y estado;
+- gráficos circulares y líneas de ingresos frente a gastos.
 
 El indicador mensual es negativo cuando todavía falta dinero para cubrir las obligaciones mensuales. El indicador anual es negativo cuando el resultado acumulado, incluidas las obligaciones e impuestos anuales registrados, es inferior a cero.
 
@@ -335,7 +349,7 @@ La página principal muestra exclusivamente:
 
 - fecha actual o mes seleccionado;
 - fecha, nombre y saldo de obligaciones pendientes, incluidos servicios, impuestos, créditos y otras obligaciones;
-- compras de la lista mensual que siguen pendientes y corresponden al periodo consultado;
+- gastos recurrentes del mes y cuotas de préstamos exigibles, sin mezclar mantenimientos;
 - nombre de cada persona que debe pagos por uso del local;
 - monto adeudado por cada persona;
 - cantidad faltante para alcanzar el punto de equilibrio mensual.

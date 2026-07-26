@@ -2,7 +2,7 @@
 
 ## Primer inicio
 
-La aplicación crea sus carpetas locales y aplica migraciones automáticamente. Inicio muestra **Pagos pendientes** —servicios, impuestos, créditos, otras obligaciones, compras mensuales y cuotas de préstamos—, deudas por Uso del local, el faltante mensual y una única campana para mantenimientos vencidos, de hoy y futuros con costo estimado.
+La aplicación crea sus carpetas locales y aplica migraciones automáticamente. Inicio muestra **Pagos pendientes** —servicios, impuestos, créditos, otras obligaciones, gastos recurrentes y cuotas de préstamos—, deudas por Uso del local, el faltante mensual y una única campana para mantenimientos vencidos, de hoy y futuros con costo estimado. Las compras previstas permanecen en Inventario y los mantenimientos pendientes no se mezclan con Pagos pendientes.
 
 Los formularios usan fechas `AAAA-MM-DD`, meses `AAAA-MM`, importes con dos decimales y cantidades de inventario con hasta tres. Los botones deshabilitados indican que falta una selección o dato válido.
 
@@ -38,14 +38,14 @@ Registre fecha, concepto y monto. No repita aquí una compra creada desde Invent
 
 En **Obligaciones**, use **Agregar obligación** una sola vez para definir nombre, tipo —Servicio, Impuesto, Crédito u Otra obligación—, recurrencia —Sin recurrencia, Semanal, Mensual o Anual—, vencimiento inicial y valor esperado. Semanal crea vencimientos cada siete días; mensual conserva el día ancla, por lo que una obligación del día 31 usa el último día en meses cortos y vuelve al 31 cuando exista.
 
-Use **Registrar pago** para elegir la serie y guardar el valor real de la ocurrencia pendiente más antigua. Confirmar el pago deja esa ocurrencia con saldo cero aunque el valor real resulte menor o mayor que el esperado; Inicio, cierres, reportes y Excel usan el valor real una sola vez. Las ocurrencias siguientes conservan su propio valor esperado.
+Use **Registrar pago** para elegir la serie y guardar el valor real de la ocurrencia pendiente más antigua. Confirmar el pago deja esa ocurrencia con saldo cero aunque el valor real resulte menor o mayor que el esperado; Inicio, cierres, reportes y Excel usan el valor real una sola vez. Las ocurrencias siguientes conservan su propio valor esperado. Para corregir un pago, selecciónelo en **Pagos registrados**, pulse **Editar pago**, modifique fecha, obligación, valor o descripción y pulse **Guardar pago**. Para retirarlo, marque **Confirmo eliminar pago** y pulse **Eliminar pago**; el vencimiento vuelve a quedar pendiente y todos los saldos se refrescan al terminar.
 
 **Añadir préstamo** permite elegir interés mensual sobre saldo, interés fijo sobre capital inicial o cantidad final acordada. La vista previa muestra todas las cuotas con fecha, capital, interés y saldo. Antes del primer pago puede editarse todo el plan; después solo nombre y descripción. Los pagos de meses abiertos se pueden corregir o eliminar con recálculo. El dinero recibido es financiación, no ingreso operativo.
 
 ### Reportes
 
-- Resumen mensual: consulte el mes, revise ingresos cobrados, cuentas, reservas, préstamos y resultado. Para cerrar, resuelva importes faltantes o marque **Ignorar en este cierre**, escriba el motivo, pulse **Guardar exclusiones** y luego **Cerrar mes**. Reabrir exige confirmación y no es posible si ya se pagó una distribución.
-- Balance anual: escriba únicamente el año y consulte; verá doce meses en líneas de ingresos/egresos y composiciones circulares, con meses cerrados congelados y meses abiertos en vivo. **Cerrar año** exige confirmación y doce meses cerrados; **Reabrir año** invalida el arrastre y se bloquea si existe un año posterior cerrado.
+- Resumen mensual: consulte el mes y revise saldo trasladado, ingresos reales, financiación separada, gastos por categoría, total ingresado, total gastado, punto de equilibrio, faltó o sobró y saldo siguiente. Las deudas de trabajadores aparecen como **Alquileres de silla pendientes** y existe una sola tabla **Pagos pendientes**. Para cerrar, resuelva importes faltantes o marque **Ignorar en este cierre**, escriba el motivo, pulse **Guardar exclusiones** y luego **Cerrar mes**. Reabrir exige confirmación y no es posible si ya se pagó una distribución.
+- Balance anual: seleccione únicamente un año disponible y pulse **Consultar año**; verá una fila por cada mes, líneas de ingresos/gastos y composiciones circulares. Un mes cerrado usa su snapshot, uno abierto se actualiza en vivo y uno futuro permanece en cero. **Cerrar año** exige confirmación y doce meses cerrados; **Reabrir año** invalida el arrastre y se bloquea si existe un año posterior cerrado.
 - Manual: abra **Manual**, debajo de Notas, para consultar sin conexión la explicación detallada de todos los módulos, cálculos, copias, Excel, cierres y actualizaciones. Es contenido de ayuda; leerlo no modifica datos.
 
 ### Editar y eliminar
@@ -64,7 +64,7 @@ En **Uso del local**, seleccione **Añadir silla** o **Añadir trabajador**. Cam
 
 En **Inventario**, las pestañas son **Inventario actual**, **Movimientos** y **Lista mensual de compra**. La primera integra el formulario para agregar desde la lista y compara cantidades/costos esperados con los reales, existencia, valor y última actualización. Los indicadores heredados de activación y reserva no aparecen ni alteran cálculos; solo se conservan como compatibilidad técnica.
 
-El **Resumen financiero del mes** existe una sola vez, en **Resumen mensual**, y usa el mismo cálculo compartido por Colaboradores, Inicio, Balance anual y Excel. No aparece en Ajustes.
+El **Resumen financiero del mes** existe una sola vez, en **Resumen mensual**, y usa el mismo cálculo compartido por Colaboradores, Inicio, Balance anual y Excel. `Total ingresado = saldo anterior + alquileres cobrados + ventas + otros ingresos reales`. `Total gastado` y `Punto de equilibrio` reúnen inventario, gastos, extraoficiales, imprevistos, servicios, impuestos, obligaciones, préstamos, créditos, mantenimiento, ganancias de colaboradores efectivamente pagadas y demás salidas. La diferencia muestra únicamente **Faltó** o **Sobró**. Aportes y préstamos recibidos aumentan el saldo disponible, pero permanecen separados de la ganancia.
 
 En **Notas**, escriba libremente en el bloc único sin límite configurado ni ajuste automático de línea; use las barras horizontal y vertical. Se guarda después de una pausa breve, al perder foco y al cerrar; no hay botones Guardar o Limpiar. El contenido vuelve exactamente al abrir y forma parte de SQLite, copias y Excel.
 

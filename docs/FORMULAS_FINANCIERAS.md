@@ -30,7 +30,7 @@ Los pagos actuales por uso del local no se restan porque crearían una fórmula 
 existencia = entradas iniciales + compras - ventas - consumos + ajustes de conteo
 margen informativo = venta bruta - costo promedio estimado de lo vendido
 costo esperado de fila mensual = costo esperado unitario × cantidad planificada
-costo real de compra mensual = costo esperado unitario × cantidad realmente comprada
+costo real de compra mensual = costo unitario real × cantidad realmente comprada
 ```
 
 La compra es la única salida de caja por adquirir inventario. Venta y consumo reducen existencias, pero el costo estimado no se registra de nuevo como salida de caja. El precio de venta escrito al comprar actualiza el valor que se cobrará al cliente y nunca se usa como costo de adquisición.
@@ -65,22 +65,23 @@ En el método de interés fijo sobre capital inicial, el interés de cada cuota 
 ## Resumen mensual
 
 ```text
-ingresos operativos cobrados = pagos recibidos por Uso del local
-                + ventas registradas
-                + otros ingresos registrados
-resultado neto del mes = ingresos operativos cobrados
-                     - egresos pagados no provisionados anteriormente
-                     - gastos recurrentes aplicables al mes
-                     - compromisos del mes aún no pagados
-                     - diferencias entre estimado y real
-                     - compromisos anteriores no cubiertos
-pago calculado para colaboradores = máximo(resultado neto del mes, 0) × porcentaje global
+ingresos reales = alquileres cobrados + ventas + otros ingresos + demás ingresos reales
+financiación = aportes de colaboradores + préstamos o créditos recibidos
+total ingresado = saldo trasladado del mes anterior + ingresos reales
+total gastado = inventario + gastos + gastos extraoficiales + imprevistos
+              + servicios + impuestos + otras obligaciones
+              + pagos de préstamos + pagos de créditos + mantenimiento
+              + ganancias de colaboradores efectivamente pagadas + demás salidas
+punto de equilibrio = total gastado
+diferencia = total ingresado - punto de equilibrio
+faltó = máximo(-diferencia, 0)
+sobró = máximo(diferencia, 0)
+saldo trasladado al mes siguiente = diferencia + financiación
+pago calculado interno para colaboradores = máximo(resultado distribuible interno, 0) × porcentaje global
 asignación individual = pago calculado para colaboradores × participación interna individual
-saldo del local = máximo(resultado neto del mes, 0) - pago calculado para colaboradores
-faltante = máximo(-resultado neto del mes, 0)
 ```
 
-Las cuentas por cobrar no entran hasta cobrarse. Los aportes y préstamos recibidos aumentan la disponibilidad, pero no el resultado neto. El porcentaje no cambia el punto de equilibrio cero. Compras mensuales pendientes, compras realizadas, obligaciones, mantenimientos, préstamos, gastos recurrentes y compromisos se incorporan por una sola ruta compartida para evitar doble conteo. Una obligación anual se prorratea en doce meses; diciembre absorbe el residuo de centavos y su pago no vuelve a descontar el total. Inicio, precio sugerido por silla, Resumen mensual, Balance anual, gráficos y Excel consumen esa misma regla.
+Las deudas de trabajadores se muestran como **Alquileres de silla pendientes** y no entran hasta cobrarse. Los aportes y préstamos recibidos aumentan el saldo disponible, pero no la ganancia ni la diferencia contra el punto de equilibrio. Cada salida se incorpora por una sola ruta compartida para evitar doble conteo. Una obligación anual se prorratea en doce meses; diciembre absorbe el residuo de centavos y su pago consume lo acumulado sin volver a descontar el total. El saldo de un mes entra exactamente una vez como saldo inicial del siguiente. Inicio, precio sugerido por silla, Resumen mensual, Balance anual, gráficos y Excel consumen la misma clasificación.
 
 Ejemplo aprobado: `1000 - 500 - 100 - 50 - 80 = 270`; con porcentaje global 20 %, el fondo es `54`. Una deuda de trabajador de `120` se mantiene fuera hasta su cobro. Si una reserva de electricidad de `100` se paga luego por `110`, solo `10` afecta el periodo posterior.
 
@@ -94,14 +95,13 @@ Mientras el cierre permanezca confirmado, sus totales y asignaciones guardados p
 
 ## Balance anual
 
-El balance presenta enero a diciembre. Un mes confirmado usa su snapshot y no vuelve a calcularse; un mes abierto hasta la fecha consultada usa el cálculo financiero vigente. Un cierre anual congela el acumulado y crea un arrastre separado de cuentas por cobrar, cuentas por pagar, reservas, préstamos, superávit y déficit. El saldo proyectado es:
+El balance presenta enero a diciembre. Un mes confirmado usa su snapshot y no vuelve a calcularse; un mes abierto usa el cálculo financiero vigente y un mes futuro permanece en cero. Cada categoría anual es la suma de esa categoría en los doce meses. El saldo trasladado del año anterior aparece una sola vez y el saldo del último mes se traslada al año siguiente.
 
 ```text
-superávit + cuentas por cobrar
-- cuentas por pagar - reservas - préstamos - déficit
+saldo siguiente = saldo anterior + ingresos reales + financiación - gastos
 ```
 
-El arrastre no convierte por sí mismo una cuenta por cobrar en ingreso ni un préstamo pendiente en gasto nuevo. Reabrir el año invalida su arrastre y se bloquea cuando ya existe un año posterior cerrado.
+El arrastre no convierte por sí mismo un alquiler de silla pendiente en ingreso ni un préstamo pendiente en gasto nuevo. Reabrir el año invalida su arrastre y se bloquea cuando ya existe un año posterior cerrado.
 
 Las operaciones originales de ingresos y gastos se conservan para los cálculos internos. Flujo de caja no es un módulo visible, pero se exporta como hoja de trazabilidad en Excel.
 

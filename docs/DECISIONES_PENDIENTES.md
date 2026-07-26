@@ -88,3 +88,15 @@ La distribución de residuos de centavos será determinista por identificador es
 - **Manual:** se incorpora debajo de Notas como ayuda estática y detallada, sin persistencia ni movimientos.
 - **Datos completos:** Excel incluye las entidades vigentes y la compatibilidad heredada todavía presente, claramente separada de las operaciones actuales.
 - **Publicación posterior:** logotipo y validación real del actualizador se reservan para otro cambio. No se modifica el actualizador ni se publica `alpha.2` en esta fase.
+
+## Decisiones definitivas de la Fase 5.0C (26 de julio de 2026)
+
+- **Desplazamiento:** las páginas extensas tienen barra vertical general; los formularios superiores no tienen barras internas y cada tabla conserva ambas barras.
+- **Pagos de obligaciones y préstamos:** selección, edición, guardado y eliminación son operaciones persistentes de meses abiertos y refrescan los módulos dependientes al finalizar.
+- **Mantenimiento:** la campana reúne vencidos, del día y futuros. Los pendientes afectan el punto de equilibrio, pero permanecen separados de `Pagos pendientes`.
+- **Resumen mensual:** muestra únicamente las categorías comerciales aprobadas, una tabla `Alquileres de silla pendientes`, una tabla `Pagos pendientes` y un solo indicador `Faltó` o `Sobró`.
+- **Traslado:** el resultado del mes anterior entra una sola vez; aportes y préstamos recibidos se añaden después como financiación y no como ganancia.
+- **Compromisos anuales:** se prorratean entre doce meses y, al pagar, solo la diferencia frente al total acumulado ajusta el resultado.
+- **Balance anual:** solo permite seleccionar un año; cada categoría es la suma de los doce resultados mensuales, con snapshots cerrados, meses abiertos dinámicos y meses futuros en cero.
+- **Gráficos:** dos pasteles con leyendas externas y una línea de ingresos frente a egresos; no existe gráfico de barras.
+- **Actualización posterior:** esta fase mantiene el PR como draft y no autoriza etiqueta, Release, instalación ni publicación de `alpha.2`.
