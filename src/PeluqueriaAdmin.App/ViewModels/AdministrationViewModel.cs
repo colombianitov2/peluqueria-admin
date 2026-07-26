@@ -280,6 +280,7 @@ public sealed partial class AdministrationViewModel(
     [ObservableProperty] private bool confirmReopenMonth;
 
     [ObservableProperty] private bool confirmCloseYear;
+    [ObservableProperty] private bool confirmReopenYear;
 
     public bool ShowFinancialClose => Title == MonthlySummaryModule;
 
@@ -314,7 +315,7 @@ public sealed partial class AdministrationViewModel(
         await RefreshAsync();
     }
 
-    public PlotModel IncomeGoalChart { get; } = new() { Title = "Ingresos frente a meta mensual" };
+    public PlotModel IncomeGoalChart { get; } = new() { Title = "Composición de ingresos" };
 
     public PlotModel ExpenseCompositionChart { get; } = new() { Title = "Composición de gastos" };
 
@@ -322,9 +323,11 @@ public sealed partial class AdministrationViewModel(
 
     [ObservableProperty] private bool showExpenseCompositionNoData;
 
-    public PlotModel ResultEvolutionChart { get; } = new() { Title = "Evolución del resultado" };
+    public PlotModel ResultEvolutionChart { get; } = new() { Title = "Ingresos y egresos en el tiempo" };
 
-    public PlotModel AnnualIncomeChart { get; } = new() { Title = "Ingresos operativos cobrados por mes" };
+    public PlotModel AnnualIncomeChart { get; } = new() { Title = "Ingresos y egresos mensuales" };
+    public PlotModel AnnualIncomeCompositionChart { get; } = new() { Title = "Ingresos del año por categoría" };
+    public PlotModel AnnualExpenseCompositionChart { get; } = new() { Title = "Egresos del año por categoría" };
 
     public async Task SelectModuleAsync(string module)
     {
@@ -475,6 +478,18 @@ public sealed partial class AdministrationViewModel(
         await RefreshAsync();
     }
 
+    [RelayCommand]
+    private async Task ReopenYearAsync()
+    {
+        if (!ConfirmReopenYear)
+            throw new InvalidOperationException("Marca la confirmación antes de reabrir el año.");
+        int year = ParseSpecificYear();
+        await service.ReopenYearAsync(year);
+        ConfirmReopenYear = false;
+        StatusMessage = $"El año {year} se reabrió y su traslado al año siguiente quedó invalidado.";
+        await RefreshAsync();
+    }
+
     private void PopulateFinancialClose(AdministrationData data, SettingsDto settings)
     {
         YearMonth month = YearMonth.From(ParseDate(DateText, "mes"));
@@ -487,20 +502,20 @@ public sealed partial class AdministrationViewModel(
         FinancialMonthRows.Clear();
         void Add(string name, long value) => FinancialMonthRows.Add(
             FinancialSummaryRow.Create(name, ApplicationCurrency.Code, value));
-        Add("Ingresos operativos cobrados", snapshot.CollectedOperatingIncomeMinorUnits);
+        Add("(+) Ingresos operativos cobrados", snapshot.CollectedOperatingIncomeMinorUnits);
         Add("Cuentas por cobrar", snapshot.AccountsReceivableMinorUnits);
-        Add("Egresos pagados", snapshot.PaidOutflowsMinorUnits);
+        Add("(-) Egresos pagados", snapshot.PaidOutflowsMinorUnits);
         Add("Cuentas por pagar", snapshot.AccountsPayableMinorUnits);
-        Add("Reservas nuevas", snapshot.NewReservesMinorUnits);
-        Add("Reservas arrastradas", snapshot.CarriedReservesMinorUnits);
-        Add("Ajustes de reservas", snapshot.ReserveAdjustmentsMinorUnits);
-        Add("Pagos de préstamos", snapshot.LoanPaymentsMinorUnits);
+        Add("(-) Compromisos del mes aún no pagados", snapshot.NewReservesMinorUnits);
+        Add("Compromisos cubiertos de meses anteriores", snapshot.CarriedReservesMinorUnits);
+        Add("(+/-) Diferencias entre valor estimado y real", snapshot.ReserveAdjustmentsMinorUnits);
+        Add("(-) Cuotas de préstamos pagadas", snapshot.LoanPaymentsMinorUnits);
         Add("Financiación recibida (separada)", snapshot.FinancingReceivedMinorUnits);
-        Add("Resultado distribuible", snapshot.DistributableResultMinorUnits);
+        Add("Resultado neto del mes", snapshot.DistributableResultMinorUnits);
         Add("Punto de equilibrio", snapshot.BreakEvenMinorUnits);
         Add("Faltante", snapshot.ShortfallMinorUnits);
-        Add("Fondo de colaboradores", snapshot.CollaboratorFundMinorUnits);
-        Add("Retenido por el local", snapshot.RetainedLocalMinorUnits);
+        Add("Pago total calculado para colaboradores", snapshot.CollaboratorFundMinorUnits);
+        Add("Saldo del local después de colaboradores", snapshot.RetainedLocalMinorUnits);
         FinancialCommitmentRows.Clear();
         foreach (FinancialCommitmentCandidate candidate in (close is null ? snapshot.Candidates : []))
             FinancialCommitmentRows.Add(new FinancialCommitmentRow(candidate));
@@ -522,13 +537,13 @@ public sealed partial class AdministrationViewModel(
         void Add(string concept, long amount) => AnnualSummaryRows.Add(
             FinancialSummaryRow.Create(concept, ApplicationCurrency.Code, amount));
         Add("Ingresos operativos cobrados", report.IncomeMinorUnits);
-        Add("Egresos y reservas", report.OutflowMinorUnits);
+        Add("Egresos y compromisos del año", report.OutflowMinorUnits);
         Add("Resultado anual", report.ResultMinorUnits);
         Add("Cuentas por cobrar", report.AccountsReceivableMinorUnits);
         Add("Cuentas por pagar", report.AccountsPayableMinorUnits);
-        Add("Reservas pendientes", report.PendingReservesMinorUnits);
+        Add("Compromisos apartados pendientes", report.PendingReservesMinorUnits);
         Add("Préstamos pendientes", report.PendingLoansMinorUnits);
-        Add("Fondo de colaboradores", report.CollaboratorFundMinorUnits);
+        Add("Pago total calculado para colaboradores", report.CollaboratorFundMinorUnits);
         Add("Superávit", report.SurplusMinorUnits);
         Add("Déficit", report.DeficitMinorUnits);
         Add("Saldo proyectado para el siguiente año", report.ProjectedNextYearBalanceMinorUnits);
@@ -547,31 +562,32 @@ public sealed partial class AdministrationViewModel(
 
         AnnualIncomeChart.Series.Clear();
         AnnualIncomeChart.Axes.Clear();
-        var months = new CategoryAxis { Position = AxisPosition.Left };
-        var incomes = new BarSeries
+        var months = new CategoryAxis { Position = AxisPosition.Bottom, Angle = -35 };
+        var incomes = new LineSeries
         {
             Title = "Ingresos",
-            FillColor = OxyColor.FromRgb(46, 91, 255),
-            StrokeColor = OxyColor.FromRgb(30, 64, 175),
-            StrokeThickness = 1,
+            Color = OxyColor.FromRgb(37, 99, 235),
+            MarkerType = MarkerType.Circle,
+            MarkerFill = OxyColor.FromRgb(37, 99, 235),
         };
-        var outflows = new BarSeries
+        var outflows = new LineSeries
         {
             Title = "Egresos",
-            FillColor = OxyColor.FromRgb(239, 68, 68),
-            StrokeColor = OxyColor.FromRgb(153, 27, 27),
-            StrokeThickness = 1,
+            Color = OxyColor.FromRgb(220, 38, 38),
+            MarkerType = MarkerType.Circle,
+            MarkerFill = OxyColor.FromRgb(220, 38, 38),
         };
-        foreach (AnnualMonthFinancial month in report.Months)
+        for (int index = 0; index < report.Months.Count; index++)
         {
+            AnnualMonthFinancial month = report.Months[index];
             months.Labels.Add(month.Month.FirstDay.ToString("MMM", CultureInfo.GetCultureInfo("es-ES")));
-            incomes.Items.Add(new BarItem(month.IncomeMinorUnits / 100d));
-            outflows.Items.Add(new BarItem(month.OutflowMinorUnits / 100d));
+            incomes.Points.Add(new DataPoint(index, month.IncomeMinorUnits / 100d));
+            outflows.Points.Add(new DataPoint(index, month.OutflowMinorUnits / 100d));
         }
         AnnualIncomeChart.Axes.Add(months);
         AnnualIncomeChart.Axes.Add(new LinearAxis
         {
-            Position = AxisPosition.Bottom,
+            Position = AxisPosition.Left,
             Minimum = 0,
             Title = ApplicationCurrency.Code,
             LabelFormatter = FormatChartAxisValue,
@@ -579,6 +595,51 @@ public sealed partial class AdministrationViewModel(
         AnnualIncomeChart.Series.Add(incomes);
         AnnualIncomeChart.Series.Add(outflows);
         AnnualIncomeChart.InvalidatePlot(true);
+
+        ChartCashPoint[] annualPoints = BuildChartCashPoints(data)
+            .Where(item => item.Date.Year == year)
+            .ToArray();
+        PopulateCompositionPie(
+            AnnualIncomeCompositionChart,
+            annualPoints.Where(item => item.SignedMinorUnits > 0),
+            positive: true);
+        PopulateCompositionPie(
+            AnnualExpenseCompositionChart,
+            annualPoints.Where(item => item.SignedMinorUnits < 0),
+            positive: false);
+    }
+
+    private static void PopulateCompositionPie(
+        PlotModel model,
+        IEnumerable<ChartCashPoint> points,
+        bool positive)
+    {
+        model.Series.Clear();
+        model.Axes.Clear();
+        var pie = new PieSeries
+        {
+            StrokeThickness = 1,
+            InsideLabelFormat = string.Empty,
+            OutsideLabelFormat = "{1}",
+            TrackerFormatString = "{1}: USD {2:N2} ({3:P1})",
+            Diameter = 0.72,
+        };
+        int index = 0;
+        foreach (var group in points
+                     .GroupBy(item => item.Category)
+                     .OrderBy(item => item.Key))
+        {
+            long value = group.Sum(item => item.SignedMinorUnits);
+            if (!positive) value = -value;
+            if (value <= 0) continue;
+            AddSlice(
+                pie,
+                group.Key,
+                value,
+                OxyColor.FromHsv((index++ * 0.17) % 1d, 0.68, 0.82));
+        }
+        if (pie.Slices.Count > 0) model.Series.Add(pie);
+        model.InvalidatePlot(true);
     }
 
     private void PopulateSimpleFinancialRows(AdministrationData data, SettingsDto settings, DateOnly today)
@@ -1432,14 +1493,14 @@ public sealed partial class AdministrationViewModel(
             data, Percentage.FromPercent(settings.CollaboratorProfitPercent), month);
         return
         [
-            SummaryRow(month, "Ingresos operativos cobrados", result.CollectedOperatingIncomeMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "(+) Ingresos operativos cobrados", result.CollectedOperatingIncomeMinorUnits, ApplicationCurrency.Code),
             SummaryRow(month, "Cuentas por cobrar", result.AccountsReceivableMinorUnits, ApplicationCurrency.Code),
-            SummaryRow(month, "Egresos pagados", result.PaidOutflowsMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "(-) Egresos pagados", result.PaidOutflowsMinorUnits, ApplicationCurrency.Code),
             SummaryRow(month, "Cuentas por pagar", result.AccountsPayableMinorUnits, ApplicationCurrency.Code),
-            SummaryRow(month, "Reservas nuevas", result.NewReservesMinorUnits, ApplicationCurrency.Code),
-            SummaryRow(month, "Resultado distribuible", result.DistributableResultMinorUnits, ApplicationCurrency.Code),
-            SummaryRow(month, "Fondo de colaboradores", result.CollaboratorFundMinorUnits, ApplicationCurrency.Code),
-            SummaryRow(month, "Ganancia retenida por el local", result.RetainedLocalMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "(-) Compromisos del mes aún no pagados", result.NewReservesMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "Resultado neto del mes", result.DistributableResultMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "Pago total calculado para colaboradores", result.CollaboratorFundMinorUnits, ApplicationCurrency.Code),
+            SummaryRow(month, "Saldo del local después de colaboradores", result.RetainedLocalMinorUnits, ApplicationCurrency.Code),
         ];
     }
 
@@ -1452,7 +1513,7 @@ public sealed partial class AdministrationViewModel(
             .Where(item => item.Date >= buckets.From && item.Date <= buckets.Through)
             .ToArray();
         long incomeMinorUnits = periodPoints.Where(item => item.SignedMinorUnits > 0
-                && item.Category != "Ajustes de reservas")
+                && item.Category != "Diferencias estimado/real")
             .Sum(item => item.SignedMinorUnits);
         long expenseMinorUnits = -periodPoints.Where(item => item.SignedMinorUnits < 0).Sum(item => item.SignedMinorUnits);
         int unknownTimes = buckets.Hourly
@@ -1464,28 +1525,34 @@ public sealed partial class AdministrationViewModel(
 
         IncomeGoalChart.Series.Clear();
         IncomeGoalChart.Axes.Clear();
-        var categoryAxis = new CategoryAxis { Position = AxisPosition.Left };
-        categoryAxis.Labels.Add("Ingresos");
-        categoryAxis.Labels.Add("Egresos del periodo");
-        IncomeGoalChart.Axes.Add(categoryAxis);
-        double incomeGoalMaximum = Math.Max(Math.Abs(incomeMinorUnits / 100d), Math.Abs(expenseMinorUnits / 100d));
-        IncomeGoalChart.Axes.Add(new LinearAxis
+        var incomePie = new PieSeries
         {
-            Position = AxisPosition.Bottom,
-            Minimum = 0,
-            Title = ApplicationCurrency.Code,
-            LabelFormatter = FormatChartAxisValue,
-            MajorStep = ChartMajorStep(incomeGoalMaximum),
-            MaximumPadding = 0.08,
-        });
-        var columns = new BarSeries
-        {
-            FillColor = OxyColor.FromRgb(46, 91, 255),
-            TrackerFormatString = "{0}\n{1}: {2}\n{3}: {4:N0}",
+            StrokeThickness = 1,
+            InsideLabelFormat = string.Empty,
+            OutsideLabelFormat = "{1}",
+            TrackerFormatString = "{1}: USD {2:N2} ({3:P1})",
+            Diameter = 0.72,
         };
-        columns.Items.Add(new BarItem(incomeMinorUnits / 100d));
-        columns.Items.Add(new BarItem(expenseMinorUnits / 100d));
-        IncomeGoalChart.Series.Add(columns);
+        foreach (var category in periodPoints
+                     .Where(item => item.SignedMinorUnits > 0)
+                     .GroupBy(item => item.Category)
+                     .OrderBy(item => item.Key)
+                     .Select(group => new
+                     {
+                         Category = group.Key,
+                         MinorUnits = group.Sum(item => item.SignedMinorUnits),
+                     }))
+        {
+            AddSlice(
+                incomePie,
+                category.Category,
+                category.MinorUnits,
+                OxyColor.FromHsv((incomePie.Slices.Count * 0.17) % 1d, 0.68, 0.82));
+        }
+        if (incomePie.Slices.Count > 0)
+        {
+            IncomeGoalChart.Series.Add(incomePie);
+        }
         IncomeGoalChart.InvalidatePlot(true);
 
         ExpenseCompositionChart.Series.Clear();
@@ -1546,28 +1613,44 @@ public sealed partial class AdministrationViewModel(
             MaximumPadding = 0.08,
             MinimumPadding = 0.08,
         };
-        var line = new LineSeries
+        var incomeLine = new LineSeries
         {
-            Title = "Resultado retenido",
-            Color = OxyColor.FromRgb(5, 150, 105),
+            Title = "Ingresos",
+            Color = OxyColor.FromRgb(37, 99, 235),
             MarkerType = MarkerType.Circle,
-            MarkerFill = OxyColor.FromRgb(5, 150, 105),
+            MarkerFill = OxyColor.FromRgb(37, 99, 235),
+            TrackerFormatString = "{0}\n{1}: {2}\n{3}: {4:N0}",
+        };
+        var expenseLine = new LineSeries
+        {
+            Title = "Egresos",
+            Color = OxyColor.FromRgb(220, 38, 38),
+            MarkerType = MarkerType.Circle,
+            MarkerFill = OxyColor.FromRgb(220, 38, 38),
             TrackerFormatString = "{0}\n{1}: {2}\n{3}: {4:N0}",
         };
         double resultMaximum = 0d;
         for (int index = 0; index < buckets.Labels.Count; index++)
         {
             monthsAxis.Labels.Add(buckets.Labels[index]);
-            double value = periodPoints
+            ChartCashPoint[] bucketPoints = periodPoints
                 .Where(item => buckets.Index(item) == index)
+                .ToArray();
+            double incomeValue = bucketPoints
+                .Where(item => item.SignedMinorUnits > 0)
                 .Sum(item => item.SignedMinorUnits) / 100d;
-            line.Points.Add(new DataPoint(index, value));
-            resultMaximum = Math.Max(resultMaximum, Math.Abs(value));
+            double expenseValue = -bucketPoints
+                .Where(item => item.SignedMinorUnits < 0)
+                .Sum(item => item.SignedMinorUnits) / 100d;
+            incomeLine.Points.Add(new DataPoint(index, incomeValue));
+            expenseLine.Points.Add(new DataPoint(index, expenseValue));
+            resultMaximum = Math.Max(resultMaximum, Math.Max(incomeValue, expenseValue));
         }
         resultAxis.MajorStep = ChartMajorStep(resultMaximum);
         ResultEvolutionChart.Axes.Add(monthsAxis);
         ResultEvolutionChart.Axes.Add(resultAxis);
-        ResultEvolutionChart.Series.Add(line);
+        ResultEvolutionChart.Series.Add(incomeLine);
+        ResultEvolutionChart.Series.Add(expenseLine);
         ResultEvolutionChart.InvalidatePlot(true);
     }
 
@@ -1592,6 +1675,26 @@ public sealed partial class AdministrationViewModel(
             item.CreatedUtc,
             SpanishText.For(item.Type),
             item.Type == FinancialEntryType.OtherIncome ? item.Amount.MinorUnits : -item.Amount.MinorUnits)));
+        YearMonth chartThrough = YearMonth.From(
+            DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime));
+        foreach (UnofficialExpense expense in data.UnofficialExpenses)
+        {
+            YearMonth first = YearMonth.From(expense.EffectiveFrom);
+            YearMonth last = expense.DeletedUtc.HasValue
+                ? YearMonth.From(DateOnly.FromDateTime(expense.DeletedUtc.Value))
+                : chartThrough;
+            int monthCount = checked(
+                (last.Year - first.Year) * 12 + last.Month - first.Month + 1);
+            foreach (int offset in Enumerable.Range(0, Math.Max(0, monthCount)))
+            {
+                YearMonth occurrence = YearMonth.From(first.FirstDay.AddMonths(offset));
+                result.Add(new ChartCashPoint(
+                    occurrence.FirstDay,
+                    expense.CreatedUtc,
+                    "Gastos recurrentes",
+                    -expense.MonthlyAmount.MinorUnits));
+            }
+        }
         result.AddRange(data.ObligationPayments
             .Where(item => !WasReserved(FinancialCommitmentSource.Obligation, item.ObligationId, item.Date, item.Amount.MinorUnits))
             .Select(item =>
@@ -1620,7 +1723,7 @@ public sealed partial class AdministrationViewModel(
         result.AddRange(data.FinancialReserves.Select(item =>
             new ChartCashPoint(item.Month.LastDay, item.CreatedUtc, "Reservas", -item.ReservedAmount.MinorUnits)));
         result.AddRange(data.FinancialReserves.Where(item => item.IsConsumed && item.ActualAmount.HasValue)
-            .Select(item => new ChartCashPoint(item.SettledDate!.Value, item.UpdatedUtc, "Ajustes de reservas",
+            .Select(item => new ChartCashPoint(item.SettledDate!.Value, item.UpdatedUtc, "Diferencias estimado/real",
                 -(item.ActualAmount.GetValueOrDefault().MinorUnits - item.ReservedAmount.MinorUnits))));
         return result;
     }

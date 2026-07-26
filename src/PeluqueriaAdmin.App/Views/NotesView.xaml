@@ -12,7 +12,7 @@
       <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#172033" Text="Notas" />
       <TextBlock Margin="0,5,0,0" Foreground="#5B6575" Text="Bloc único con autoguardado local." />
     </StackPanel>
-    <TextBox Grid.Row="1" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
+    <TextBox Grid.Row="1" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
              VerticalContentAlignment="Top" Padding="14" FontSize="15"
              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
              Text="{Binding Content, UpdateSourceTrigger=PropertyChanged}"

@@ -98,20 +98,21 @@ public sealed class Phase49UiContractTests
     }
 
     [Fact]
-    public void Phase49_31_AnnualChartBuildsTwelveIncomeBars()
+    public void Phase49_31_AnnualChartBuildsTwelveIncomeLinePoints()
     {
         string text = View("src", "PeluqueriaAdmin.App", "ViewModels", "AdministrationViewModel.cs");
         Assert.Contains("Title = \"Ingresos\"", text, StringComparison.Ordinal);
-        Assert.Contains("foreach (AnnualMonthFinancial month in report.Months)", text, StringComparison.Ordinal);
-        Assert.Contains("incomes.Items.Add(new BarItem(month.IncomeMinorUnits / 100d))", text, StringComparison.Ordinal);
+        Assert.Contains("for (int index = 0; index < report.Months.Count; index++)", text, StringComparison.Ordinal);
+        Assert.Contains("incomes.Points.Add(new DataPoint(index, month.IncomeMinorUnits / 100d))", text, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Phase49_32_AnnualChartBuildsTwelveOutflowBars()
+    public void Phase49_32_AnnualChartBuildsTwelveOutflowLinePoints()
     {
         string text = View("src", "PeluqueriaAdmin.App", "ViewModels", "AdministrationViewModel.cs");
         Assert.Contains("Title = \"Egresos\"", text, StringComparison.Ordinal);
-        Assert.Contains("outflows.Items.Add(new BarItem(month.OutflowMinorUnits / 100d))", text, StringComparison.Ordinal);
+        Assert.Contains("outflows.Points.Add(new DataPoint(index, month.OutflowMinorUnits / 100d))", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("BarSeries", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -119,7 +120,7 @@ public sealed class Phase49UiContractTests
     {
         string text = View("src", "PeluqueriaAdmin.App", "Views", "SettingsView.xaml");
         Assert.DoesNotContain("Resumen financiero del mes", text, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Punto de equilibrio", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("FinancialMonthRows", text, StringComparison.Ordinal);
     }
 
     [Fact]

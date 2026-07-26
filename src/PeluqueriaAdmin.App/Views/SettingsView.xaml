@@ -60,10 +60,10 @@
 
       <Border Grid.Row="4" Margin="0,4,0,24" Padding="18" Background="#FFF7ED" CornerRadius="6">
         <StackPanel>
-          <TextBlock Margin="0,0,0,12" FontSize="20" FontWeight="SemiBold" Text="Gastos extraoficiales" />
+          <TextBlock Margin="0,0,0,12" FontSize="20" FontWeight="SemiBold" Text="Gastos recurrentes" />
           <TextBlock Margin="0,0,0,12"
                      Foreground="#4B5563"
-                     Text="Se usan únicamente para el precio sugerido por silla y no forman parte del Balance anual oficial."
+                     Text="Se descuentan cada mes desde su fecha de inicio y afectan el punto de equilibrio, el resultado, la distribución, el Balance anual, los gráficos y el precio sugerido por silla."
                      TextWrapping="Wrap" />
           <TextBlock Style="{StaticResource FieldLabel}" Text="Nombre" />
           <TextBox Text="{Binding UnofficialExpenseName, UpdateSourceTrigger=PropertyChanged}" />

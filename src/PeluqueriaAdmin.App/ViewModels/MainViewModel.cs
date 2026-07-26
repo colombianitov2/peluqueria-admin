@@ -23,6 +23,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly TimeProvider timeProvider;
     private ITimer? dayChangeTimer;
     private bool navigationInitialized;
+    private bool isRefreshingAfterDataChange;
 
     public MainViewModel(
         SettingsViewModel settings,
@@ -379,9 +380,40 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void OnAdministrationDataChanged(object? sender, EventArgs eventArgs)
     {
-        if (ReferenceEquals(CurrentPage, this))
+        if (isRefreshingAfterDataChange)
         {
-            _ = RefreshHomeAsync();
+            return;
+        }
+
+        if (System.Windows.Application.Current?.Dispatcher is { } dispatcher
+            && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.InvokeAsync(RefreshCurrentPageAfterDataChangeAsync);
+            return;
+        }
+        _ = RefreshCurrentPageAfterDataChangeAsync();
+    }
+
+    private async Task RefreshCurrentPageAfterDataChangeAsync()
+    {
+        if (isRefreshingAfterDataChange) return;
+        isRefreshingAfterDataChange = true;
+        try
+        {
+            if (ReferenceEquals(CurrentPage, this)) await RefreshHomeAsync();
+            else if (ReferenceEquals(CurrentPage, LocalUse)) await LocalUse.RefreshAsync();
+            else if (ReferenceEquals(CurrentPage, Collaborators)) await Collaborators.RefreshAsync();
+            else if (ReferenceEquals(CurrentPage, Sales)) await Sales.RefreshAsync();
+            else if (ReferenceEquals(CurrentPage, Inventory)) await Inventory.RefreshAsync();
+            else if (ReferenceEquals(CurrentPage, Maintenance)) await Maintenance.RefreshAsync();
+            else if (ReferenceEquals(CurrentPage, Obligations)) await Obligations.RefreshAsync();
+            else if (ReferenceEquals(CurrentPage, Settings)) await Settings.LoadAsync();
+            else if (ReferenceEquals(CurrentPage, Administration))
+                await Administration.SelectModuleAsync(Administration.Title);
+        }
+        finally
+        {
+            isRefreshingAfterDataChange = false;
         }
     }
 

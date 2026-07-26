@@ -416,12 +416,12 @@ public sealed partial class SettingsViewModel(
             await administrationService.AddUnofficialExpenseAsync(expense);
             ClearUnofficialExpenseForm();
             await LoadUnofficialExpensesAsync();
-            StatusMessage = "Gasto extraoficial agregado correctamente.";
+            StatusMessage = "Gasto recurrente agregado correctamente.";
             IsError = false;
         }
         catch (Exception exception)
         {
-            SetDataError("No fue posible agregar el gasto extraoficial.", exception);
+            SetDataError("No fue posible agregar el gasto recurrente.", exception);
         }
     }
 
@@ -434,12 +434,12 @@ public sealed partial class SettingsViewModel(
             await administrationService.DeleteAsync(expense);
             ClearUnofficialExpenseForm();
             await LoadUnofficialExpensesAsync();
-            StatusMessage = "Gasto extraoficial eliminado del estado vigente; su historial se conservó.";
+            StatusMessage = "Gasto recurrente finalizado; los meses anteriores conservan su historial.";
             IsError = false;
         }
         catch (Exception exception)
         {
-            SetDataError("No fue posible eliminar el gasto extraoficial.", exception);
+            SetDataError("No fue posible finalizar el gasto recurrente.", exception);
         }
     }
 
@@ -476,7 +476,10 @@ public sealed partial class SettingsViewModel(
     {
         AdministrationData data = await administrationService.LoadAsync(cancellationToken);
         UnofficialExpenses.Clear();
-        foreach (UnofficialExpense item in data.UnofficialExpenses.OrderBy(item => item.EffectiveFrom).ThenBy(item => item.Name))
+        foreach (UnofficialExpense item in data.UnofficialExpenses
+                     .Where(item => !item.IsDeleted)
+                     .OrderBy(item => item.EffectiveFrom)
+                     .ThenBy(item => item.Name))
         {
             UnofficialExpenses.Add(new OperationRow(
                 item.EffectiveFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
@@ -484,7 +487,7 @@ public sealed partial class SettingsViewModel(
                 item.Description ?? string.Empty,
                 string.Empty,
                 $"{ApplicationCurrency.Code} {item.MonthlyAmount.ToDecimal():N2}",
-                "Extraoficial",
+                "Recurrente",
                 item));
         }
 
@@ -559,7 +562,7 @@ public sealed partial class SettingsViewModel(
             SelectedUnofficialExpense = UnofficialExpenses.SingleOrDefault(item => item.Entity?.Id == id);
             loadingUnofficialExpense = false;
             IsEditingUnofficialExpense = false;
-            StatusMessage = "Gasto extraoficial actualizado correctamente.";
+            StatusMessage = "Gasto recurrente actualizado correctamente.";
             IsError = false;
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)

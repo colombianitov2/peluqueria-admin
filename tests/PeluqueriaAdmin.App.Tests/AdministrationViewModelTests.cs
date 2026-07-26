@@ -283,12 +283,15 @@ public sealed class AdministrationViewModelTests
         viewModel.DateText = "2026-07-01";
         await viewModel.RefreshCommand.ExecuteAsync(null);
 
-        BarSeries bars = Assert.IsType<BarSeries>(Assert.Single(viewModel.IncomeGoalChart.Series));
-        Assert.Equal(100d, bars.Items[0].Value);
+        PieSeries incomePie = Assert.IsType<PieSeries>(Assert.Single(viewModel.IncomeGoalChart.Series));
+        Assert.Equal(100d, Assert.Single(incomePie.Slices).Value);
         Assert.NotEmpty(viewModel.ExpenseCompositionChart.Series);
-        LineSeries line = Assert.IsType<LineSeries>(Assert.Single(viewModel.ResultEvolutionChart.Series));
-        Assert.Equal(31, line.Points.Count);
-        Assert.Equal("Resultado retenido", line.Title);
+        LineSeries[] lines = viewModel.ResultEvolutionChart.Series
+            .Select(Assert.IsType<LineSeries>)
+            .ToArray();
+        Assert.Equal(2, lines.Length);
+        Assert.All(lines, line => Assert.Equal(31, line.Points.Count));
+        Assert.Equal(["Ingresos", "Egresos"], lines.Select(line => line.Title));
     }
 
     [Fact]
@@ -355,8 +358,11 @@ public sealed class AdministrationViewModelTests
 
         await viewModel.RefreshCommand.ExecuteAsync(null);
 
-        LineSeries line = Assert.IsType<LineSeries>(Assert.Single(viewModel.ResultEvolutionChart.Series));
-        Assert.Equal(expectedPoints, line.Points.Count);
+        LineSeries[] lines = viewModel.ResultEvolutionChart.Series
+            .Select(Assert.IsType<LineSeries>)
+            .ToArray();
+        Assert.Equal(2, lines.Length);
+        Assert.All(lines, line => Assert.Equal(expectedPoints, line.Points.Count));
     }
 
     [Fact]

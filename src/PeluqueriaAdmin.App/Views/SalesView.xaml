@@ -13,8 +13,7 @@
   </UserControl.Resources>
   <Grid Background="#F5F7FA">
     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-    <ScrollViewer Grid.Row="0" MaxHeight="430" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Margin="26,26,26,12">
+    <StackPanel Grid.Row="0" Margin="26,26,26,12">
         <DockPanel Margin="0,0,0,14">
           <StackPanel DockPanel.Dock="Right" MinWidth="190"><TextBlock HorizontalAlignment="Right" Style="{StaticResource FieldLabel}" Text="Periodo a mostrar" /><ComboBox Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" /><WrapPanel Margin="0,6,0,0" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}"><DatePicker Width="135" Margin="0,0,6,0" SelectedDate="{Binding CustomPeriodFrom}" /><DatePicker Width="135" SelectedDate="{Binding CustomPeriodThrough}" /></WrapPanel></StackPanel>
           <StackPanel><TextBlock FontSize="28" FontWeight="SemiBold" Text="Ventas" /><TextBlock Margin="0,5,0,0" Foreground="#5B6575" Text="Selecciona un producto, consulta su existencia y registra la venta." /></StackPanel>
@@ -47,8 +46,7 @@
             <TextBlock Margin="0,5,0,0" Foreground="#0F766E" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
           </StackPanel>
         </Border>
-      </StackPanel>
-    </ScrollViewer>
+    </StackPanel>
     <Grid Grid.Row="1" Margin="26,0,26,26">
       <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
       <TextBlock Margin="0,0,0,7" FontSize="18" FontWeight="SemiBold" Text="Ventas registradas" />

@@ -89,7 +89,7 @@
       <Border Grid.Row="3" Margin="0,0,0,14" Padding="16" Background="White" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="7" Visibility="{Binding ShowAnnualClose, Converter={StaticResource BooleanToVisibilityConverter}}">
         <StackPanel>
           <DockPanel>
-            <WrapPanel DockPanel.Dock="Right"><CheckBox Margin="0,8,8,0" IsChecked="{Binding ConfirmCloseYear}" Content="Confirmo cerrar año" /><Button Style="{StaticResource ActionButton}" Command="{Binding CloseYearCommand}" Content="Cerrar año" /></WrapPanel>
+            <WrapPanel DockPanel.Dock="Right"><CheckBox Margin="0,8,8,0" IsChecked="{Binding ConfirmCloseYear}" Content="Confirmo cerrar año" /><Button Style="{StaticResource ActionButton}" Command="{Binding CloseYearCommand}" Content="Cerrar año" /><CheckBox Margin="8,8,8,0" IsChecked="{Binding ConfirmReopenYear}" Content="Confirmo reabrir año" /><Button Style="{StaticResource ActionButton}" Command="{Binding ReopenYearCommand}" Content="Reabrir año" /></WrapPanel>
             <StackPanel><TextBlock FontSize="20" FontWeight="SemiBold" Text="Balance y cierre anual" /><TextBlock Foreground="#475569" Text="{Binding FinancialCloseState}" TextWrapping="Wrap" /></StackPanel>
           </DockPanel>
           <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding AnnualSummaryRows}">
@@ -107,8 +107,12 @@
               <DataGridTextColumn Width="100" Header="Estado" Binding="{Binding Status}" />
             </DataGrid.Columns>
           </DataGrid>
-          <TextBlock Margin="0,12,0,6" FontSize="16" FontWeight="SemiBold" Text="Ingresos y egresos por mes" />
-          <oxy:PlotView Height="300" Model="{Binding AnnualIncomeChart}" />
+          <TextBlock Margin="0,12,0,6" FontSize="16" FontWeight="SemiBold" Text="Gráficos estrictamente del año consultado" />
+          <UniformGrid Columns="3">
+            <oxy:PlotView Height="300" Model="{Binding AnnualIncomeCompositionChart}" />
+            <oxy:PlotView Height="300" Model="{Binding AnnualExpenseCompositionChart}" />
+            <oxy:PlotView Height="300" Model="{Binding AnnualIncomeChart}" />
+          </UniformGrid>
         </StackPanel>
       </Border>
 
@@ -132,7 +136,7 @@
                   Visibility="{Binding ShowCharts, Converter={StaticResource BooleanToVisibilityConverter}}">
         <TextBlock Margin="0,0,0,8" FontSize="16" FontWeight="SemiBold" Text="Gráficos del periodo seleccionado" />
         <UniformGrid Columns="2" Rows="2">
-          <GroupBox Margin="0,0,8,8" Header="Ingresos y egresos del periodo">
+          <GroupBox Margin="0,0,8,8" Header="Composición de ingresos por categoría">
             <oxy:PlotView Height="260" Model="{Binding IncomeGoalChart}" />
           </GroupBox>
           <GroupBox Margin="8,0,0,8" Header="Composición de gastos por categoría">
@@ -147,7 +151,7 @@
               </ScrollViewer>
             </Grid>
           </GroupBox>
-          <GroupBox Grid.ColumnSpan="2" Margin="0,8,0,0" Header="Evolución del resultado del periodo">
+          <GroupBox Grid.ColumnSpan="2" Margin="0,8,0,0" Header="Ingresos frente a egresos en el tiempo">
             <oxy:PlotView Height="280" Model="{Binding ResultEvolutionChart}" />
           </GroupBox>
         </UniformGrid>
