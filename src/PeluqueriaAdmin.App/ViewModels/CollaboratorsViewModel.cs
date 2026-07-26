@@ -309,9 +309,11 @@ public sealed partial class CollaboratorsViewModel(
             }
 
             ClearContributionForm();
-            StatusMessage = "El aporte se guardó correctamente como capital no operativo.";
-            IsError = false;
             await RefreshAsync();
+            if (!IsError)
+            {
+                StatusMessage = "El aporte se guardó correctamente como capital no operativo.";
+            }
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
@@ -329,7 +331,7 @@ public sealed partial class CollaboratorsViewModel(
     {
         if (SelectedDistributionOption is null)
         {
-            StatusMessage = "Selecciona una participación pendiente.";
+            StatusMessage = "No hay una ganancia mensual pendiente de pago.";
             IsError = true;
             return;
         }
@@ -355,19 +357,14 @@ public sealed partial class CollaboratorsViewModel(
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasSelectedContribution))]
     private void EditSelectedContribution()
     {
         if (SelectedContributionRow is null) return;
-        suppressChanges = true;
-        IsEditingContribution = true;
-        ContributionDate = SelectedContributionRow.Contribution.Date.ToDateTime(TimeOnly.MinValue);
-        ContributionAmount = SelectedContributionRow.Contribution.Amount.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture);
-        ContributionDescription = SelectedContributionRow.Contribution.Description ?? string.Empty;
-        suppressChanges = false;
+        LoadContributionIntoForm(SelectedContributionRow);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanDeleteSelectedContribution))]
     private async Task DeleteSelectedContributionAsync()
     {
         if (SelectedContributionRow is null)
@@ -385,12 +382,18 @@ public sealed partial class CollaboratorsViewModel(
         }
 
         await service.DeleteCollaboratorContributionAsync(SelectedContributionRow.Contribution.Id);
-        ConfirmContributionDelete = false;
         ClearContributionForm();
-        StatusMessage = "El aporte se eliminó lógicamente y permanece en el historial eliminado.";
-        IsError = false;
         await RefreshAsync();
+        if (!IsError)
+        {
+            StatusMessage = "El aporte se eliminó lógicamente y permanece en el historial eliminado.";
+        }
     }
+
+    private bool HasSelectedContribution() => SelectedContributionRow is not null;
+
+    private bool CanDeleteSelectedContribution() =>
+        SelectedContributionRow is not null && ConfirmContributionDelete;
 
     [RelayCommand]
     private async Task ClearFormAsync()
@@ -434,7 +437,7 @@ public sealed partial class CollaboratorsViewModel(
         Contributions.Clear();
         PendingDistributions.Clear();
         foreach (CollaboratorContribution contribution in data.CollaboratorContributions
-            .Where(item => item.CollaboratorId == collaboratorId && range.Contains(item.Date))
+            .Where(item => item.CollaboratorId == collaboratorId)
             .OrderBy(item => item.Date).ThenBy(item => item.CreatedUtc))
         {
             Contributions.Add(new ContributionRow(
@@ -548,10 +551,24 @@ public sealed partial class CollaboratorsViewModel(
 
     partial void OnSelectedHistoryRowChanged(OperationRow? value)
     {
-        if (value?.Entity is CollaboratorContribution contribution)
-            SelectedContributionRow = Contributions.SingleOrDefault(item => item.Contribution.Id == contribution.Id);
-        else
-            SelectedContributionRow = null;
+        Guid? contributionId = value?.Entity switch
+        {
+            CollaboratorContribution contribution => contribution.Id,
+            CollaboratorContributionEvent contributionEvent => contributionEvent.ContributionId,
+            _ => null,
+        };
+        ContributionRow? selected = contributionId.HasValue
+            ? Contributions.SingleOrDefault(item => item.Contribution.Id == contributionId.Value)
+            : null;
+        if (selected is null)
+        {
+            ClearContributionForm(clearHistorySelection: false);
+            return;
+        }
+
+        SelectedContributionRow = selected;
+        ConfirmContributionDelete = false;
+        LoadContributionIntoForm(selected);
     }
 
     private static OperationRow History(
@@ -698,7 +715,17 @@ public sealed partial class CollaboratorsViewModel(
         suppressChanges = false;
     }
 
-    private void ClearContributionForm()
+    private void LoadContributionIntoForm(ContributionRow selected)
+    {
+        suppressChanges = true;
+        IsEditingContribution = true;
+        ContributionDate = selected.Contribution.Date.ToDateTime(TimeOnly.MinValue);
+        ContributionAmount = selected.Contribution.Amount.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture);
+        ContributionDescription = selected.Contribution.Description ?? string.Empty;
+        suppressChanges = false;
+    }
+
+    private void ClearContributionForm(bool clearHistorySelection = true)
     {
         suppressChanges = true;
         ContributionDate = DateTime.Today;
@@ -706,6 +733,11 @@ public sealed partial class CollaboratorsViewModel(
         ContributionDescription = string.Empty;
         SelectedContributionRow = null;
         IsEditingContribution = false;
+        ConfirmContributionDelete = false;
+        if (clearHistorySelection)
+        {
+            SelectedHistoryRow = null;
+        }
         suppressChanges = false;
     }
 
@@ -724,6 +756,13 @@ public sealed partial class CollaboratorsViewModel(
     partial void OnContributionDateChanged(DateTime? value) => ScheduleDraft();
     partial void OnContributionAmountChanged(string value) => ScheduleDraft();
     partial void OnContributionDescriptionChanged(string value) => ScheduleDraft();
+    partial void OnSelectedContributionRowChanged(ContributionRow? value)
+    {
+        EditSelectedContributionCommand.NotifyCanExecuteChanged();
+        DeleteSelectedContributionCommand.NotifyCanExecuteChanged();
+    }
+    partial void OnConfirmContributionDeleteChanged(bool value) =>
+        DeleteSelectedContributionCommand.NotifyCanExecuteChanged();
     partial void OnProfileNameChanged(string value) => ScheduleProfileEdit();
     partial void OnProfileStartDateChanged(DateTime? value) => ScheduleProfileEdit();
     partial void OnProfileExitDateChanged(DateTime? value) => ScheduleProfileEdit();

@@ -74,7 +74,16 @@
           <StackPanel Width="150" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Fecha del aporte" /><DatePicker Style="{StaticResource FieldBox}" SelectedDate="{Binding ContributionDate}" /></StackPanel>
           <StackPanel Width="150" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Valor" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ContributionAmount, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
           <StackPanel Width="260" Margin="0,0,10,8"><TextBlock Style="{StaticResource FieldLabel}" Text="Descripción opcional" /><TextBox Style="{StaticResource FieldBox}" Text="{Binding ContributionDescription, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
-          <Button Margin="0,23,8,8" Style="{StaticResource ActionButton}" Command="{Binding SaveContributionCommand}" Content="Añadir aporte" />
+          <Button Margin="0,23,8,8" Command="{Binding SaveContributionCommand}">
+            <Button.Style>
+              <Style TargetType="Button" BasedOn="{StaticResource ActionButton}">
+                <Setter Property="Content" Value="Añadir aporte" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsEditingContribution}" Value="True"><Setter Property="Content" Value="Guardar edición" /></DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </Button.Style>
+          </Button>
           <Button Margin="0,23,8,8" Style="{StaticResource ActionButton}" Command="{Binding EditSelectedContributionCommand}" Content="Editar aporte seleccionado" />
           <CheckBox Margin="8,31,8,0" IsChecked="{Binding ConfirmContributionDelete}" Content="Confirmo eliminar" />
           <Button Margin="0,23,0,8" Style="{StaticResource ActionButton}" Command="{Binding DeleteSelectedContributionCommand}" Content="Eliminar aporte" />
@@ -95,7 +104,7 @@
       <Grid Grid.Row="1" Margin="0,10,0,0">
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,6"><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><ComboBox Width="190" Style="{StaticResource FieldBox}" ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" /><DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodFrom}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" /><DatePicker Width="135" Margin="8,0,0,0" SelectedDate="{Binding CustomPeriodThrough}" Visibility="{Binding ShowCustomPeriod, Converter={StaticResource BooleanToVisibilityConverter}}" /></StackPanel><TextBlock FontSize="18" FontWeight="SemiBold" Text="Historial cronológico" /></DockPanel>
-        <DataGrid Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.VerticalScrollBarVisibility="Auto" ItemsSource="{Binding HistoryRows}" SelectedItem="{Binding SelectedHistoryRow}">
+        <DataGrid Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.VerticalScrollBarVisibility="Auto" ItemsSource="{Binding HistoryRows}" SelectedItem="{Binding SelectedHistoryRow}" MouseDoubleClick="OnContributionHistoryDoubleClick">
           <DataGrid.Columns><DataGridTextColumn Width="105" Binding="{Binding Date}" Header="Fecha" /><DataGridTextColumn Width="185" Binding="{Binding Principal}" Header="Mes u operación" /><DataGridTextColumn Width="360" ElementStyle="{StaticResource WrappingCellText}" Binding="{Binding Detail}" Header="Porcentajes y descripción" /><DataGridTextColumn Width="140" Binding="{Binding Amount}" Header="Valor asignado o pagado" /><DataGridTextColumn Width="160" Binding="{Binding Status}" Header="Estado" /></DataGrid.Columns>
         </DataGrid>
       </Grid>

@@ -37,6 +37,9 @@ public sealed class Phase48UiContractTests
         Assert.Contains("Header=\"Porcentaje de ganancia\"", view, StringComparison.Ordinal);
         Assert.Contains("Header=\"Pago del mes\"", view, StringComparison.Ordinal);
         Assert.DoesNotContain("Participación pendiente", view, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Participaciones pendientes", view, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ItemsSource=\"{Binding Contributions}\"", view, StringComparison.Ordinal);
+        Assert.Contains("MouseDoubleClick=\"OnContributionHistoryDoubleClick\"", view, StringComparison.Ordinal);
         Assert.Equal(1, view.Split("Historial cronológico", StringSplitOptions.None).Length - 1);
     }
 

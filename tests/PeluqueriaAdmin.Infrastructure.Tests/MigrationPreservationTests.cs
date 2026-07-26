@@ -141,6 +141,24 @@ public sealed class MigrationPreservationTests
                 null,
                 utc);
             await service.AddAsync(collaborator, cancellationToken);
+            CollaboratorContribution migratedContribution = CollaboratorContribution.Create(
+                collaborator.Id,
+                new DateOnly(2026, 7, 18),
+                Money.FromDecimal(100m),
+                "Aporte creado después de migrar alpha.1",
+                utc);
+            await service.AddCollaboratorContributionAsync(
+                migratedContribution,
+                cancellationToken);
+            await service.UpdateCollaboratorContributionAsync(
+                migratedContribution.Id,
+                new DateOnly(2026, 7, 19),
+                Money.FromDecimal(125m),
+                "Aporte editado después de migrar alpha.1",
+                cancellationToken);
+            await service.DeleteCollaboratorContributionAsync(
+                migratedContribution.Id,
+                cancellationToken);
             await service.UpdateCollaboratorFundParticipationAsync(
                 collaborator.Id,
                 Percentage.FromPercent(100m),
@@ -238,6 +256,21 @@ public sealed class MigrationPreservationTests
                     0,
                     await context.CollaboratorContributions.CountAsync(
                         cancellationToken));
+                CollaboratorContribution deletedContribution = await context.CollaboratorContributions
+                    .IgnoreQueryFilters()
+                    .SingleAsync(cancellationToken);
+                Assert.True(deletedContribution.IsDeleted);
+                Assert.Equal(
+                    [
+                        CollaboratorContributionEventType.Created,
+                        CollaboratorContributionEventType.Edited,
+                        CollaboratorContributionEventType.Deleted,
+                    ],
+                    await context.CollaboratorContributionEvents
+                        .OrderBy(item => item.OccurredUtc)
+                        .ThenBy(item => item.EventType)
+                        .Select(item => item.EventType)
+                        .ToArrayAsync(cancellationToken));
             }
         }
         finally

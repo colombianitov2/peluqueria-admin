@@ -19,4 +19,14 @@ public partial class CollaboratorsView : UserControl
             e.Handled = true;
         }
     }
+
+    private void OnContributionHistoryDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is CollaboratorsViewModel viewModel
+            && viewModel.EditSelectedContributionCommand.CanExecute(null))
+        {
+            viewModel.EditSelectedContributionCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
 }
