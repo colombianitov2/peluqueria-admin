@@ -3,8 +3,8 @@ namespace PeluqueriaAdmin.Application.Settings;
 public sealed record SettingsDto(
     decimal WeeklyUsageFee,
     decimal CollaboratorProfitPercent,
-    decimal OptionalSuppliesMonthlyBudget,
     int TotalChairs,
     string CurrencyCode,
+    string ExportDirectory,
     DateTime CreatedUtc,
     DateTime UpdatedUtc);

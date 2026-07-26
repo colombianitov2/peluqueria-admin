@@ -19,9 +19,13 @@ Las personas que trabajan en el local utilizan sus propios implementos y cobran 
 
 ## Estado de implementación
 
-La aplicación implementa los 15 módulos aprobados: Inicio, Uso del local, Colaboradores, Ventas, Inventario, Otros ingresos, Gastos, Imprevistos, Obligaciones, Mantenimiento, Nómina de colaboradores, Resumen mensual, Balance anual, Flujo de caja y Ajustes. Incluye cuotas cada siete días, inventario por movimientos, cierres históricos, fórmulas mensuales/anuales, copias, restauración, CSV y actualización con Velopack.
+La aplicación implementa Inicio, Uso del local, Colaboradores, Ventas, Inventario, Otros ingresos, Gastos, Imprevistos, Obligaciones, Mantenimiento, Resumen mensual, Balance anual, Ajustes, un bloc único de Notas y un Manual integrado. Trabaja en USD, separa cobros, cuentas, egresos, reservas y financiación, distribuye únicamente resultados positivos mediante porcentajes congelados, permite cierres mensuales/anuales manuales, préstamos con calendario exacto y una lista mensual independiente del inventario, ofrece tablas con desplazamiento interno, copias/restauración y una exportación `.xlsx` completa.
 
-El instalador alpha x64 se construyó localmente sin firma y permanece ignorado por Git. No se ha publicado un Release ni se ha probado todavía una actualización real entre dos Releases.
+La Fase 4.9 añade consulta diaria por zona horaria local, consumo semanal real de anticipos, historial inmutable de aportes, préstamos por amortización o cantidad final acordada, balance anual vivo/snapshot y arrastres separados. La migración es aditiva y preserva bases anteriores.
+
+La Fase 4.10 simplifica la compra de inventario: toda alta desde **Agregar al inventario** nace de una fila pendiente de la lista mensual y se registra como compra real. También incorpora obligaciones de tipo **Crédito**, recurrencia **Semanal**, compromisos de compra en Inicio y en el punto de equilibrio, exportación ampliada y un Manual detallado dentro de la aplicación.
+
+El instalador alpha x64 se construyó localmente sin firma y permanece ignorado por Git. La incorporación del logotipo y la prueba real de actualización entre dos versiones quedan reservadas para una actualización posterior; esta fase no publica `alpha.2` ni modifica el actualizador.
 
 ## Estructura de proyectos
 
@@ -57,9 +61,9 @@ dotnet ef migrations add NombreDescriptivo --project src/PeluqueriaAdmin.Infrast
 Para publicar una compilación autocontenida x64 y crear un paquete local de desarrollo:
 
 ```powershell
-dotnet publish src/PeluqueriaAdmin.App/PeluqueriaAdmin.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/publish -p:Version=0.1.0-alpha.1
+dotnet publish src/PeluqueriaAdmin.App/PeluqueriaAdmin.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/publish -p:Version=0.2.0-alpha.1
 dotnet tool install --tool-path artifacts/tools vpk --version 1.2.0
-artifacts/tools/vpk pack --packId Colombianito.PeluqueriaAdmin --packVersion 0.1.0-alpha.1 --packDir artifacts/publish --mainExe PeluqueriaAdmin.App.exe --packTitle "Peluquería Admin" --runtime win-x64 --outputDir Releases
+artifacts/tools/vpk pack --packId Colombianito.PeluqueriaAdmin --packVersion 0.2.0-alpha.1 --packDir artifacts/publish --mainExe PeluqueriaAdmin.App.exe --packTitle "Peluquería Admin" --runtime win-x64 --outputDir Releases
 ```
 
 `artifacts/` y `Releases/` están ignorados. El workflow `release.yml` publica únicamente al empujar deliberadamente una etiqueta SemVer `v*`.
@@ -80,12 +84,14 @@ No se deben subir datos reales de la peluquería, bases de datos, copias de segu
 - [Arquitectura propuesta y adoptada](docs/ARQUITECTURA_PROPUESTA.md)
 - [Decisiones pendientes](docs/DECISIONES_PENDIENTES.md)
 - [Dependencias](docs/DEPENDENCIAS.md)
+- [Notas de la versión 0.2.0-alpha.1](docs/NOTAS_VERSION_0.2.0-alpha.1.md)
 - [Modelo de datos](docs/MODELO_DATOS.md)
 - [Fórmulas financieras](docs/FORMULAS_FINANCIERAS.md)
 - [Copias y restauración](docs/COPIAS_Y_RESTAURACION.md)
 - [Actualizaciones y Releases](docs/ACTUALIZACIONES_Y_RELEASES.md)
 - [Manual de usuario](docs/MANUAL_USUARIO.md)
 - [Pruebas](docs/PRUEBAS.md)
+- [Auditoría de requisitos de Fase 4.10](docs/AUDITORIA_REQUISITOS_FASE410.md)
 
 ## Contribuciones
 

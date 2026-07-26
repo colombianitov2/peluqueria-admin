@@ -10,20 +10,15 @@ public static class MonthlySummaryCalculator
         EnsureNonNegative(input);
 
         long income = checked(
-            input.LocalUseIncomeMinorUnits
+            input.LocalUseEarnedIncomeMinorUnits
             + input.GrossSalesMinorUnits
             + input.OtherIncomeMinorUnits);
-        long optionalReserve = Math.Max(
-            input.OptionalSuppliesBudgetMinorUnits,
-            input.OptionalSuppliesActualMinorUnits);
         long goal = checked(
-            input.ObligationGoalMinorUnits
-            + input.MerchandisePurchasesMinorUnits
-            + input.MandatoryExpensesMinorUnits
-            + optionalReserve
+            input.InventoryPurchasesMinorUnits
+            + input.RegisteredExpensesMinorUnits
             + input.UnexpectedExpensesMinorUnits
-            + input.MaintenanceGoalMinorUnits
-            + input.PendingApprovedPlansMinorUnits);
+            + input.ObligationPaymentsMinorUnits
+            + input.CompletedMaintenanceMinorUnits);
         long baseResult = income - goal;
         long fund = baseResult > 0
             ? checked((long)decimal.Round(

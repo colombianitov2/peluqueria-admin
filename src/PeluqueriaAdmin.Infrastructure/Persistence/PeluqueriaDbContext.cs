@@ -1,9 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using PeluqueriaAdmin.Domain.Activity;
 using PeluqueriaAdmin.Domain.Collaborators;
+using PeluqueriaAdmin.Domain.Drafts;
 using PeluqueriaAdmin.Domain.Finance;
 using PeluqueriaAdmin.Domain.Inventory;
 using PeluqueriaAdmin.Domain.LocalUse;
 using PeluqueriaAdmin.Domain.Maintenance;
+using PeluqueriaAdmin.Domain.Notes;
 using PeluqueriaAdmin.Domain.Obligations;
 using PeluqueriaAdmin.Domain.Settings;
 
@@ -43,6 +46,36 @@ public sealed class PeluqueriaDbContext(DbContextOptions<PeluqueriaDbContext> op
     public DbSet<MonthlyCloseParticipant> MonthlyCloseParticipants => Set<MonthlyCloseParticipant>();
 
     public DbSet<DistributionPayment> DistributionPayments => Set<DistributionPayment>();
+
+    public DbSet<FormDraft> FormDrafts => Set<FormDraft>();
+
+    public DbSet<Chair> Chairs => Set<Chair>();
+
+    public DbSet<ActivityRecord> ActivityRecords => Set<ActivityRecord>();
+
+    public DbSet<UnofficialExpense> UnofficialExpenses => Set<UnofficialExpense>();
+
+    public DbSet<CollaboratorContribution> CollaboratorContributions => Set<CollaboratorContribution>();
+
+    public DbSet<CollaboratorContributionEvent> CollaboratorContributionEvents => Set<CollaboratorContributionEvent>();
+
+    public DbSet<AppNote> Notes => Set<AppNote>();
+
+    public DbSet<FinancialReserve> FinancialReserves => Set<FinancialReserve>();
+
+    public DbSet<FinancialCloseExclusion> FinancialCloseExclusions => Set<FinancialCloseExclusion>();
+
+    public DbSet<MonthlyPurchaseItem> MonthlyPurchaseItems => Set<MonthlyPurchaseItem>();
+
+    public DbSet<Loan> Loans => Set<Loan>();
+
+    public DbSet<LoanInstallment> LoanInstallments => Set<LoanInstallment>();
+
+    public DbSet<LoanPayment> LoanPayments => Set<LoanPayment>();
+
+    public DbSet<AnnualClose> AnnualCloses => Set<AnnualClose>();
+
+    public DbSet<AnnualCarryover> AnnualCarryovers => Set<AnnualCarryover>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

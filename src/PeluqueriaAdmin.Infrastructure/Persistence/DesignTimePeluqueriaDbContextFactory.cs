@@ -8,9 +8,9 @@ public sealed class DesignTimePeluqueriaDbContextFactory
 {
     public PeluqueriaDbContext CreateDbContext(string[] args)
     {
-        var options = new DbContextOptionsBuilder<PeluqueriaDbContext>()
-            .UseSqlite("Data Source=:memory:")
-            .Options;
+        var builder = new DbContextOptionsBuilder<PeluqueriaDbContext>();
+        DatabaseConfiguration.Configure(builder, ":memory:");
+        DbContextOptions<PeluqueriaDbContext> options = builder.Options;
 
         return new PeluqueriaDbContext(options);
     }

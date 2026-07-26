@@ -2,8 +2,18 @@ namespace PeluqueriaAdmin.Domain.Inventory;
 
 public enum ProductCategory
 {
-    ProductForSale = 1,
-    MandatorySupply = 2,
-    OptionalCustomerSupply = 3,
-    DurableEquipment = 4,
+    OtherProductForSale = 1,
+    LocalSupply = 2,
+    CustomerCourtesy = 3,
+    OtherLocalProduct = 4,
+    FoodOrDrinkForSale = 5,
+    Cleaning = 6,
+
+    ProductForSale = OtherProductForSale,
+
+    MandatorySupply = LocalSupply,
+
+    OptionalCustomerSupply = CustomerCourtesy,
+
+    DurableEquipment = OtherLocalProduct,
 }

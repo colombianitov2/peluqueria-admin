@@ -1,12 +1,20 @@
+using System.Threading;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PeluqueriaAdmin.App.Updates;
 using PeluqueriaAdmin.App.ViewModels;
 using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.DataManagement;
+using PeluqueriaAdmin.Application.Drafts;
+using PeluqueriaAdmin.Application.Exporting;
+using PeluqueriaAdmin.Application.Notes;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Application.Updates;
+using PeluqueriaAdmin.Domain.Common;
 using PeluqueriaAdmin.Infrastructure.Administration;
+using PeluqueriaAdmin.Infrastructure.Drafts;
+using PeluqueriaAdmin.Infrastructure.Exporting;
+using PeluqueriaAdmin.Infrastructure.Notes;
 using PeluqueriaAdmin.Infrastructure.Persistence;
 using PeluqueriaAdmin.Infrastructure.Settings;
 using PeluqueriaAdmin.Infrastructure.Storage;
@@ -16,16 +24,43 @@ namespace PeluqueriaAdmin.App;
 
 public partial class App : System.Windows.Application
 {
+    private const string SingleInstanceMutexName = @"Local\Colombianito.PeluqueriaAdmin";
+    private static Mutex? singleInstanceMutex;
     private ServiceProvider? serviceProvider;
+    private DatabaseBackupService? backupService;
+    private CancellationTokenSource? backupLoopCancellation;
+    private Task? backupLoopTask;
 
     [STAThread]
     private static void Main(string[] args)
     {
         VelopackApp.Build().SetArgs(args).SetAutoApplyOnStartup(false).Run();
 
-        var app = new App();
-        app.InitializeComponent();
-        app.Run();
+        singleInstanceMutex = new Mutex(true, SingleInstanceMutexName, out bool createdNew);
+        if (!createdNew)
+        {
+            System.Windows.MessageBox.Show(
+                "Peluquería Admin ya está abierta. Usa la ventana existente.",
+                "Peluquería Admin",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+            singleInstanceMutex.Dispose();
+            singleInstanceMutex = null;
+            return;
+        }
+
+        try
+        {
+            var app = new App();
+            app.InitializeComponent();
+            app.Run();
+        }
+        finally
+        {
+            singleInstanceMutex.ReleaseMutex();
+            singleInstanceMutex.Dispose();
+            singleInstanceMutex = null;
+        }
     }
 
     protected override async void OnStartup(System.Windows.StartupEventArgs e)
@@ -35,9 +70,11 @@ public partial class App : System.Windows.Application
         try
         {
             serviceProvider = ConfigureServices();
+            backupService = serviceProvider.GetRequiredService<DatabaseBackupService>();
             await serviceProvider.GetRequiredService<DatabaseInitializer>().InitializeAsync();
+            DateOnly today = DateOnly.FromDateTime(DateTime.Today);
             await serviceProvider.GetRequiredService<AdministrationService>()
-                .GenerateScheduledRecordsAsync(DateOnly.FromDateTime(DateTime.Today));
+                .GenerateScheduledRecordsAsync(YearMonth.From(today).LastDay);
 
             SettingsViewModel settingsViewModel = serviceProvider.GetRequiredService<SettingsViewModel>();
             await settingsViewModel.LoadAsync();
@@ -46,6 +83,10 @@ public partial class App : System.Windows.Application
             MainWindow window = serviceProvider.GetRequiredService<MainWindow>();
             MainWindow = window;
             window.Show();
+            backupLoopCancellation = new CancellationTokenSource();
+            backupLoopTask = RunAutomaticBackupLoopAsync(
+                backupService,
+                backupLoopCancellation.Token);
             _ = settingsViewModel.CheckForUpdatesOnStartupAsync();
         }
         catch (Exception exception)
@@ -67,8 +108,49 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(System.Windows.ExitEventArgs e)
     {
+        backupLoopCancellation?.Cancel();
+        try
+        {
+            backupService?.CreateAutomaticIfNeededAsync().GetAwaiter().GetResult();
+        }
+        catch
+        {
+            // Un fallo de la copia automática al salir no debe bloquear el cierre.
+        }
+
+        backupLoopCancellation?.Dispose();
+        backupLoopCancellation = null;
+        backupLoopTask = null;
         serviceProvider?.Dispose();
         base.OnExit(e);
+    }
+
+    private static async Task RunAutomaticBackupLoopAsync(
+        DatabaseBackupService backupService,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromMinutes(30), cancellationToken);
+                try
+                {
+                    await backupService.CreateAutomaticIfNeededAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch
+                {
+                    // La siguiente comprobación vuelve a intentarlo sin afectar el uso del programa.
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
     }
 
     private static ServiceProvider ConfigureServices()
@@ -82,11 +164,16 @@ public partial class App : System.Windows.Application
         services.AddSingleton(paths);
         services.AddSingleton(TimeProvider.System);
         services.AddDbContextFactory<PeluqueriaDbContext>(options =>
-            options.UseSqlite(DatabaseConfiguration.CreateConnectionString(paths.DatabaseFilePath)));
+            DatabaseConfiguration.Configure(options, paths.DatabaseFilePath));
         services.AddSingleton<ISettingsRepository, EfSettingsRepository>();
         services.AddSingleton<IAdministrationRepository, EfAdministrationRepository>();
+        services.AddSingleton<IFormDraftStore, EfFormDraftStore>();
+        services.AddSingleton<INoteRepository, EfNoteRepository>();
+        services.AddSingleton<IUserDesktopPath, CurrentUserDesktopPath>();
+        services.AddSingleton<IExcelWorkbookWriter, ClosedXmlWorkbookWriter>();
+        services.AddSingleton<IExcelExportService, ExcelExportService>();
         services.AddSingleton<DatabaseBackupService>();
-        services.AddSingleton<IDataManagementService, CsvDataManagementService>();
+        services.AddSingleton<IDataManagementService, BackupDataManagementService>();
         services.AddSingleton<IUpdateService, VelopackUpdateService>();
         services.AddSingleton<DatabaseInitializer>();
         services.AddSingleton<AdministrationService>();
@@ -94,6 +181,14 @@ public partial class App : System.Windows.Application
         services.AddSingleton<SaveSettingsUseCase>();
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<AdministrationViewModel>();
+        services.AddSingleton<LocalUseViewModel>();
+        services.AddSingleton<CollaboratorsViewModel>();
+        services.AddSingleton<SalesViewModel>();
+        services.AddSingleton<InventoryViewModel>();
+        services.AddSingleton<MaintenanceViewModel>();
+        services.AddSingleton<ObligationsViewModel>();
+        services.AddSingleton<NotesViewModel>();
+        services.AddSingleton<ManualViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 

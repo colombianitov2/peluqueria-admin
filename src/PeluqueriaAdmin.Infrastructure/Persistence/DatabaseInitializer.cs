@@ -36,6 +36,12 @@ public sealed class DatabaseInitializer(
             throw new InvalidOperationException("La base de datos contiene una cantidad inválida de configuraciones generales.");
         }
 
+        GeneralSettings settings = await context.Settings.SingleAsync(cancellationToken);
+        if (settings.NormalizeRetiredOptions(timeProvider.GetUtcNow().UtcDateTime))
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
         if (backupService is not null)
         {
             await backupService.CreateAutomaticIfNeededAsync(cancellationToken);

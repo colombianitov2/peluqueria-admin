@@ -5,81 +5,370 @@ namespace PeluqueriaAdmin.Domain.Tests;
 
 public sealed class LocalUseTests
 {
-    private static readonly DateTime UtcNow = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime UtcNow =
+        new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
+
+    [Theory]
+    [InlineData(0, 1200)]
+    [InlineData(1, 1029)]
+    [InlineData(2, 857)]
+    [InlineData(3, 686)]
+    [InlineData(4, 514)]
+    [InlineData(5, 343)]
+    [InlineData(6, 171)]
+    public void FirstCharge_IsProratedFromEntryDayThroughSaturdayInclusive(
+        int daysAfterSunday,
+        long expectedMinorUnits)
+    {
+        DateOnly sunday = new(2026, 7, 19);
+        DateOnly entry = sunday.AddDays(daysAfterSunday);
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Ana",
+            entry,
+            null,
+            UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(
+            sunday,
+            Money.FromDecimal(12m),
+            UtcNow);
+
+        WeeklyCharge charge = Assert.Single(
+            WeeklyChargeCalculator.Generate(
+                person,
+                [],
+                [rate],
+                new DateOnly(2026, 7, 25),
+                UtcNow));
+
+        Assert.Equal(entry, charge.PeriodStart);
+        Assert.Equal(new DateOnly(2026, 7, 25), charge.PeriodEnd);
+        Assert.Equal(new DateOnly(2026, 7, 25), charge.DueDate);
+        Assert.Equal(expectedMinorUnits, charge.Amount.MinorUnits);
+    }
 
     [Fact]
-    public void Generate_CreatesFirstChargeOnEntryAndThenEverySevenDays()
+    public void SundayEntry_PaysTheFullWeeklyRateOnTheImmediateSaturday()
     {
-        DateOnly entry = new(2026, 1, 3);
-        LocalUsePerson person = LocalUsePerson.Create("Ana", entry, null, UtcNow);
-        WeeklyRate rate = WeeklyRate.Create(entry, Money.FromDecimal(12m), UtcNow);
+        DateOnly entry = new(2026, 7, 19);
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Domingo",
+            entry,
+            null,
+            UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(
+            entry,
+            Money.FromDecimal(12m),
+            UtcNow);
 
-        IReadOnlyList<WeeklyCharge> charges = WeeklyChargeCalculator.Generate(
-            person, [], [rate], entry.AddDays(21), UtcNow);
+        WeeklyCharge charge = Assert.Single(
+            WeeklyChargeCalculator.Generate(
+                person,
+                [],
+                [rate],
+                new DateOnly(2026, 7, 25),
+                UtcNow));
+
+        Assert.Equal(1_200, charge.Amount.MinorUnits);
+        Assert.Equal(new DateOnly(2026, 7, 25), charge.DueDate);
+    }
+
+    [Fact]
+    public void TuesdayEntry_PaysFiveSeventhsOnTheImmediateSaturday()
+    {
+        DateOnly entry = new(2026, 7, 21);
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Martes",
+            entry,
+            null,
+            UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(
+            entry,
+            Money.FromDecimal(12m),
+            UtcNow);
+
+        WeeklyCharge charge = Assert.Single(
+            WeeklyChargeCalculator.Generate(
+                person,
+                [],
+                [rate],
+                new DateOnly(2026, 7, 25),
+                UtcNow));
+
+        Assert.Equal(857, charge.Amount.MinorUnits);
+    }
+
+    [Fact]
+    public void ChargesAfterTheFirstSaturday_UseTheFullWeeklyRate()
+    {
+        DateOnly entry = new(2026, 7, 21);
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Ana",
+            entry,
+            null,
+            UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(
+            entry,
+            Money.FromDecimal(12m),
+            UtcNow);
+
+        IReadOnlyList<WeeklyCharge> charges =
+            WeeklyChargeCalculator.Generate(
+                person,
+                [],
+                [rate],
+                new DateOnly(2026, 8, 1),
+                UtcNow);
 
         Assert.Collection(
             charges,
-            charge => Assert.Equal(entry, charge.PeriodStart),
-            charge => Assert.Equal(entry.AddDays(7), charge.PeriodStart),
-            charge => Assert.Equal(entry.AddDays(14), charge.PeriodStart),
-            charge => Assert.Equal(entry.AddDays(21), charge.PeriodStart));
-        Assert.All(charges, charge => Assert.Equal(charge.PeriodStart.AddDays(6), charge.PeriodEnd));
+            first =>
+            {
+                Assert.Equal(entry, first.PeriodStart);
+                Assert.Equal(857, first.Amount.MinorUnits);
+            },
+            second =>
+            {
+                Assert.Equal(new DateOnly(2026, 7, 26), second.PeriodStart);
+                Assert.Equal(1_200, second.Amount.MinorUnits);
+            });
     }
 
     [Fact]
-    public void Generate_UsesHistoricalRateAndDoesNotDuplicateExistingPeriods()
+    public void RateChangesApplyByPeriodStartWithoutRewritingHistory()
     {
-        DateOnly entry = new(2026, 1, 1);
-        LocalUsePerson person = LocalUsePerson.Create("Luis", entry, null, UtcNow);
-        WeeklyRate original = WeeklyRate.Create(entry, Money.FromDecimal(12m), UtcNow);
-        IReadOnlyList<WeeklyCharge> existing = WeeklyChargeCalculator.Generate(
-            person, [], [original], entry.AddDays(7), UtcNow);
-        WeeklyRate changed = WeeklyRate.Create(entry.AddDays(14), Money.FromDecimal(15m), UtcNow.AddDays(1));
+        DateOnly entry = new(2026, 7, 21);
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Luis",
+            entry,
+            null,
+            UtcNow);
+        WeeklyRate original = WeeklyRate.Create(
+            entry,
+            Money.FromDecimal(12m),
+            UtcNow);
+        WeeklyRate changed = WeeklyRate.Create(
+            new DateOnly(2026, 7, 27),
+            Money.FromDecimal(20m),
+            UtcNow.AddMinutes(1));
 
-        IReadOnlyList<WeeklyCharge> generated = WeeklyChargeCalculator.Generate(
-            person, existing, [original, changed], entry.AddDays(21), UtcNow.AddDays(1));
+        IReadOnlyList<WeeklyCharge> charges =
+            WeeklyChargeCalculator.Generate(
+                person,
+                [],
+                [original, changed],
+                new DateOnly(2026, 8, 8),
+                UtcNow);
 
-        Assert.Equal(2, generated.Count);
-        Assert.Equal(entry.AddDays(14), generated[0].PeriodStart);
-        Assert.Equal(1_500, generated[0].Amount.MinorUnits);
-        Assert.Equal(entry.AddDays(21), generated[1].PeriodStart);
-        Assert.All(existing, charge => Assert.Equal(1_200, charge.Amount.MinorUnits));
+        Assert.Equal([857L, 1_200L, 2_000L],
+            charges.Select(item => item.Amount.MinorUnits));
+    }
+
+    [Fact]
+    public void Generate_DoesNotDuplicateAnExistingSaturdayCharge()
+    {
+        DateOnly entry = new(2026, 7, 21);
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Ana",
+            entry,
+            null,
+            UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(
+            entry,
+            Money.FromDecimal(12m),
+            UtcNow);
+        WeeklyCharge first = Assert.Single(
+            WeeklyChargeCalculator.Generate(
+                person,
+                [],
+                [rate],
+                new DateOnly(2026, 7, 25),
+                UtcNow));
+
         Assert.Empty(WeeklyChargeCalculator.Generate(
-            person, existing.Concat(generated), [original, changed], entry.AddDays(21), UtcNow.AddDays(2)));
+            person,
+            [first],
+            [rate],
+            new DateOnly(2026, 7, 25),
+            UtcNow.AddMinutes(1)));
     }
 
     [Fact]
-    public void Generate_StopsAfterExitButKeepsStartedPeriodComplete()
+    public void HistoricalTuesdayEntry_OwesProratedFirstWeekPlusFullWeeks()
     {
-        DateOnly entry = new(2026, 1, 1);
-        LocalUsePerson person = LocalUsePerson.Create("Marta", entry, entry.AddDays(9), UtcNow);
-        WeeklyRate rate = WeeklyRate.Create(entry, Money.FromDecimal(12m), UtcNow);
+        DateOnly today = new(2026, 7, 20);
+        DateOnly entry = new(2026, 6, 16);
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Histórico",
+            entry,
+            null,
+            UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(
+            entry,
+            Money.FromDecimal(12m),
+            UtcNow);
 
-        IReadOnlyList<WeeklyCharge> charges = WeeklyChargeCalculator.Generate(
-            person, [], [rate], entry.AddDays(30), UtcNow);
+        IReadOnlyList<WeeklyCharge> charges =
+            WeeklyChargeCalculator.Generate(
+                person,
+                [],
+                [rate],
+                today,
+                UtcNow);
 
-        Assert.Equal(2, charges.Count);
-        Assert.Equal(entry.AddDays(7), charges[1].PeriodStart);
-        Assert.Equal(entry.AddDays(13), charges[1].PeriodEnd);
+        Assert.Equal(5, charges.Count);
+        Assert.Equal(
+            5_657,
+            WeeklyChargeCalculator.CalculateDebt(
+                charges,
+                [],
+                today).MinorUnits);
     }
 
     [Fact]
-    public void Payment_AllowsPartialAmountAndRejectsOverpayment()
+    public void Account_ProjectsSundayAdvanceAcrossFullSaturdayCharges()
     {
-        DateOnly entry = new(2026, 1, 1);
-        LocalUsePerson person = LocalUsePerson.Create("Sara", entry, null, UtcNow);
-        WeeklyRate rate = WeeklyRate.Create(entry, Money.FromDecimal(12m), UtcNow);
-        IReadOnlyList<WeeklyCharge> charges = WeeklyChargeCalculator.Generate(
-            person, [], [rate], entry.AddDays(7), UtcNow);
-        Money initialDebt = WeeklyChargeCalculator.CalculateDebt(charges, []);
+        DateOnly entry = new(2026, 7, 19);
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Sara",
+            entry,
+            null,
+            UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(
+            entry,
+            Money.FromDecimal(12m),
+            UtcNow);
+        LocalUsePayment payment = LocalUsePayment.Create(
+            person.Id,
+            entry,
+            Money.FromDecimal(24m),
+            UtcNow);
 
-        LocalUsePayment partial = LocalUsePayment.Create(
-            person.Id, entry.AddDays(8), Money.FromDecimal(5m), initialDebt, UtcNow);
-        Money remaining = WeeklyChargeCalculator.CalculateDebt(charges, [partial]);
+        WorkerAccountBalance balance =
+            WeeklyChargeCalculator.CalculateAccount(
+                person,
+                [],
+                [payment],
+                [rate],
+                entry);
 
-        Assert.Equal(2_400, initialDebt.MinorUnits);
-        Assert.Equal(1_900, remaining.MinorUnits);
-        Assert.Throws<InvalidOperationException>(() => LocalUsePayment.Create(
-            person.Id, entry.AddDays(9), Money.FromDecimal(20m), remaining, UtcNow));
+        Assert.Equal(new DateOnly(2026, 7, 25), balance.NextChargeDate);
+        Assert.Equal(1_200, balance.NextChargeAmount?.MinorUnits);
+        Assert.Equal(new DateOnly(2026, 8, 8),
+            balance.NextRequiredPaymentDate);
+        Assert.Equal(1_200,
+            balance.NextRequiredPaymentAmount?.MinorUnits);
+        Assert.Equal(new DateOnly(2026, 8, 1),
+            balance.CoveredThroughDate);
+    }
+
+    [Fact]
+    public void Account_ProjectsMondayProrationBeforeFullWeeks()
+    {
+        DateOnly entry = new(2026, 7, 20);
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Lunes",
+            entry,
+            null,
+            UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(
+            entry,
+            Money.FromDecimal(12m),
+            UtcNow);
+        LocalUsePayment payment = LocalUsePayment.Create(
+            person.Id,
+            entry,
+            Money.FromDecimal(24m),
+            UtcNow);
+
+        WorkerAccountBalance balance =
+            WeeklyChargeCalculator.CalculateAccount(
+                person,
+                [],
+                [payment],
+                [rate],
+                entry);
+
+        Assert.Equal(1_029, balance.NextChargeAmount?.MinorUnits);
+        Assert.Equal(new DateOnly(2026, 8, 8),
+            balance.NextRequiredPaymentDate);
+        Assert.Equal(1_029,
+            balance.NextRequiredPaymentAmount?.MinorUnits);
+        Assert.Equal(new DateOnly(2026, 8, 1),
+            balance.CoveredThroughDate);
+    }
+
+    [Fact]
+    public void PaymentsRemainIndependentForEachWorker()
+    {
+        DateOnly entry = new(2026, 7, 21);
+        LocalUsePerson first = LocalUsePerson.Create(
+            "Ana",
+            entry,
+            null,
+            UtcNow);
+        LocalUsePerson second = LocalUsePerson.Create(
+            "Beto",
+            entry,
+            null,
+            UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(
+            entry,
+            Money.FromDecimal(12m),
+            UtcNow);
+        LocalUsePayment firstPayment = LocalUsePayment.Create(
+            first.Id,
+            entry,
+            Money.FromDecimal(5m),
+            UtcNow);
+        LocalUsePayment secondPayment = LocalUsePayment.Create(
+            second.Id,
+            entry,
+            Money.FromDecimal(100m),
+            UtcNow);
+
+        WorkerAccountBalance firstBalance =
+            WeeklyChargeCalculator.CalculateAccount(
+                first,
+                [],
+                [firstPayment, secondPayment],
+                [rate],
+                entry);
+        WorkerAccountBalance secondBalance =
+            WeeklyChargeCalculator.CalculateAccount(
+                second,
+                [],
+                [firstPayment, secondPayment],
+                [rate],
+                entry);
+
+        Assert.Equal(500, firstBalance.Credit.MinorUnits);
+        Assert.Equal(10_000, secondBalance.Credit.MinorUnits);
+    }
+
+    [Fact]
+    public void ExitAfterSaturday_KeepsThatSaturdayChargeAndStopsLaterOnes()
+    {
+        DateOnly entry = new(2026, 7, 21);
+        DateOnly exit = new(2026, 7, 26);
+        LocalUsePerson person = LocalUsePerson.Create(
+            "Nora",
+            entry,
+            exit,
+            UtcNow);
+        WeeklyRate rate = WeeklyRate.Create(
+            entry,
+            Money.FromDecimal(12m),
+            UtcNow);
+
+        WeeklyCharge charge = Assert.Single(
+            WeeklyChargeCalculator.Generate(
+                person,
+                [],
+                [rate],
+                new DateOnly(2026, 8, 8),
+                UtcNow));
+
+        Assert.Equal(new DateOnly(2026, 7, 25), charge.DueDate);
+        Assert.Equal(857, charge.Amount.MinorUnits);
     }
 }

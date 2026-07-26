@@ -17,7 +17,8 @@ public sealed class InventoryMovement : AuditableEntity
         decimal quantityDelta,
         Money? cashAmount,
         Money? estimatedCost,
-        DateTime utcNow) : base(id, utcNow)
+        DateTime utcNow,
+        string? description = null) : base(id, utcNow)
     {
         ProductId = productId;
         Date = date;
@@ -25,6 +26,7 @@ public sealed class InventoryMovement : AuditableEntity
         QuantityDelta = quantityDelta;
         CashAmount = cashAmount;
         EstimatedCost = estimatedCost;
+        Description = NormalizeOptionalText(description);
     }
 
     public Guid ProductId { get; private set; }
@@ -39,12 +41,15 @@ public sealed class InventoryMovement : AuditableEntity
 
     public Money? EstimatedCost { get; private set; }
 
+    public string? Description { get; private set; }
+
     public void Correct(
         DateOnly date,
         decimal quantityDelta,
         Money? cashAmount,
         Money? estimatedCost,
-        DateTime utcNow)
+        DateTime utcNow,
+        string? description = null)
     {
         ValidateCorrection(Type, quantityDelta, cashAmount, estimatedCost);
 
@@ -52,6 +57,7 @@ public sealed class InventoryMovement : AuditableEntity
         QuantityDelta = quantityDelta;
         CashAmount = cashAmount;
         EstimatedCost = estimatedCost;
+        Description = NormalizeOptionalText(description);
         MarkUpdated(utcNow);
     }
 
@@ -99,18 +105,20 @@ public sealed class InventoryMovement : AuditableEntity
         DateOnly date,
         Quantity quantity,
         Money totalCost,
-        DateTime utcNow) => new(
+        DateTime utcNow,
+        string? description = null) => new(
             Guid.NewGuid(), productId, date, InventoryMovementType.InitialStock,
-            quantity.Value, null, totalCost, utcNow);
+            quantity.Value, null, totalCost, utcNow, description);
 
     public static InventoryMovement Purchase(
         Guid productId,
         DateOnly date,
         Quantity quantity,
         Money totalCost,
-        DateTime utcNow) => new(
+        DateTime utcNow,
+        string? description = null) => new(
             Guid.NewGuid(), productId, date, InventoryMovementType.Purchase,
-            quantity.Value, totalCost, totalCost, utcNow);
+            quantity.Value, totalCost, totalCost, utcNow, description);
 
     public static InventoryMovement Sale(
         Guid productId,
@@ -119,7 +127,8 @@ public sealed class InventoryMovement : AuditableEntity
         Money unitPrice,
         Money estimatedUnitCost,
         decimal availableQuantity,
-        DateTime utcNow)
+        DateTime utcNow,
+        string? description = null)
     {
         EnsureAvailable(quantity, availableQuantity);
         return new InventoryMovement(
@@ -127,7 +136,8 @@ public sealed class InventoryMovement : AuditableEntity
             -quantity.Value,
             Multiply(unitPrice, quantity),
             Multiply(estimatedUnitCost, quantity),
-            utcNow);
+            utcNow,
+            description);
     }
 
     public static InventoryMovement Consumption(
@@ -135,12 +145,13 @@ public sealed class InventoryMovement : AuditableEntity
         DateOnly date,
         Quantity quantity,
         decimal availableQuantity,
-        DateTime utcNow)
+        DateTime utcNow,
+        string? description = null)
     {
         EnsureAvailable(quantity, availableQuantity);
         return new InventoryMovement(
             Guid.NewGuid(), productId, date, InventoryMovementType.InternalConsumption,
-            -quantity.Value, null, null, utcNow);
+            -quantity.Value, null, null, utcNow, description);
     }
 
     public static InventoryMovement PhysicalCount(
@@ -148,9 +159,10 @@ public sealed class InventoryMovement : AuditableEntity
         DateOnly date,
         Quantity physicalQuantity,
         decimal currentQuantity,
-        DateTime utcNow) => new(
+        DateTime utcNow,
+        string? description = null) => new(
             Guid.NewGuid(), productId, date, InventoryMovementType.PhysicalCountAdjustment,
-            physicalQuantity.Value - currentQuantity, null, null, utcNow);
+            physicalQuantity.Value - currentQuantity, null, null, utcNow, description);
 
     private static Money Multiply(Money unitAmount, Quantity quantity)
     {

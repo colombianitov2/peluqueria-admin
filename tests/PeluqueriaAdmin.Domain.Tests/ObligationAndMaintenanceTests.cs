@@ -78,4 +78,49 @@ public sealed class ObligationAndMaintenanceTests
         Assert.True(pending.NeedsAttention(new DateOnly(2026, 7, 21)));
         Assert.False(completed.NeedsAttention(new DateOnly(2026, 7, 21)));
     }
+
+    [Fact]
+    public void MaintenanceRecurrence_UsesOriginalAnchorWithoutMonthlyDrift()
+    {
+        DateOnly anchor = new(2026, 1, 31);
+        MaintenanceRecord record = MaintenanceRecord.Schedule(
+            "Silla", "Preventivo", anchor, Money.FromDecimal(10m),
+            MaintenanceFrequency.Monthly, null, null, UtcNow);
+
+        MaintenanceRecord february = record.CreateNext(UtcNow.AddMinutes(1));
+        MaintenanceRecord march = february.CreateNext(UtcNow.AddMinutes(2));
+
+        Assert.Equal(new DateOnly(2026, 2, 28), february.ScheduledDate);
+        Assert.Equal(new DateOnly(2026, 3, 31), march.ScheduledDate);
+        Assert.Equal(record.SeriesId, march.SeriesId);
+        Assert.Equal(2, march.OccurrenceNumber);
+    }
+
+    [Theory]
+    [InlineData(MaintenanceFrequency.Weekly, 2026, 2, 7)]
+    [InlineData(MaintenanceFrequency.Biweekly, 2026, 2, 15)]
+    [InlineData(MaintenanceFrequency.EveryTwoMonths, 2026, 3, 31)]
+    [InlineData(MaintenanceFrequency.EveryThreeMonths, 2026, 4, 30)]
+    [InlineData(MaintenanceFrequency.EverySixMonths, 2026, 7, 31)]
+    [InlineData(MaintenanceFrequency.Yearly, 2027, 1, 31)]
+    public void MaintenanceRecurrence_CalculatesSupportedFrequencies(
+        MaintenanceFrequency frequency, int year, int month, int day)
+    {
+        DateOnly result = MaintenanceRecord.CalculateOccurrenceDate(
+            new DateOnly(2026, 1, 31), frequency, null, null, 1);
+
+        Assert.Equal(new DateOnly(year, month, day), result);
+    }
+
+    [Fact]
+    public void CustomMaintenanceRecurrence_RequiresPositiveIntervalAndUnit()
+    {
+        Assert.Throws<ArgumentException>(() => MaintenanceRecord.Schedule(
+            "Silla", "Preventivo", new DateOnly(2026, 1, 1), null,
+            MaintenanceFrequency.Custom, 0, MaintenanceIntervalUnit.Days, UtcNow));
+        MaintenanceRecord valid = MaintenanceRecord.Schedule(
+            "Silla", "Preventivo", new DateOnly(2026, 1, 1), null,
+            MaintenanceFrequency.Custom, 3, MaintenanceIntervalUnit.Weeks, UtcNow);
+        Assert.Equal(new DateOnly(2026, 1, 22), valid.CreateNext(UtcNow.AddMinutes(1)).ScheduledDate);
+    }
 }

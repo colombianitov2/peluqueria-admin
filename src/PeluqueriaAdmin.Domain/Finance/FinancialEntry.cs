@@ -16,7 +16,8 @@ public sealed class FinancialEntry : AuditableEntity
         FinancialEntryType type,
         ExpenseCategory? category,
         Money amount,
-        DateTime utcNow) : base(id, utcNow)
+        DateTime utcNow,
+        string? description = null) : base(id, utcNow)
     {
         Date = date;
         Concept = NormalizeRequiredText(concept, nameof(concept));
@@ -24,6 +25,7 @@ public sealed class FinancialEntry : AuditableEntity
         Category = category;
         Amount = EnsurePositive(amount);
         ValidateCategory(type, category);
+        Description = NormalizeOptionalText(description);
     }
 
     public DateOnly Date { get; private set; }
@@ -36,40 +38,47 @@ public sealed class FinancialEntry : AuditableEntity
 
     public Money Amount { get; private set; }
 
+    public string? Description { get; private set; }
+
     public static FinancialEntry CreateIncome(
         DateOnly date,
         string concept,
         Money amount,
-        DateTime utcNow) => new(
-            Guid.NewGuid(), date, concept, FinancialEntryType.OtherIncome, null, amount, utcNow);
+        DateTime utcNow,
+        string? description = null) => new(
+            Guid.NewGuid(), date, concept, FinancialEntryType.OtherIncome, null, amount, utcNow, description);
 
     public static FinancialEntry CreateExpense(
         DateOnly date,
         string concept,
         ExpenseCategory category,
         Money amount,
-        DateTime utcNow) => new(
-            Guid.NewGuid(), date, concept, FinancialEntryType.Expense, category, amount, utcNow);
+        DateTime utcNow,
+        string? description = null) => new(
+            Guid.NewGuid(), date, concept, FinancialEntryType.Expense, category, amount, utcNow, description);
 
     public static FinancialEntry CreateUnexpectedExpense(
         DateOnly date,
         string concept,
         Money amount,
-        DateTime utcNow) => new(
-            Guid.NewGuid(), date, concept, FinancialEntryType.UnexpectedExpense, null, amount, utcNow);
+        DateTime utcNow,
+        string? description = null) => new(
+            Guid.NewGuid(), date, concept, FinancialEntryType.UnexpectedExpense, null, amount, utcNow, description);
 
     public void Update(
         DateOnly date,
         string concept,
         ExpenseCategory? category,
         Money amount,
-        DateTime utcNow)
+        DateTime utcNow,
+        string? description = null)
     {
         ValidateCategory(Type, category);
         Date = date;
         Concept = NormalizeRequiredText(concept, nameof(concept));
         Category = category;
         Amount = EnsurePositive(amount);
+        Description = NormalizeOptionalText(description);
         MarkUpdated(utcNow);
     }
 

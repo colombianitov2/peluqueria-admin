@@ -17,6 +17,55 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
 
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Activity.ActivityRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("ActivityDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("EntityId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("OccurredUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Module", "ActivityDate");
+
+                    b.ToTable("ActivityRecords", (string)null);
+                });
+
             modelBuilder.Entity("PeluqueriaAdmin.Domain.Collaborators.Collaborator", b =>
                 {
                     b.Property<Guid>("Id")
@@ -28,13 +77,27 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                     b.Property<long?>("DeletedUtc")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateOnly?>("ExitDate")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("FundParticipationBasisPoints")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("ProfitShareBasisPoints")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
 
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("TEXT");
@@ -44,7 +107,104 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Collaborators", (string)null);
+                    b.ToTable("Collaborators", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Collaborators_FundParticipationBasisPoints", "FundParticipationBasisPoints >= 0 AND FundParticipationBasisPoints <= 10000");
+
+                            t.HasCheckConstraint("CK_Collaborators_ProfitShareBasisPoints", "ProfitShareBasisPoints >= 0 AND ProfitShareBasisPoints <= 10000");
+                        });
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Collaborators.CollaboratorContribution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Amount")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("AmountMinorUnits");
+
+                    b.Property<Guid>("CollaboratorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("DeletedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollaboratorId", "Date");
+
+                    b.ToTable("CollaboratorContributions", (string)null);
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Collaborators.CollaboratorContributionEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Amount")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("AmountMinorUnits");
+
+                    b.Property<Guid>("CollaboratorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ContributionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("EffectiveDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EventType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("OccurredUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("PreviousAmount")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("PreviousAmountMinorUnits");
+
+                    b.Property<string>("PreviousDescription")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("PreviousEffectiveDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollaboratorId", "OccurredUtc");
+
+                    b.HasIndex("ContributionId", "OccurredUtc");
+
+                    b.ToTable("CollaboratorContributionEvents", (string)null);
                 });
 
             modelBuilder.Entity("PeluqueriaAdmin.Domain.Collaborators.DistributionPayment", b =>
@@ -64,6 +224,10 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
 
                     b.Property<long?>("DeletedUtc")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("ParticipantId")
                         .HasColumnType("TEXT");
@@ -85,7 +249,19 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<long>("AccountsPayableMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("AccountsReceivableMinorUnits")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("BaseResultMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("BreakEvenMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CarriedReservesMinorUnits")
                         .HasColumnType("INTEGER");
 
                     b.Property<long>("ClosedUtc")
@@ -100,6 +276,13 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                     b.Property<long?>("DeletedUtc")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("FinancingReceivedMinorUnits")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("FundMinorUnits")
                         .HasColumnType("INTEGER");
 
@@ -109,13 +292,31 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                     b.Property<long>("IncomeMinorUnits")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long>("LoanPaymentsMinorUnits")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Month")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("NewReservesMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("PaidOutflowsMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("PriorUncoveredCommitmentsMinorUnits")
                         .HasColumnType("INTEGER");
 
                     b.Property<long?>("ReopenedUtc")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long>("ReserveAdjustmentsMinorUnits")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("RetainedResultMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ShortfallMinorUnits")
                         .HasColumnType("INTEGER");
 
                     b.Property<long>("UpdatedUtc")
@@ -149,6 +350,12 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                     b.Property<long?>("DeletedUtc")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("GlobalPercentageBasisPoints")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("IndividualPercentageBasisPoints")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("UpdatedUtc")
                         .HasColumnType("INTEGER");
 
@@ -160,6 +367,203 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("MonthlyCloseParticipants", (string)null);
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Drafts.FormDraft", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("EntityId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FormType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsEdit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Key");
+
+                    b.HasIndex("Module", "FormType", "EntityId");
+
+                    b.ToTable("FormDrafts", (string)null);
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Finance.AnnualCarryover", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("AccountsPayableMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("AccountsReceivableMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("DeficitMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("PendingLoansMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("PendingReservesMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SourceYear")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SurplusMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TargetYear")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceYear")
+                        .IsUnique();
+
+                    b.HasIndex("TargetYear")
+                        .IsUnique();
+
+                    b.ToTable("AnnualCarryovers", (string)null);
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Finance.AnnualClose", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("AccountsPayableMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("AccountsReceivableMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("AvailableBalanceMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ClosedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CollaboratorFundMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("DeficitMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("IncomeMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("LoanPaymentsMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ObligationsMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("PaidOutflowsMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("PendingLoansMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("PendingReservesMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ProjectedNextYearBalanceMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ReservesMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ResultMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SurplusMinorUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Year")
+                        .IsUnique();
+
+                    b.ToTable("AnnualCloses", (string)null);
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Finance.FinancialCloseExclusion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("SourceId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SourceType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Month", "SourceType", "SourceId");
+
+                    b.ToTable("FinancialCloseExclusions", (string)null);
                 });
 
             modelBuilder.Entity("PeluqueriaAdmin.Domain.Finance.FinancialEntry", b =>
@@ -188,6 +592,10 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                     b.Property<long?>("DeletedUtc")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Type")
                         .HasColumnType("INTEGER");
 
@@ -199,6 +607,92 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                     b.HasIndex("Date");
 
                     b.ToTable("FinancialEntries", (string)null);
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Finance.FinancialReserve", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ActualAmount")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("ActualAmountMinorUnits");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ReservedAmount")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("ReservedAmountMinorUnits");
+
+                    b.Property<DateOnly?>("SettledDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("SourceId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SourceType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Month", "SourceType", "SourceId");
+
+                    b.ToTable("FinancialReserves", (string)null);
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Finance.UnofficialExpense", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("MonthlyAmount")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("MonthlyAmountMinorUnits");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EffectiveFrom");
+
+                    b.ToTable("UnofficialExpenses", (string)null);
                 });
 
             modelBuilder.Entity("PeluqueriaAdmin.Domain.Inventory.InventoryMovement", b =>
@@ -218,6 +712,10 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
 
                     b.Property<long?>("DeletedUtc")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
 
                     b.Property<long?>("EstimatedCost")
                         .HasColumnType("INTEGER")
@@ -241,6 +739,67 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProductId", "Date");
 
                     b.ToTable("InventoryMovements", (string)null);
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Inventory.MonthlyPurchaseItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ExpectedUnitCost")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("ExpectedUnitCostMinorUnits");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ProductId")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("ProductId");
+
+                    b.Property<Guid?>("PurchaseMovementId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("ReserveWhenOutOfStock")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("PurchaseMovementId");
+
+                    b.HasIndex("Name", "Month");
+
+                    b.ToTable("MonthlyPurchaseItems", (string)null);
                 });
 
             modelBuilder.Entity("PeluqueriaAdmin.Domain.Inventory.MonthlyRestockPlan", b =>
@@ -286,8 +845,20 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                     b.Property<long>("CreatedUtc")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("DefaultSalePrice")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("DefaultSalePriceMinorUnits");
+
+                    b.Property<long?>("DefaultUnitCost")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("DefaultUnitCostMinorUnits");
+
                     b.Property<long?>("DeletedUtc")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -307,6 +878,43 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                     b.ToTable("Products", (string)null);
                 });
 
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.LocalUse.Chair", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("AssignedPersonId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("CreationDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("DeletedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedPersonId")
+                        .IsUnique();
+
+                    b.ToTable("Chairs", (string)null);
+                });
+
             modelBuilder.Entity("PeluqueriaAdmin.Domain.LocalUse.LocalUsePayment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -321,6 +929,9 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
 
                     b.Property<long?>("DeletedUtc")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateOnly>("PaymentDate")
                         .HasColumnType("TEXT");
@@ -350,6 +961,10 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
 
                     b.Property<long?>("DeletedUtc")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
 
                     b.Property<DateOnly>("EntryDate")
                         .HasColumnType("TEXT");
@@ -384,6 +999,9 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
 
                     b.Property<long?>("DeletedUtc")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateOnly>("PeriodEnd")
                         .HasColumnType("TEXT");
@@ -453,19 +1071,44 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                     b.Property<long>("CreatedUtc")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("CustomInterval")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CustomIntervalUnit")
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
                     b.Property<long?>("DeletedUtc")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
 
                     b.Property<long?>("EstimatedCost")
                         .HasColumnType("INTEGER")
                         .HasColumnName("EstimatedCostMinorUnits");
+
+                    b.Property<DateOnly>("FirstScheduledDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Frequency")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("MaintenanceType")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("OccurrenceNumber")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateOnly>("ScheduledDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("SeriesId")
                         .HasColumnType("TEXT");
 
                     b.Property<long>("UpdatedUtc")
@@ -473,7 +1116,199 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("SeriesId", "OccurrenceNumber")
+                        .IsUnique();
+
+                    b.HasIndex("SeriesId", "ScheduledDate")
+                        .IsUnique();
+
                     b.ToTable("MaintenanceRecords", (string)null);
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Notes.AppNote", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Notes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Notes_Singleton", "Id = 1");
+                        });
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Obligations.Loan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CalculationMethod")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EquivalentMonthlyRateBasisPoints")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ExpectedTotal")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("ExpectedTotalMinorUnits");
+
+                    b.Property<int>("Frequency")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("InitialBalance")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("InitialBalanceMinorUnits");
+
+                    b.Property<int?>("InstallmentCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MonthlyInterestBasisPoints")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("NextDueDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("PendingBalance")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("PendingBalanceMinorUnits");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("TotalInterest")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("TotalInterestMinorUnits");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UsualInstallment")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("UsualInstallmentMinorUnits");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NextDueDate");
+
+                    b.ToTable("Loans", (string)null);
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Obligations.LoanInstallment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Amount")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("AmountMinorUnits");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Interest")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("InterestMinorUnits");
+
+                    b.Property<Guid>("LoanId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Principal")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("PrincipalMinorUnits");
+
+                    b.Property<long>("PrincipalBalanceAfter")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("PrincipalBalanceAfterMinorUnits");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoanId", "DueDate")
+                        .IsUnique();
+
+                    b.HasIndex("LoanId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("LoanInstallments", (string)null);
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Obligations.LoanPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Amount")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("AmountMinorUnits");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("DeletedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("InstallmentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("LoanId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InstallmentId")
+                        .IsUnique();
+
+                    b.HasIndex("LoanId", "Date");
+
+                    b.ToTable("LoanPayments", (string)null);
                 });
 
             modelBuilder.Entity("PeluqueriaAdmin.Domain.Obligations.Obligation", b =>
@@ -487,12 +1322,21 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                     b.Property<long?>("DeletedUtc")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateOnly>("DueDate")
                         .HasColumnType("TEXT");
 
                     b.Property<long>("ExpectedAmount")
                         .HasColumnType("INTEGER")
                         .HasColumnName("ExpectedAmountMinorUnits");
+
+                    b.Property<bool>("IsSettled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -537,6 +1381,10 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                     b.Property<long?>("DeletedUtc")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("ObligationId")
                         .HasColumnType("TEXT");
 
@@ -571,6 +1419,11 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                         .HasColumnName("CurrencyCode")
                         .IsFixedLength();
 
+                    b.Property<string>("ExportDirectory")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
                     b.Property<long>("OptionalSuppliesMonthlyBudget")
                         .HasColumnType("INTEGER")
                         .HasColumnName("OptionalSuppliesMonthlyBudgetMinorUnits");
@@ -601,6 +1454,24 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_Settings_WeeklyUsageFeeMinorUnits", "WeeklyUsageFeeMinorUnits >= 0");
                         });
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Collaborators.CollaboratorContribution", b =>
+                {
+                    b.HasOne("PeluqueriaAdmin.Domain.Collaborators.Collaborator", null)
+                        .WithMany()
+                        .HasForeignKey("CollaboratorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Collaborators.CollaboratorContributionEvent", b =>
+                {
+                    b.HasOne("PeluqueriaAdmin.Domain.Collaborators.Collaborator", null)
+                        .WithMany()
+                        .HasForeignKey("CollaboratorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("PeluqueriaAdmin.Domain.Collaborators.DistributionPayment", b =>
@@ -636,6 +1507,19 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Inventory.MonthlyPurchaseItem", b =>
+                {
+                    b.HasOne("PeluqueriaAdmin.Domain.Inventory.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PeluqueriaAdmin.Domain.Inventory.InventoryMovement", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseMovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("PeluqueriaAdmin.Domain.Inventory.MonthlyRestockPlan", b =>
                 {
                     b.HasOne("PeluqueriaAdmin.Domain.Inventory.Product", null)
@@ -643,6 +1527,14 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.LocalUse.Chair", b =>
+                {
+                    b.HasOne("PeluqueriaAdmin.Domain.LocalUse.LocalUsePerson", null)
+                        .WithMany()
+                        .HasForeignKey("AssignedPersonId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("PeluqueriaAdmin.Domain.LocalUse.LocalUsePayment", b =>
@@ -659,6 +1551,29 @@ namespace PeluqueriaAdmin.Infrastructure.Persistence.Migrations
                     b.HasOne("PeluqueriaAdmin.Domain.LocalUse.LocalUsePerson", null)
                         .WithMany()
                         .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Obligations.LoanInstallment", b =>
+                {
+                    b.HasOne("PeluqueriaAdmin.Domain.Obligations.Loan", null)
+                        .WithMany()
+                        .HasForeignKey("LoanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PeluqueriaAdmin.Domain.Obligations.LoanPayment", b =>
+                {
+                    b.HasOne("PeluqueriaAdmin.Domain.Obligations.LoanInstallment", null)
+                        .WithMany()
+                        .HasForeignKey("InstallmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PeluqueriaAdmin.Domain.Obligations.Loan", null)
+                        .WithMany()
+                        .HasForeignKey("LoanId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
