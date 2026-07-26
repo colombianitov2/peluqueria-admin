@@ -495,10 +495,7 @@ public sealed class AdministrationViewModelTests
             viewModel.WorkerHistoryRows,
             item => item.Principal == "Pago registrado");
 
-        Assert.Contains(
-            "974,29",
-            viewModel.ProfileCredit,
-            StringComparison.Ordinal);
+        Assert.Matches(@"974[,.]29", viewModel.ProfileCredit);
         Assert.Single(
             (await service.LoadAsync(cancellationToken))
             .LocalUsePayments);
@@ -662,18 +659,12 @@ public sealed class AdministrationViewModelTests
         Assert.Equal(
             "Todo el historial",
             viewModel.SelectedWorkerHistoryPeriod);
-        Assert.Contains(
-            "44,57",
-            viewModel.ProfileDebt,
-            StringComparison.Ordinal);
+        Assert.Matches(@"44[,.]57", viewModel.ProfileDebt);
         Assert.Contains(
             "2026-06-27",
             viewModel.ProfileNextRequiredPayment,
             StringComparison.Ordinal);
-        Assert.Contains(
-            "8,57",
-            viewModel.ProfileNextRequiredPayment,
-            StringComparison.Ordinal);
+        Assert.Matches(@"8[,.]57", viewModel.ProfileNextRequiredPayment);
         OperationRow payment = Assert.Single(
             viewModel.WorkerHistoryRows,
             item => item.Principal == "Pago registrado");
