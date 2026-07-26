@@ -50,21 +50,26 @@ La Fase 4.10 amplía la suite a **287 pruebas únicas**: 83 de dominio, 84 de ap
 - sillas individuales, asignación exclusiva, disponibilidad, retiro y liberación de asignaciones vencidas;
 - alta de trabajador con y sin silla, selectores independientes, cambio/retiro atómico de silla y ausencia de eventos al elegir la silla actual;
 - precio de venta predeterminado, control de existencia, recompra y seis categorías visibles de inventario;
-- precio sugerido por silla con gastos extraoficiales separados del balance oficial;
+- precio sugerido por silla con gastos recurrentes incluidos una sola vez en la fórmula compartida;
 - filtros de actividad Hoy, semana, mes, tres meses, seis meses, año y periodo personalizado, incluido el cambio silencioso de día;
 - auditoría transaccional, historial financiero del colaborador y migración conservadora desde una base `0.1.0-alpha.1`;
 - ausencia del módulo Flujo de caja en navegación e interfaz, con hoja de trazabilidad en Excel, y contratos visuales de acciones contextuales;
-- exportación Excel ampliada con sillas, asignaciones, gastos extraoficiales, precio sugerido, historial financiero y actividad.
+- exportación Excel ampliada con sillas, asignaciones, gastos recurrentes vigentes e históricos, precio sugerido, historial financiero y actividad.
 - conservación exacta de la fecha elegida al registrar una persona, reinicio de la fecha al cambiar de acción y advertencia visible al recuperar un borrador;
 - perfil independiente del filtro general de actividad, abierto en `Todo el historial`, con pagos de otra semana visibles una sola vez;
 - persistencia SQLite tras reinicio de fechas, cuotas, pagos, deuda y crédito de Uso del local;
 - atomicidad del pago: un error de guardado no deja pago, actividad ni cambio parcial de deuda.
 - saldo a favor consumido exactamente una vez por periodo de siete días, incluido saldo parcial y reinicio real de SQLite sin duplicados;
-- ingresos y gastos reales con exclusión de anticipos no devengados, capital, gastos extraoficiales, estimaciones y planes;
+- ingresos y gastos reales con exclusión de anticipos no devengados y capital; inclusión única de gastos recurrentes y prorrateo anual;
 - fondo global positivo, pérdida sin fondo y participaciones internas 60/20/10/10 con suma máxima 100 %;
 - obligación única con múltiples pagos, ocurrencia pagada y recurrencia anclada sin deriva;
 - Notas con debounce, guardado forzado, cierre/reapertura SQLite y hoja Excel;
 - columnas bloqueadas, barras internas, campana única, pestañas de Inventario, paneles separados y ausencia global de `Limpiar formulario`.
+- tres métodos de préstamo, centavos residuales, vista previa completa, edición previa al pago y recálculo tras corregir/eliminar pagos;
+- comparación planificado/real de Inventario y exportación de los mismos campos;
+- gráficos sin barras, dos composiciones circulares y líneas de ingresos/egresos para mes y año;
+- reapertura anual segura e invalidación única del arrastre;
+- Notas sin ajuste automático de línea y autoguardado forzado al cerrar;
 - eliminación única del trabajador, liberación de silla y conservación de historial sin acción visible de retiro;
 - registros congelados también con resultado cero, porcentajes históricos y rechazo de pagos parciales arbitrarios;
 - cuentas por cobrar excluidas hasta cobrarse, pagos futuros sin alterar meses anteriores y separación de financiación;
@@ -147,3 +152,11 @@ Ninguna prueba automatizada utiliza la base real ni incorpora datos permanentes.
 - Los contratos de interfaz verifican columnas estables, desplazamiento horizontal, selector editable, acciones retiradas, Balance anual y ausencia del resumen mensual en Ajustes.
 - Gitleaks 8.30.1 se ejecutó sobre 31 commits y árbol de trabajo con `--redact`; no detectó filtraciones.
 - El paquete Velopack de validación usa `0.1.0-phase48-validation` y no fue instalado ni publicado.
+
+## Validación de Fase 5.0B
+
+- 313 pruebas únicas: 90 Domain, 92 Application, 28 Infrastructure y 103 App.
+- La suite completa se ejecuta tanto en Debug como en Release: 626 ejecuciones aprobadas, cero fallos y cero omitidas.
+- Las pruebas financieras cubren los tres métodos de préstamo, el caso exacto USD 1.000 → USD 1.500 en 25 cuotas, gastos recurrentes activos e históricos, provisión anual sin doble descuento, cierres, reapertura y actualización transversal.
+- Las pruebas de interfaz cubren las tres pestañas de Inventario, comparación esperado/real, pagos y mantenimientos editables, gráficos mensuales y anuales sin barras, formularios superiores fijos y tamaños lógicos equivalentes a 100 %, 125 % y 150 %.
+- Las pruebas de infraestructura cubren migración desde alpha.1, `integrity_check`, `foreign_key_check`, persistencia, borradores, exportación XLSX única, tipos reales, historiales eliminados, notas completas y protección frente a inyección de fórmulas.

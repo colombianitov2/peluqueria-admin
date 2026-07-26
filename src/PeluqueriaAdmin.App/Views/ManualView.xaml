@@ -106,8 +106,8 @@
             <ListItem><Paragraph><Bold>Pagos pendientes:</Bold> servicios, impuestos, créditos, otras obligaciones, compras de la lista mensual y cuotas de préstamos vencidas o exigibles.</Paragraph></ListItem>
             <ListItem><Paragraph><Bold>Uso del local:</Bold> muestra cada trabajador con deuda y su importe; los saldos a favor no se presentan como deuda.</Paragraph></ListItem>
             <ListItem><Paragraph><Bold>Punto de equilibrio:</Bold> muestra cuánto falta en el mes después de aplicar la misma fórmula usada por Resumen mensual.</Paragraph></ListItem>
-            <ListItem><Paragraph><Bold>Precio sugerido por silla:</Bold> combina meta oficial, gastos extraoficiales, ingresos no provenientes de sillas y sillas ocupadas.</Paragraph></ListItem>
-            <ListItem><Paragraph><Bold>Campana de mantenimiento:</Bold> incluye mantenimientos vencidos o programados para hoy y permite abrir Mantenimiento.</Paragraph></ListItem>
+            <ListItem><Paragraph><Bold>Precio sugerido por silla:</Bold> combina todos los gastos recurrentes, ingresos no provenientes de sillas y sillas ocupadas sin contar dos veces ningún importe.</Paragraph></ListItem>
+            <ListItem><Paragraph><Bold>Campana de mantenimiento:</Bold> incluye mantenimientos vencidos, de hoy y futuros, con costo estimado y acceso directo a Mantenimiento.</Paragraph></ListItem>
             <ListItem><Paragraph><Bold>Movimientos del día:</Bold> consulta una fecha local y muestra hora, módulo, operación, entidad, importe y estado, de lo más reciente a lo más antiguo.</Paragraph></ListItem>
           </List>
           <Paragraph>
@@ -251,9 +251,12 @@
           </Paragraph>
           <List MarkerStyle="Disc">
             <ListItem><Paragraph><Bold>Interés mensual sobre saldo:</Bold> calcula cuota fija y separa capital e interés de cada periodo.</Paragraph></ListItem>
+            <ListItem><Paragraph><Bold>Interés fijo sobre capital inicial:</Bold> calcula cada interés mensual usando siempre el capital original y distribuye el capital entre las cuotas.</Paragraph></ListItem>
             <ListItem><Paragraph><Bold>Cantidad final acordada:</Bold> parte del capital y del total pactado y calcula interés total y tasa equivalente informativa.</Paragraph></ListItem>
+            <ListItem><Paragraph>La vista previa muestra todas las fechas, cuota, capital, interés y saldo de capital antes de registrar.</Paragraph></ListItem>
             <ListItem><Paragraph>Todo se calcula en centavos enteros; la última cuota absorbe el residuo para coincidir exactamente con el total.</Paragraph></ListItem>
             <ListItem><Paragraph>Registrar cuota paga la siguiente cuota pendiente completa y vincula el pago a esa cuota.</Paragraph></ListItem>
+            <ListItem><Paragraph>Antes del primer pago puede editarse todo el plan. Después, solo nombre y descripción. Los pagos de meses abiertos admiten corrección o eliminación lógica con recálculo; un mes cerrado debe reabrirse primero.</Paragraph></ListItem>
             <ListItem><Paragraph>Las cuotas vencidas o exigibles aparecen en Inicio y en las cuentas por pagar.</Paragraph></ListItem>
           </List>
 
@@ -264,9 +267,10 @@
             costo real. El estado se calcula; no se escribe manualmente.
           </Paragraph>
           <List MarkerStyle="Disc">
-            <ListItem><Paragraph>Un mantenimiento para hoy o vencido aparece en la campana de Inicio.</Paragraph></ListItem>
+            <ListItem><Paragraph>Todo mantenimiento pendiente aparece en la campana de Inicio como vencido, de hoy o futuro.</Paragraph></ListItem>
             <ListItem><Paragraph>Un mantenimiento pendiente puede convertirse en compromiso o reserva del cierre.</Paragraph></ListItem>
             <ListItem><Paragraph>Al realizarlo, el costo real reemplaza la estimación mediante la lógica de reservas para evitar contar dos veces.</Paragraph></ListItem>
+            <ListItem><Paragraph>Editar realizado corrige el historial y su costo sin generar una nueva recurrencia. Completar una recurrencia crea como máximo una siguiente ocurrencia.</Paragraph></ListItem>
             <ListItem><Paragraph>No se registran técnico, proveedor, ubicación, medio de pago ni comprobante.</Paragraph></ListItem>
           </List>
 
@@ -277,14 +281,16 @@
             hasta cobrarse. Los aportes y préstamos recibidos son financiación separada.
           </Paragraph>
           <Paragraph>
-            <Bold>Resultado repartible = ingresos operativos cobrados − egresos no provisionados −
-            nuevas reservas − ajustes de reservas − cuotas de préstamos − compromisos anteriores.</Bold>
+            <Bold>Resultado neto del mes = ingresos operativos cobrados − egresos pagados y recurrentes −
+            compromisos nuevos aún no pagados − diferencias entre valor estimado y real − compromisos anteriores sin cobertura.</Bold>
             El faltante es el valor necesario cuando ese resultado es negativo.
           </Paragraph>
           <List MarkerStyle="Disc">
             <ListItem><Paragraph>Antes de cerrar, complete importes faltantes o excluya justificadamente el compromiso solo para ese cierre.</Paragraph></ListItem>
             <ListItem><Paragraph>Guardar exclusiones conserva la razón; Cerrar mes congela cifras, fórmula, reservas, porcentajes y asignaciones.</Paragraph></ListItem>
             <ListItem><Paragraph>Una reserva se descuenta una sola vez. Al pagar, solo la diferencia entre valor real y reservado afecta el periodo nuevo.</Paragraph></ListItem>
+            <ListItem><Paragraph>Las obligaciones anuales se prorratean entre doce meses; diciembre absorbe cualquier centavo residual y el pago no vuelve a descontar el total.</Paragraph></ListItem>
+            <ListItem><Paragraph>Los gastos recurrentes definidos en Ajustes afectan punto de equilibrio, resultado, pago calculado para colaboradores, Balance anual y gráficos desde su mes inicial.</Paragraph></ListItem>
             <ListItem><Paragraph>Reabrir exige confirmación, restaura el cálculo dinámico y se bloquea si ya se pagó una distribución.</Paragraph></ListItem>
           </List>
 
@@ -297,6 +303,7 @@
           <List MarkerStyle="Disc">
             <ListItem><Paragraph>El cierre anual requiere los doce meses cerrados, incluso meses con cero movimientos.</Paragraph></ListItem>
             <ListItem><Paragraph>Cerrar el año no elimina cierres anteriores y crea arrastres separados.</Paragraph></ListItem>
+            <ListItem><Paragraph>Reabrir año exige confirmación, invalida su traslado y se bloquea si ya hay un año posterior cerrado.</Paragraph></ListItem>
             <ListItem><Paragraph>El saldo proyectado combina superávit y cuentas por cobrar, menos cuentas por pagar, reservas, préstamos y déficit.</Paragraph></ListItem>
             <ListItem><Paragraph>Un arrastre no convierte por sí solo una cuenta por cobrar en ingreso ni un préstamo en gasto nuevo.</Paragraph></ListItem>
           </List>
@@ -304,20 +311,20 @@
           <Paragraph Style="{StaticResource SectionTitle}">15. Ajustes</Paragraph>
           <Paragraph>
             Ajustes contiene la tarifa semanal general, el porcentaje global de ganancia de
-            colaboradores, la carpeta de exportación y gastos extraoficiales. La moneda es siempre
+            colaboradores, la carpeta de exportación y gastos recurrentes. La moneda es siempre
             USD. Los cambios válidos se guardan automáticamente; un texto temporalmente inválido se
             conserva como borrador para corregirlo.
           </Paragraph>
           <List MarkerStyle="Disc">
             <ListItem><Paragraph>Cambiar la tarifa afecta cuotas futuras; no reescribe cuotas históricas.</Paragraph></ListItem>
             <ListItem><Paragraph>Cambiar el porcentaje no modifica cierres ya confirmados.</Paragraph></ListItem>
-            <ListItem><Paragraph>Los gastos extraoficiales intervienen solo en el precio sugerido por silla y no en el Balance anual oficial.</Paragraph></ListItem>
+            <ListItem><Paragraph>Un gasto recurrente se descuenta una vez por mes desde su fecha inicial. Al eliminarlo se finaliza su vigencia y los meses históricos permanecen calculables y exportables.</Paragraph></ListItem>
             <ListItem><Paragraph>La sección Datos reúne copia, restauración y exportación Excel; Actualizaciones reúne búsqueda, descarga y aplicación.</Paragraph></ListItem>
           </List>
 
           <Paragraph Style="{StaticResource SectionTitle}">16. Notas y Manual</Paragraph>
           <Paragraph>
-            Notas es un único bloc editable. Se guarda después de una pausa breve, al perder el foco
+            Notas es un único bloc editable, sin límite configurado y sin ajuste automático de línea; use sus barras horizontal y vertical. Se guarda después de una pausa breve, al perder el foco
             y al cerrar. Su contenido vive en SQLite y forma parte de copias, restauración y Excel.
             No necesita pulsar Guardar.
           </Paragraph>

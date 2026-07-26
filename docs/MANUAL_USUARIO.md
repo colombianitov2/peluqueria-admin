@@ -2,7 +2,7 @@
 
 ## Primer inicio
 
-La aplicación crea sus carpetas locales y aplica migraciones automáticamente. Inicio muestra **Pagos pendientes** —servicios, impuestos, créditos, otras obligaciones, compras mensuales y cuotas de préstamos—, deudas por Uso del local, el faltante mensual y una única campana separada para mantenimientos vencidos o del día.
+La aplicación crea sus carpetas locales y aplica migraciones automáticamente. Inicio muestra **Pagos pendientes** —servicios, impuestos, créditos, otras obligaciones, compras mensuales y cuotas de préstamos—, deudas por Uso del local, el faltante mensual y una única campana para mantenimientos vencidos, de hoy y futuros con costo estimado.
 
 Los formularios usan fechas `AAAA-MM-DD`, meses `AAAA-MM`, importes con dos decimales y cantidades de inventario con hasta tres. Los botones deshabilitados indican que falta una selección o dato válido.
 
@@ -40,12 +40,12 @@ En **Obligaciones**, use **Agregar obligación** una sola vez para definir nombr
 
 Use **Registrar pago** para elegir la serie y guardar el valor real de la ocurrencia pendiente más antigua. Confirmar el pago deja esa ocurrencia con saldo cero aunque el valor real resulte menor o mayor que el esperado; Inicio, cierres, reportes y Excel usan el valor real una sola vez. Las ocurrencias siguientes conservan su propio valor esperado.
 
-**Añadir préstamo** permite elegir interés mensual sobre saldo o cantidad final acordada, previsualiza el cálculo y crea el calendario mensual exacto. **Registrar cuota** paga la siguiente cuota pendiente completa; préstamos, calendario y pagos permanecen visibles. El dinero recibido es financiación, no ingreso operativo.
+**Añadir préstamo** permite elegir interés mensual sobre saldo, interés fijo sobre capital inicial o cantidad final acordada. La vista previa muestra todas las cuotas con fecha, capital, interés y saldo. Antes del primer pago puede editarse todo el plan; después solo nombre y descripción. Los pagos de meses abiertos se pueden corregir o eliminar con recálculo. El dinero recibido es financiación, no ingreso operativo.
 
 ### Reportes
 
 - Resumen mensual: consulte el mes, revise ingresos cobrados, cuentas, reservas, préstamos y resultado. Para cerrar, resuelva importes faltantes o marque **Ignorar en este cierre**, escriba el motivo, pulse **Guardar exclusiones** y luego **Cerrar mes**. Reabrir exige confirmación y no es posible si ya se pagó una distribución.
-- Balance anual: escriba únicamente el año y consulte; verá doce pares de barras de ingresos/egresos, meses cerrados congelados y meses abiertos en vivo. **Cerrar año** exige confirmación y doce meses cerrados, conserva históricos y crea arrastres separados.
+- Balance anual: escriba únicamente el año y consulte; verá doce meses en líneas de ingresos/egresos y composiciones circulares, con meses cerrados congelados y meses abiertos en vivo. **Cerrar año** exige confirmación y doce meses cerrados; **Reabrir año** invalida el arrastre y se bloquea si existe un año posterior cerrado.
 - Manual: abra **Manual**, debajo de Notas, para consultar sin conexión la explicación detallada de todos los módulos, cálculos, copias, Excel, cierres y actualizaciones. Es contenido de ayuda; leerlo no modifica datos.
 
 ### Editar y eliminar
@@ -54,19 +54,19 @@ Seleccione una fila y use **Editar/Cargar** para llevar sus valores al formulari
 
 ## Ajustes
 
-Permite configurar tarifa semanal, porcentaje global de colaboradores, carpeta de exportación y gastos extraoficiales persistentes. Estos últimos siempre se muestran, se editan con **Editar seleccionado** y **Guardar edición** y no tienen filtro de periodo. La única moneda es USD y no existe presupuesto opcional.
+Permite configurar tarifa semanal, porcentaje global de colaboradores, carpeta de exportación y gastos recurrentes persistentes. Cada gasto recurrente afecta mensualmente el punto de equilibrio, resultado, colaboradores, Balance anual, gráficos, Excel y precio sugerido desde su fecha inicial. Eliminar finaliza su vigencia sin borrar los meses históricos. La única moneda es USD y no existe presupuesto opcional.
 
 En **Datos** puede crear/restaurar copias y crear una exportación completa a Excel. Cada pulsación genera un solo `.xlsx` en la carpeta configurada —Escritorio de forma predeterminada— y nunca genera CSV. El libro incluye operaciones actuales, históricos, futuro conocido, tarifas semanales, lista mensual, compras, créditos, recurrencias, saldos, cierres, eliminados, borradores separados y datos heredados todavía presentes. Puede abrir el archivo o su carpeta al terminar. Reinicie después de restaurar. Los Ajustes válidos se guardan automáticamente; una entrada temporalmente inválida queda como borrador recuperable.
 
-En **Inicio**, la campana muestra mantenimientos para hoy o vencidos. Al final, **Movimientos del día** consulta la fecha local elegida, reemplaza la lista anterior y muestra operaciones exactas en orden descendente. En **Ventas**, escriba cantidad y precio unitario: el total USD se actualiza antes de registrar y la cantidad no puede superar la existencia. En **Resumen mensual**, las cifras usan ingresos cobrados y una sola deducción por cada pago, reserva o ajuste.
+En **Inicio**, la campana muestra mantenimientos vencidos, de hoy y futuros. Al final, **Movimientos del día** consulta la fecha local elegida, reemplaza la lista anterior y muestra operaciones exactas en orden descendente. En **Ventas**, escriba cantidad y precio unitario: el total USD se actualiza antes de registrar y la cantidad no puede superar la existencia. En **Resumen mensual**, las cifras usan ingresos cobrados y una sola deducción por cada pago, compromiso o diferencia.
 
 En **Uso del local**, seleccione **Añadir silla** o **Añadir trabajador**. Cambiar de acción prepara la fecha local actual para evitar reutilizar una fecha anterior; un borrador recuperado conserva y muestra expresamente su propia fecha. Las tablas de trabajadores y sillas permanecen visibles independientemente del filtro de actividad. Abra un perfil con doble clic para registrar pagos anticipados, administrar la silla, eliminar lógicamente al trabajador o consultar **Todo el historial** del más reciente al más antiguo. Solo el historial se desplaza; la cabecera del perfil permanece fija.
 
-En **Inventario**, las pestañas son **Inventario actual**, **Movimientos**, **Agregar al inventario** y **Lista mensual de compra**. Los indicadores heredados de activación y reserva no aparecen ni alteran cálculos; solo se conservan como compatibilidad técnica. Conteo físico y registrar consumo no son acciones disponibles en Agregar al inventario; sus movimientos históricos siguen visibles.
+En **Inventario**, las pestañas son **Inventario actual**, **Movimientos** y **Lista mensual de compra**. La primera integra el formulario para agregar desde la lista y compara cantidades/costos esperados con los reales, existencia, valor y última actualización. Los indicadores heredados de activación y reserva no aparecen ni alteran cálculos; solo se conservan como compatibilidad técnica.
 
 El **Resumen financiero del mes** existe una sola vez, en **Resumen mensual**, y usa el mismo cálculo compartido por Colaboradores, Inicio, Balance anual y Excel. No aparece en Ajustes.
 
-En **Notas**, escriba libremente en el bloc único. Se guarda después de una pausa breve, al perder foco y al cerrar; no hay botones Guardar o Limpiar. El contenido vuelve exactamente al abrir y forma parte de SQLite, copias y Excel.
+En **Notas**, escriba libremente en el bloc único sin límite configurado ni ajuste automático de línea; use las barras horizontal y vertical. Se guarda después de una pausa breve, al perder foco y al cerrar; no hay botones Guardar o Limpiar. El contenido vuelve exactamente al abrir y forma parte de SQLite, copias y Excel.
 
 En **Manual**, use el desplazamiento interno y sus títulos para localizar la sección deseada. El manual no se edita, no es una nota, no se exporta como dato del negocio y no genera movimientos.
 

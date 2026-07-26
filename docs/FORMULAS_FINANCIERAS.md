@@ -16,14 +16,13 @@ Se permite cualquier pago positivo, incluso con deuda cero. El pago se aplica pr
 ## Precio sugerido por silla
 
 ```text
-monto por cubrir = máximo(0, meta mensual oficial
-                            + gastos extraoficiales vigentes
+monto por cubrir = máximo(0, punto de equilibrio mensual completo
                             - ventas y otros ingresos esperados)
 precio mensual por silla = monto por cubrir ÷ sillas ocupadas vigentes
 precio semanal sugerido = precio mensual × 12 ÷ 52
 ```
 
-Los pagos actuales por uso del local no se restan porque crearían una fórmula circular. Sin sillas ocupadas no se divide entre cero. Los gastos extraoficiales no forman parte del Balance anual oficial.
+Los pagos actuales por uso del local no se restan porque crearían una fórmula circular. Sin sillas ocupadas no se divide entre cero. Los gastos recurrentes configurados ya forman parte del punto de equilibrio, por lo que no se vuelven a sumar.
 
 ## Inventario
 
@@ -50,7 +49,7 @@ valor real de ocurrencia confirmada = suma de pagos vinculados
 
 Confirmar un pago cierra la ocurrencia incluso cuando el valor real difiere del esperado. El pago real reemplaza al esperado en el resultado y no se agregan ambos. Si se reservó al cerrar, el pago posterior consume esa reserva y solo `valor real - valor reservado` ajusta el periodo de pago. Una diferencia negativa libera fondos; una positiva reduce el resultado. Un mantenimiento vencido sin estimación debe recibir un costo o una exclusión justificada antes de cerrar.
 
-Los préstamos recibidos son financiación. La cuota vencida o correspondiente al mes es un compromiso; para esta aplicación la cuota completa es salida de efectivo y no se separan capital e intereses.
+Los préstamos recibidos son financiación, no ingreso operativo. La cuota vencida o correspondiente al mes es un compromiso y el calendario conserva por separado capital e interés.
 
 Para un préstamo de principal `P`, tasa mensual decimal `r` y `n` cuotas, el método de interés sobre saldo usa:
 
@@ -61,31 +60,33 @@ cuota = P / n                                   si r = 0
 
 Cada periodo calcula el interés sobre el saldo de capital y la parte de capital como cuota menos interés. Para una cantidad final acordada `T`, el interés total es `T - P`, el porcentaje total es `(T - P) / P × 100` y la tasa mensual equivalente de referencia es `((T / P)^(1/n) - 1) × 100`. Todo dinero se calcula en centavos enteros; la última cuota absorbe el residuo para que la suma coincida exactamente con el total esperado.
 
+En el método de interés fijo sobre capital inicial, el interés de cada cuota es `P × r`; el capital se divide entre las cuotas y la última absorbe los centavos residuales.
+
 ## Resumen mensual
 
 ```text
 ingresos operativos cobrados = pagos recibidos por Uso del local
                 + ventas registradas
                 + otros ingresos registrados
-resultado repartible = ingresos operativos cobrados
+resultado neto del mes = ingresos operativos cobrados
                      - egresos pagados no provisionados anteriormente
-                     - nuevas reservas del mes
-                     - ajustes de reservas anteriores
-                     - cuotas de préstamos del mes
+                     - gastos recurrentes aplicables al mes
+                     - compromisos del mes aún no pagados
+                     - diferencias entre estimado y real
                      - compromisos anteriores no cubiertos
-fondo colaboradores = máximo(resultado repartible, 0) × porcentaje global
-asignación individual = fondo colaboradores × participación interna individual
-ganancia retenida por el local = máximo(resultado repartible, 0) - fondo colaboradores
-faltante = máximo(-resultado repartible, 0)
+pago calculado para colaboradores = máximo(resultado neto del mes, 0) × porcentaje global
+asignación individual = pago calculado para colaboradores × participación interna individual
+saldo del local = máximo(resultado neto del mes, 0) - pago calculado para colaboradores
+faltante = máximo(-resultado neto del mes, 0)
 ```
 
-Las cuentas por cobrar no entran hasta cobrarse. Los aportes y préstamos recibidos aumentan la disponibilidad, pero no el resultado repartible. El porcentaje no cambia el punto de equilibrio cero. Compras mensuales pendientes, compras realizadas, obligaciones, mantenimientos, préstamos y reservas se incorporan por una sola ruta compartida para evitar doble conteo. Inicio, precio sugerido por silla, Resumen mensual, Balance anual y Excel consumen esa misma regla.
+Las cuentas por cobrar no entran hasta cobrarse. Los aportes y préstamos recibidos aumentan la disponibilidad, pero no el resultado neto. El porcentaje no cambia el punto de equilibrio cero. Compras mensuales pendientes, compras realizadas, obligaciones, mantenimientos, préstamos, gastos recurrentes y compromisos se incorporan por una sola ruta compartida para evitar doble conteo. Una obligación anual se prorratea en doce meses; diciembre absorbe el residuo de centavos y su pago no vuelve a descontar el total. Inicio, precio sugerido por silla, Resumen mensual, Balance anual, gráficos y Excel consumen esa misma regla.
 
 Ejemplo aprobado: `1000 - 500 - 100 - 50 - 80 = 270`; con porcentaje global 20 %, el fondo es `54`. Una deuda de trabajador de `120` se mantiene fuera hasta su cobro. Si una reserva de electricidad de `100` se paga luego por `110`, solo `10` afecta el periodo posterior.
 
 ## Cierre y distribución
 
-El fondo positivo se divide según participaciones internas cuya suma máxima es 100 %. Los residuos de centavos se asignan de forma determinista por `Guid`. Si la suma es inferior a 100 %, la porción no asignada queda retenida por el local.
+El pago positivo calculado para colaboradores se divide según participaciones internas cuya suma máxima es 100 %. Los residuos de centavos se asignan de forma determinista por `Guid`. Si la suma es inferior a 100 %, la porción no asignada queda en el saldo del local.
 
 Un resultado cero o negativo produce fondo y pagos individuales cero; el déficit pertenece al local. Un cierre confirmado conserva mes, porcentaje global, porcentaje individual por participante, fondo, reservas, exclusiones e importes históricos. El pago al colaborador cubre exactamente el valor pendiente de la asignación congelada; no admite una cifra parcial arbitraria.
 
@@ -100,7 +101,7 @@ superávit + cuentas por cobrar
 - cuentas por pagar - reservas - préstamos - déficit
 ```
 
-El arrastre no convierte por sí mismo una cuenta por cobrar en ingreso ni un préstamo pendiente en gasto nuevo.
+El arrastre no convierte por sí mismo una cuenta por cobrar en ingreso ni un préstamo pendiente en gasto nuevo. Reabrir el año invalida su arrastre y se bloquea cuando ya existe un año posterior cerrado.
 
 Las operaciones originales de ingresos y gastos se conservan para los cálculos internos. Flujo de caja no es un módulo visible, pero se exporta como hoja de trazabilidad en Excel.
 

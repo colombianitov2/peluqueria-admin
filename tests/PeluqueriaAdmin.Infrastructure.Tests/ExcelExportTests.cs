@@ -59,7 +59,7 @@ public sealed class ExcelExportTests
                 "Pagos por uso del local", "Historial trabajadores", "Colaboradores", "Aportes colaboradores", "Historial colaboradores", "Ventas", "Productos",
                 "Inventario actual", "Movimientos de inventario", "Lista mensual de compra",
                 "Planes de reposición", "Compatibilidad inventario",
-                "Otros ingresos", "Gastos", "Imprevistos", "Gastos extraoficiales", "Obligaciones",
+                "Otros ingresos", "Gastos", "Imprevistos", "Gastos recurrentes", "Obligaciones",
                 "Pagos de obligaciones", "Cuentas por cobrar", "Cuentas por pagar", "Préstamos", "Cuotas de préstamos", "Pagos de préstamos", "Mantenimiento", "Cierres mensuales", "Reservas financieras", "Exclusiones de cierre",
                 "Distribuciones a colaboradores", "Pagos a colaboradores",
                 "Resúmenes mensuales", "Balance anual", "Cierres anuales", "Saldos arrastrados", "Flujo de caja", "Movimientos generales", "Historial fin. colaboradores", "Historial eliminado",
@@ -164,7 +164,9 @@ public sealed class ExcelExportTests
             Assert.True(workbook.TryGetWorksheet("Pagos de préstamos", out _));
             IXLWorksheet monthlyPurchases = workbook.Worksheet("Lista mensual de compra");
             Assert.Equal(
-                ["Mes", "Producto", "Categoría", "Cantidad", "Costo esperado unitario", "Total esperado", "Moneda", "Compra vinculada", "Descripción", "Estado"],
+                ["Mes", "Producto", "Categoría", "Cantidad esperada", "Costo esperado unitario", "Total esperado",
+                    "Cantidad comprada", "Costo unitario real", "Total real", "Existencia actual", "Moneda",
+                    "Compra vinculada", "Descripción", "Estado"],
                 monthlyPurchases.Row(1).CellsUsed().Select(cell => cell.GetString()).ToArray());
             Assert.DoesNotContain("Activa", monthlyPurchases.Row(1).CellsUsed().Select(cell => cell.GetString()));
             Assert.DoesNotContain("Reserva al agotarse", monthlyPurchases.Row(1).CellsUsed().Select(cell => cell.GetString()));
@@ -173,7 +175,8 @@ public sealed class ExcelExportTests
             Assert.Equal(XLDataType.Number, monthlyPurchases.Cell(2, 5).DataType);
             Assert.Equal(XLDataType.Number, monthlyPurchases.Cell(2, 6).DataType);
             Assert.Equal(10m, monthlyPurchases.Cell(2, 6).GetValue<decimal>());
-            Assert.Equal("Pendiente", monthlyPurchases.Cell(2, 10).GetString());
+            Assert.Equal(XLDataType.Number, monthlyPurchases.Cell(2, 10).DataType);
+            Assert.Equal("Pendiente", monthlyPurchases.Cell(2, 14).GetString());
             IXLWorksheet inventoryCompatibility = workbook.Worksheet("Compatibilidad inventario");
             Assert.Contains(
                 "Lista mensual vigente",

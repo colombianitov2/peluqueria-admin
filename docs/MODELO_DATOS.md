@@ -13,11 +13,11 @@
 
 | Área | Tablas | Responsabilidad |
 |---|---|---|
-| Ajustes | `Settings`, `UnofficialExpenses` | Tarifa semanal, porcentaje, moneda, carpeta de exportación y gastos extraoficiales separados. El presupuesto opcional y `TotalChairs` se conservan solo como compatibilidad de bases antiguas. |
+| Ajustes | `Settings`, `UnofficialExpenses` | Tarifa semanal, porcentaje, moneda, carpeta de exportación y gastos recurrentes mensuales. La eliminación lógica finaliza su vigencia sin perder meses históricos. El presupuesto opcional y `TotalChairs` se conservan solo como compatibilidad de bases antiguas. |
 | Uso del local | `Chairs`, `LocalUsePeople`, `WeeklyRates`, `WeeklyCharges`, `LocalUsePayments` | Sillas individuales y opcionales, trabajadores, histórico de tarifas, cuotas de periodos completos y pagos positivos incluidos anticipos. `WorkerAccountBalance` calcula deuda, crédito y proyección sin persistir ni cambiar el esquema. |
 | Inventario | `Products`, `InventoryMovements`, `MonthlyPurchaseItems`, `MonthlyRestockPlans` | Catálogo y existencias por movimientos. La lista mensual tiene identidad, nombre y categoría propios; `ProductId` es opcional hasta el vínculo atómico con una compra. Sus indicadores antiguos de activación/reserva y `MonthlyRestockPlans` permanecen solo para compatibilidad histórica y no gobiernan cálculos. |
 | Caja | `FinancialEntries` | Otros ingresos, gastos e imprevistos sin duplicar movimientos originados en otros módulos. |
-| Obligaciones | `Obligations`, `ObligationPayments`, `Loans`, `LoanInstallments`, `LoanPayments` | Importe esperado, tipo —incluido Crédito—, recurrencia —incluida Semanal— y pagos; préstamos con método, total esperado, calendario mensual, desglose de capital/interés y pago ligado a cuota. |
+| Obligaciones | `Obligations`, `ObligationPayments`, `Loans`, `LoanInstallments`, `LoanPayments` | Importe esperado, tipo —incluido Crédito—, recurrencia —incluida Semanal— y pagos; préstamos con tres métodos, total esperado, calendario mensual, desglose de capital/interés y pago ligado a cuota. |
 | Mantenimiento | `MaintenanceRecords` | Plan y ejecución con costo estimado o real. |
 | Colaboradores | `Collaborators`, `CollaboratorContributions`, `CollaboratorContributionEvents`, `MonthlyCloses`, `MonthlyCloseParticipants`, `DistributionPayments` | Inversionistas, aportes no operativos, historial inmutable de aportes, fotografía financiera del cierre, porcentajes global/individual congelados y pagos completos de distribución. |
 | Cierres financieros | `FinancialReserves`, `FinancialCloseExclusions`, `AnnualCloses`, `AnnualCarryovers` | Reservas por ocurrencia, exclusiones justificadas, snapshot anual y saldos arrastrados separados; nunca reemplazan la operación fuente. |

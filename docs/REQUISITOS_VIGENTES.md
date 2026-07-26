@@ -307,7 +307,7 @@ Configurar, como mínimo:
 - valor semanal general por uso del local, inicialmente USD 12;
 - porcentaje de ganancia de colaboradores, inicialmente 20 %;
 - carpeta de exportación, con el Escritorio como valor predeterminado.
-- gastos extraoficiales separados, que solo intervienen en el precio sugerido por silla.
+- gastos recurrentes mensuales que intervienen una sola vez en punto de equilibrio, resultado, colaboradores, Balance anual, gráficos, Excel y precio sugerido por silla.
 
 No se crean ajustes individuales que contradigan la tarifa semanal general.
 
@@ -442,7 +442,7 @@ La incorporación del logotipo de la empresa y la comprobación del salto real e
 - Los colaboradores no ocupan sillas y su historial financiero se deriva únicamente de cierres, participaciones y pagos reales.
 - Resumen mensual añade gráficos 2D de barras, composición y evolución con los mismos cálculos que las cifras.
 - Flujo de caja permanece fuera de la navegación y las pantallas; Excel incluye una hoja de trazabilidad construida a partir de las operaciones fuente.
-- La exportación Excel incluye sillas, asignaciones, actividad, descripciones, gastos extraoficiales, precio sugerido e historial financiero de colaboradores.
+- La exportación Excel incluye sillas, asignaciones, actividad, descripciones, gastos recurrentes vigentes e históricos, precio sugerido e historial financiero de colaboradores.
 
 ## Decisiones reemplazadas en Fase 4.6
 
@@ -469,7 +469,18 @@ Quedan reemplazados el recibo de obligaciones de Inicio, los porcentajes individ
 - La Lista mensual de compra admite nombre y categoría libres, `ProductId` nulo y vínculo atómico posterior con inventario. Conteo físico y consumo no se ofrecen en Agregar al inventario; los históricos se conservan.
 - Un préstamo nuevo usa exclusivamente amortización fija sobre saldo o cantidad final acordada. El calendario mensual, capital, interés, saldo y pago asociado se persisten en unidades menores enteras.
 - Balance anual consulta solo el año, combina snapshots mensuales confirmados con meses abiertos en vivo, grafica 12 meses y congela un snapshot anual con arrastres separados.
-- Resumen financiero vive únicamente en Resumen mensual. Los gastos extraoficiales son configuraciones persistentes sin filtro temporal y admiten edición explícita.
+- Resumen financiero vive únicamente en Resumen mensual. Los gastos recurrentes son configuraciones persistentes sin filtro temporal, admiten edición explícita y su eliminación conserva los meses históricos.
+
+## Fase 5.0B — integración funcional final
+
+- Inventario conserva tres pestañas. Los formularios superiores se muestran completos y las tablas comparan compra esperada con real, existencia, valor y última actualización.
+- Préstamos admite interés sobre saldo, interés fijo sobre capital inicial y total final acordado. La vista previa enumera todo el calendario y los pagos abiertos se corrigen con recálculo.
+- Mantenimiento mantiene una sola próxima ocurrencia, muestra vencidos/hoy/futuros en Inicio y permite corregir realizados sin generar otra recurrencia.
+- Resumen mensual usa etiquetas firmadas y comprensibles. Los gastos recurrentes y las obligaciones anuales prorrateadas afectan una sola vez la fórmula compartida.
+- Los gráficos son circulares por categoría para ingresos/egresos y líneas de ingresos frente a egresos. No se usan barras.
+- Balance anual usa únicamente el año, doce meses, composiciones por categoría, líneas mensuales, cierre y reapertura segura.
+- Notas no ajusta líneas automáticamente, conserva autoguardado y dispone de desplazamiento horizontal y vertical.
+- Los cambios de datos notifican al módulo activo; no existe sondeo periódico de datos administrativos.
 - Inicio añade movimientos generales diarios sin recuperar una notificación independiente de obligaciones.
 
 ## Decisiones vigentes de Fase 4.10
