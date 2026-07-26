@@ -1525,6 +1525,75 @@ public sealed class AdministrationService(
             cancellationToken);
     }
 
+    public async Task ReplaceLoanPlanAsync(
+        Guid loanId,
+        LoanPlan replacement,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        Loan current = data.Loans.SingleOrDefault(item => item.Id == loanId)
+            ?? throw new InvalidOperationException("El préstamo ya no está disponible.");
+        if (data.LoanPayments.Any(item => item.LoanId == loanId))
+            throw new InvalidOperationException(
+                "El préstamo ya tiene pagos. Solo se pueden editar su nombre y descripción.");
+
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        LoanInstallment[] currentInstallments = data.LoanInstallments
+            .Where(item => item.LoanId == loanId).ToArray();
+        foreach (AuditableEntity entity in new AuditableEntity[] { current }.Concat(currentInstallments))
+            entity.MarkDeleted(utcNow);
+        FinancialReserve[] obsoleteReserves = data.FinancialReserves
+            .Where(item => item.SourceType == FinancialCommitmentSource.LoanInstallment
+                && currentInstallments.Any(installment => installment.Id == item.SourceId))
+            .ToArray();
+        foreach (FinancialReserve reserve in obsoleteReserves) reserve.MarkDeleted(utcNow);
+
+        await SaveAsync(
+            new AuditableEntity[] { replacement.Loan }.Concat(replacement.Installments).ToArray(),
+            new AuditableEntity[] { current }.Concat(currentInstallments).Concat(obsoleteReserves).ToArray(),
+            null,
+            cancellationToken);
+    }
+
+    public async Task UpdateLoanMetadataAsync(
+        Guid loanId,
+        string name,
+        string? description,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        Loan loan = data.Loans.SingleOrDefault(item => item.Id == loanId)
+            ?? throw new InvalidOperationException("El préstamo ya no está disponible.");
+        loan.UpdateMetadata(name, description, timeProvider.GetUtcNow().UtcDateTime);
+        await SaveAsync([], [loan], null, cancellationToken);
+    }
+
+    public async Task DeleteLoanAsync(Guid loanId, CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        Loan loan = data.Loans.SingleOrDefault(item => item.Id == loanId)
+            ?? throw new InvalidOperationException("El préstamo ya no está disponible.");
+        if (data.LoanPayments.Any(item => item.LoanId == loanId))
+            throw new InvalidOperationException("No se puede eliminar un préstamo con pagos históricos.");
+
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        LoanInstallment[] installments = data.LoanInstallments
+            .Where(item => item.LoanId == loanId).ToArray();
+        foreach (AuditableEntity entity in new AuditableEntity[] { loan }.Concat(installments))
+            entity.MarkDeleted(utcNow);
+        FinancialReserve[] reserves = data.FinancialReserves
+            .Where(item => item.SourceType == FinancialCommitmentSource.LoanInstallment
+                && installments.Any(installment => installment.Id == item.SourceId))
+            .ToArray();
+        foreach (FinancialReserve reserve in reserves) reserve.MarkDeleted(utcNow);
+        await SaveAsync(
+            [],
+            new AuditableEntity[] { loan }.Concat(installments).Concat(reserves).ToArray(),
+            null,
+            cancellationToken);
+    }
+
     public async Task<LoanPayment> RegisterLoanPaymentAsync(Guid loanId, DateOnly date, Money amount,
         string? description = null, CancellationToken cancellationToken = default)
     {
@@ -1565,6 +1634,91 @@ public sealed class AdministrationService(
         reserve?.Settle(date, amount, utcNow);
         await SaveAsync([payment], reserve is null ? [loan] : [loan, reserve], null, cancellationToken);
         return payment;
+    }
+
+    public async Task UpdateLoanPaymentAsync(
+        Guid paymentId,
+        DateOnly date,
+        Money amount,
+        string? description = null,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        LoanPayment payment = data.LoanPayments.SingleOrDefault(item => item.Id == paymentId)
+            ?? throw new InvalidOperationException("El pago ya no está disponible.");
+        EnsureLoanPaymentMonthIsOpen(data, payment.Date);
+        EnsureLoanPaymentMonthIsOpen(data, date);
+        Loan loan = data.Loans.Single(item => item.Id == payment.LoanId);
+        LoanInstallment? installment = payment.InstallmentId.HasValue
+            ? data.LoanInstallments.SingleOrDefault(item => item.Id == payment.InstallmentId.Value)
+            : null;
+        if (installment is not null && installment.Amount.MinorUnits != amount.MinorUnits)
+            throw new InvalidOperationException(
+                $"El valor debe conservar la cuota exacta {installment.Number}: {ApplicationCurrency.Code} {installment.Amount.ToDecimal():N2}.");
+
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        payment.Correct(date, amount, description, utcNow);
+        RecalculateLoan(data, loan, payment, deleting: false, utcNow);
+        Guid reserveSourceId = installment?.Id ?? loan.Id;
+        FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(item =>
+            item.SourceType == FinancialCommitmentSource.LoanInstallment
+            && item.SourceId == reserveSourceId
+            && item.IsConsumed);
+        reserve?.CorrectSettlement(date, amount, utcNow);
+        await SaveAsync([], reserve is null ? [payment, loan] : [payment, loan, reserve], null, cancellationToken);
+    }
+
+    public async Task DeleteLoanPaymentAsync(
+        Guid paymentId,
+        CancellationToken cancellationToken = default)
+    {
+        AdministrationData data = await repository.LoadAsync(cancellationToken);
+        LoanPayment payment = data.LoanPayments.SingleOrDefault(item => item.Id == paymentId)
+            ?? throw new InvalidOperationException("El pago ya no está disponible.");
+        EnsureLoanPaymentMonthIsOpen(data, payment.Date);
+        Loan loan = data.Loans.Single(item => item.Id == payment.LoanId);
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        payment.MarkDeleted(utcNow);
+        RecalculateLoan(data, loan, payment, deleting: true, utcNow);
+        Guid reserveSourceId = payment.InstallmentId ?? loan.Id;
+        FinancialReserve? reserve = data.FinancialReserves.SingleOrDefault(item =>
+            item.SourceType == FinancialCommitmentSource.LoanInstallment
+            && item.SourceId == reserveSourceId
+            && item.IsConsumed);
+        reserve?.ReopenSettlement(utcNow);
+        await SaveAsync([], reserve is null ? [payment, loan] : [payment, loan, reserve], null, cancellationToken);
+    }
+
+    private static void RecalculateLoan(
+        AdministrationData data,
+        Loan loan,
+        LoanPayment changedPayment,
+        bool deleting,
+        DateTime utcNow)
+    {
+        LoanPayment[] remaining = data.LoanPayments
+            .Where(item => item.LoanId == loan.Id
+                && (!deleting || item.Id != changedPayment.Id))
+            .ToArray();
+        long paidTotal = remaining.Sum(item => item.Amount.MinorUnits);
+        HashSet<Guid> paidInstallments = remaining
+            .Where(item => item.InstallmentId.HasValue)
+            .Select(item => item.InstallmentId!.Value)
+            .ToHashSet();
+        DateOnly? nextDueDate = data.LoanInstallments
+            .Where(item => item.LoanId == loan.Id && !paidInstallments.Contains(item.Id))
+            .OrderBy(item => item.Number)
+            .Select(item => (DateOnly?)item.DueDate)
+            .FirstOrDefault();
+        loan.RecalculatePayments(Money.FromMinorUnits(paidTotal), nextDueDate, utcNow);
+    }
+
+    private static void EnsureLoanPaymentMonthIsOpen(AdministrationData data, DateOnly date)
+    {
+        YearMonth month = YearMonth.From(date);
+        if (data.MonthlyCloses.Any(item => item.Month == month && item.IsConfirmed))
+            throw new InvalidOperationException(
+                $"No se puede modificar un pago del mes cerrado {month}. Reabre el mes primero.");
     }
 
     public async Task<AnnualClose> CloseYearAsync(int year, CancellationToken cancellationToken = default)

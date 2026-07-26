@@ -9,6 +9,62 @@ public sealed record LoanPlan(
 
 public static class LoanCalculator
 {
+    public static LoanPlan FixedInterestOnInitialPrincipal(
+        string name,
+        Money principal,
+        decimal monthlyInterestPercent,
+        int installmentCount,
+        DateOnly firstDueDate,
+        DateTime utcNow,
+        string? description = null)
+    {
+        Validate(principal, installmentCount, firstDueDate, utcNow);
+        if (monthlyInterestPercent < 0m)
+            throw new ArgumentOutOfRangeException(nameof(monthlyInterestPercent), "El interés mensual no puede ser negativo.");
+
+        int basisPoints = ToBasisPoints(monthlyInterestPercent);
+        long fixedInterest = RoundMinorUnits(principal.MinorUnits * (basisPoints / 10_000m));
+        long basePrincipal = principal.MinorUnits / installmentCount;
+        long remainingPrincipal = principal.MinorUnits;
+        long totalInterest = checked(fixedInterest * installmentCount);
+        var installments = new List<LoanInstallment>(installmentCount);
+        Guid loanId = Guid.NewGuid();
+
+        for (int number = 1; number <= installmentCount; number++)
+        {
+            long principalPart = number == installmentCount ? remainingPrincipal : basePrincipal;
+            remainingPrincipal -= principalPart;
+            long amount = checked(principalPart + fixedInterest);
+            installments.Add(LoanInstallment.Create(
+                loanId,
+                number,
+                firstDueDate.AddMonths(number - 1),
+                amount,
+                principalPart,
+                fixedInterest,
+                remainingPrincipal,
+                $"Cuota {number} de {installmentCount}",
+                utcNow));
+        }
+
+        long expectedTotal = checked(principal.MinorUnits + totalInterest);
+        Loan loan = new(
+            loanId,
+            name,
+            principal,
+            Money.FromMinorUnits(expectedTotal),
+            Money.FromMinorUnits(totalInterest),
+            installments[0].Amount,
+            LoanCalculationMethod.FixedInterestOnInitialPrincipal,
+            basisPoints,
+            basisPoints,
+            installmentCount,
+            firstDueDate,
+            utcNow,
+            description);
+        return new LoanPlan(loan, installments, basisPoints / 100m);
+    }
+
     public static LoanPlan MonthlyBalanceInterest(
         string name,
         Money principal,

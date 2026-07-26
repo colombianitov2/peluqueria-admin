@@ -50,6 +50,22 @@ public sealed class FinancialReserve : AuditableEntity
         MarkUpdated(utcNow);
     }
 
+    public void CorrectSettlement(DateOnly date, Money actualAmount, DateTime utcNow)
+    {
+        if (!IsConsumed) throw new InvalidOperationException("La reserva todavía no ha sido consumida.");
+        if (actualAmount.MinorUnits < 0) throw new ArgumentOutOfRangeException(nameof(actualAmount));
+        SettledDate = date;
+        ActualAmount = actualAmount;
+        MarkUpdated(utcNow);
+    }
+
+    public void ReopenSettlement(DateTime utcNow)
+    {
+        SettledDate = null;
+        ActualAmount = null;
+        MarkUpdated(utcNow);
+    }
+
     private static Money EnsurePositive(Money amount) => amount.MinorUnits > 0
         ? amount
         : throw new ArgumentOutOfRangeException(nameof(amount), "La reserva debe ser mayor que cero.");

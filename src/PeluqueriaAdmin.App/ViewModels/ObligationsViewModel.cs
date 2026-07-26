@@ -21,8 +21,9 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
     public ObservableCollection<LoanRow> Loans { get; } = [];
     public ObservableCollection<LoanInstallmentRow> LoanInstallments { get; } = [];
     public ObservableCollection<LoanPaymentRow> LoanPayments { get; } = [];
+    public ObservableCollection<LoanPreviewInstallmentRow> LoanPreviewInstallments { get; } = [];
     public ObservableCollection<string> LoanCalculationMethodOptions { get; } =
-        ["Interés mensual sobre saldo", "Cantidad final acordada"];
+        ["Interés mensual sobre saldo", "Interés fijo sobre capital inicial", "Cantidad final acordada"];
 
     [ObservableProperty] private bool isAddMode = true;
     [ObservableProperty] private bool isLoanMode;
@@ -51,12 +52,19 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
     [ObservableProperty] private DateTime? loanFirstDueDate = DateTime.Today;
     [ObservableProperty] private string loanDescription = string.Empty;
     [ObservableProperty] private string loanPreview = "Completa los datos para ver el plan de cuotas.";
+    [ObservableProperty] private string loanPreviewError = string.Empty;
     [ObservableProperty] private bool showMonthlyInterest = true;
     [ObservableProperty] private bool showAgreedFinalAmount;
     [ObservableProperty] private LoanRow? selectedLoan;
+    [ObservableProperty] private bool isEditingLoan;
+    [ObservableProperty] private bool canEditLoanTerms = true;
+    [ObservableProperty] private bool confirmLoanDelete;
     [ObservableProperty] private DateTime? loanPaymentDate = DateTime.Today;
     [ObservableProperty] private string loanPaymentAmount = string.Empty;
     [ObservableProperty] private string loanPaymentDescription = string.Empty;
+    [ObservableProperty] private LoanPaymentRow? selectedLoanPayment;
+    [ObservableProperty] private bool isEditingLoanPayment;
+    [ObservableProperty] private bool confirmLoanPaymentDelete;
 
     public bool IsPaymentMode => !IsAddMode && !IsLoanMode;
 
@@ -109,6 +117,11 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
                 $"{ApplicationCurrency.Code} {loan.ExpectedTotal.ToDecimal():N2}",
                 $"{ApplicationCurrency.Code} {loan.TotalInterest.ToDecimal():N2}",
                 LoanMethodName(loan.CalculationMethod),
+                loan.CalculationMethod == LoanCalculationMethod.AgreedFinalAmount
+                    ? "No aplica"
+                    : $"{loan.MonthlyInterestBasisPoints / 100m:N2} %",
+                $"{loan.EquivalentMonthlyRateBasisPoints / 100m:N4} %",
+                loan.InstallmentCount?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
                 loan.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 loan.NextDueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 loan.IsPaid ? "Pagado" : "Pendiente", loan.Description ?? string.Empty));
@@ -131,7 +144,7 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
         }
         LoanPayments.Clear();
         foreach (LoanPayment payment in data.LoanPayments.OrderByDescending(item => item.Date))
-            LoanPayments.Add(new LoanPaymentRow(payment.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            LoanPayments.Add(new LoanPaymentRow(payment, payment.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 data.Loans.SingleOrDefault(item => item.Id == payment.LoanId)?.Name ?? "Préstamo eliminado",
                 $"{ApplicationCurrency.Code} {payment.Amount.ToDecimal():N2}", payment.Description ?? string.Empty));
     }
@@ -156,13 +169,8 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
             Money principal = ParseMoney(LoanInitialBalance);
             DateOnly firstDueDate = RequiredDate(LoanFirstDueDate, "fecha de la primera cuota");
             DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
-            LoanPlan plan = SelectedLoanCalculationMethod == "Cantidad final acordada"
-                ? LoanCalculator.AgreedFinalAmount(
-                    LoanName, principal, ParseMoney(LoanAgreedFinalAmount), count,
-                    firstDueDate, utcNow, LoanDescription)
-                : LoanCalculator.MonthlyBalanceInterest(
-                    LoanName, principal, ParseNonNegativeDecimal(LoanMonthlyInterestPercent, "interés mensual"),
-                    count, firstDueDate, utcNow, LoanDescription);
+            LoanPlan plan = BuildLoanPlan(
+                LoanName, principal, count, firstDueDate, utcNow, LoanDescription);
             await service.AddLoanAsync(plan);
             ClearLoanForm();
             StatusMessage = "El préstamo y su calendario de cuotas quedaron registrados; la financiación no incrementa la ganancia.";
@@ -186,6 +194,164 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
                 ParseMoney(LoanPaymentAmount), LoanPaymentDescription);
             LoanPaymentAmount = LoanPaymentDescription = string.Empty;
             StatusMessage = "La cuota exacta se registró y redujo el saldo pendiente.";
+            IsError = false;
+            await RefreshAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            StatusMessage = exception.Message;
+            IsError = true;
+        }
+    }
+
+    [RelayCommand]
+    private async Task EditSelectedLoanAsync()
+    {
+        if (SelectedLoan is null)
+        {
+            StatusMessage = "Selecciona un préstamo para editar.";
+            IsError = true;
+            return;
+        }
+
+        AdministrationData data = await service.LoadAsync();
+        Loan loan = SelectedLoan.Loan;
+        bool hasPayments = data.LoanPayments.Any(item => item.LoanId == loan.Id);
+        IsEditingLoan = true;
+        CanEditLoanTerms = !hasPayments && loan.CalculationMethod != LoanCalculationMethod.Legacy;
+        LoanName = loan.Name;
+        LoanDescription = loan.Description ?? string.Empty;
+        LoanInitialBalance = loan.InitialBalance.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture);
+        SelectedLoanCalculationMethod = LoanMethodName(loan.CalculationMethod);
+        LoanMonthlyInterestPercent = (loan.MonthlyInterestBasisPoints / 100m)
+            .ToString("0.####", CultureInfo.CurrentCulture);
+        LoanAgreedFinalAmount = loan.ExpectedTotal.ToDecimal().ToString("0.00", CultureInfo.CurrentCulture);
+        LoanInstallmentCount = loan.InstallmentCount?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+        LoanFirstDueDate = loan.StartDate.ToDateTime(TimeOnly.MinValue);
+        StatusMessage = hasPayments
+            ? "Este préstamo ya tiene pagos: solo puedes editar el nombre y la descripción."
+            : "Edición activa. Los cambios financieros regenerarán el calendario antes del primer pago.";
+        IsError = false;
+        UpdateLoanPreview();
+    }
+
+    [RelayCommand]
+    private async Task SaveLoanEditAsync()
+    {
+        try
+        {
+            if (!IsEditingLoan || SelectedLoan is null)
+                throw new InvalidOperationException("Selecciona Editar préstamo antes de guardar.");
+            Guid loanId = SelectedLoan.Loan.Id;
+            if (!CanEditLoanTerms)
+            {
+                await service.UpdateLoanMetadataAsync(loanId, LoanName, LoanDescription);
+            }
+            else
+            {
+                int count = int.TryParse(LoanInstallmentCount, out int parsed) && parsed > 0
+                    ? parsed
+                    : throw new ArgumentException("La cantidad de cuotas debe ser un entero positivo.");
+                LoanPlan replacement = BuildLoanPlan(
+                    LoanName,
+                    ParseMoney(LoanInitialBalance),
+                    count,
+                    RequiredDate(LoanFirstDueDate, "fecha de la primera cuota"),
+                    timeProvider.GetUtcNow().UtcDateTime,
+                    LoanDescription);
+                await service.ReplaceLoanPlanAsync(loanId, replacement);
+            }
+            ClearLoanForm();
+            IsEditingLoan = false;
+            CanEditLoanTerms = true;
+            StatusMessage = "El préstamo se actualizó conservando la trazabilidad.";
+            IsError = false;
+            await RefreshAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or OverflowException)
+        {
+            StatusMessage = exception.Message;
+            IsError = true;
+        }
+    }
+
+    [RelayCommand]
+    private async Task DeleteSelectedLoanAsync()
+    {
+        try
+        {
+            if (SelectedLoan is null || !ConfirmLoanDelete)
+                throw new InvalidOperationException("Selecciona un préstamo y confirma la eliminación.");
+            await service.DeleteLoanAsync(SelectedLoan.Loan.Id);
+            ClearLoanForm();
+            ConfirmLoanDelete = false;
+            IsEditingLoan = false;
+            StatusMessage = "El préstamo se eliminó lógicamente y quedó en el historial eliminado.";
+            IsError = false;
+            await RefreshAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            StatusMessage = exception.Message;
+            IsError = true;
+        }
+    }
+
+    [RelayCommand]
+    private void EditSelectedLoanPayment()
+    {
+        if (SelectedLoanPayment is null)
+        {
+            StatusMessage = "Selecciona un pago de préstamo para editar.";
+            IsError = true;
+            return;
+        }
+        IsEditingLoanPayment = true;
+        LoanPaymentDate = SelectedLoanPayment.Payment.Date.ToDateTime(TimeOnly.MinValue);
+        LoanPaymentAmount = SelectedLoanPayment.Payment.Amount.ToDecimal()
+            .ToString("0.00", CultureInfo.CurrentCulture);
+        LoanPaymentDescription = SelectedLoanPayment.Payment.Description ?? string.Empty;
+        StatusMessage = "Edición del pago activa. Las cuotas programadas conservan su valor exacto.";
+        IsError = false;
+    }
+
+    [RelayCommand]
+    private async Task SaveLoanPaymentEditAsync()
+    {
+        try
+        {
+            if (!IsEditingLoanPayment || SelectedLoanPayment is null)
+                throw new InvalidOperationException("Selecciona Editar pago antes de guardar.");
+            await service.UpdateLoanPaymentAsync(
+                SelectedLoanPayment.Payment.Id,
+                RequiredDate(LoanPaymentDate, "fecha de pago"),
+                ParseMoney(LoanPaymentAmount),
+                LoanPaymentDescription);
+            IsEditingLoanPayment = false;
+            LoanPaymentAmount = LoanPaymentDescription = string.Empty;
+            StatusMessage = "El pago se corrigió y el saldo del préstamo se recalculó.";
+            IsError = false;
+            await RefreshAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            StatusMessage = exception.Message;
+            IsError = true;
+        }
+    }
+
+    [RelayCommand]
+    private async Task DeleteSelectedLoanPaymentAsync()
+    {
+        try
+        {
+            if (SelectedLoanPayment is null || !ConfirmLoanPaymentDelete)
+                throw new InvalidOperationException("Selecciona un pago y confirma la eliminación.");
+            await service.DeleteLoanPaymentAsync(SelectedLoanPayment.Payment.Id);
+            IsEditingLoanPayment = false;
+            ConfirmLoanPaymentDelete = false;
+            LoanPaymentAmount = LoanPaymentDescription = string.Empty;
+            StatusMessage = "El pago se eliminó lógicamente y el préstamo se recalculó.";
             IsError = false;
             await RefreshAsync();
         }
@@ -316,8 +482,8 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
     partial void OnIsLoanModeChanged(bool value) => OnPropertyChanged(nameof(IsPaymentMode));
     partial void OnSelectedLoanCalculationMethodChanged(string value)
     {
-        ShowMonthlyInterest = value == "Interés mensual sobre saldo";
-        ShowAgreedFinalAmount = !ShowMonthlyInterest;
+        ShowAgreedFinalAmount = value == "Cantidad final acordada";
+        ShowMonthlyInterest = !ShowAgreedFinalAmount;
         UpdateLoanPreview();
     }
     partial void OnLoanInitialBalanceChanged(string value) => UpdateLoanPreview();
@@ -346,6 +512,8 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
 
     private void UpdateLoanPreview()
     {
+        LoanPreviewInstallments.Clear();
+        LoanPreviewError = string.Empty;
         try
         {
             if (!int.TryParse(LoanInstallmentCount, out int count) || count <= 0
@@ -354,26 +522,55 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
                 LoanPreview = "Completa principal, cantidad de cuotas y primera fecha de pago.";
                 return;
             }
-            LoanPlan plan = SelectedLoanCalculationMethod == "Cantidad final acordada"
-                ? LoanCalculator.AgreedFinalAmount(
-                    string.IsNullOrWhiteSpace(LoanName) ? "Vista previa" : LoanName,
-                    ParseMoney(LoanInitialBalance), ParseMoney(LoanAgreedFinalAmount), count,
-                    DateOnly.FromDateTime(LoanFirstDueDate.Value), timeProvider.GetUtcNow().UtcDateTime)
-                : LoanCalculator.MonthlyBalanceInterest(
-                    string.IsNullOrWhiteSpace(LoanName) ? "Vista previa" : LoanName,
-                    ParseMoney(LoanInitialBalance), ParseNonNegativeDecimal(LoanMonthlyInterestPercent, "interés mensual"),
-                    count, DateOnly.FromDateTime(LoanFirstDueDate.Value), timeProvider.GetUtcNow().UtcDateTime);
+            LoanPlan plan = BuildLoanPlan(
+                string.IsNullOrWhiteSpace(LoanName) ? "Vista previa" : LoanName,
+                ParseMoney(LoanInitialBalance),
+                count,
+                DateOnly.FromDateTime(LoanFirstDueDate.Value),
+                timeProvider.GetUtcNow().UtcDateTime);
             LoanPreview =
-                $"Cuota inicial: {ApplicationCurrency.Code} {plan.Installments[0].Amount.ToDecimal():N2} · "
+                $"Capital: {ApplicationCurrency.Code} {plan.Loan.InitialBalance.ToDecimal():N2} · "
                 + $"Total a pagar: {ApplicationCurrency.Code} {plan.Loan.ExpectedTotal.ToDecimal():N2} · "
                 + $"Interés total: {ApplicationCurrency.Code} {plan.Loan.TotalInterest.ToDecimal():N2} · "
-                + $"Tasa mensual equivalente: {plan.EquivalentMonthlyRatePercent:N4} %";
+                + $"Tasa mensual equivalente: {plan.EquivalentMonthlyRatePercent:N4} % · "
+                + $"Primera cuota: {ApplicationCurrency.Code} {plan.Installments[0].Amount.ToDecimal():N2} · "
+                + $"Última cuota: {ApplicationCurrency.Code} {plan.Installments[^1].Amount.ToDecimal():N2}.";
+            foreach (LoanInstallment installment in plan.Installments)
+            {
+                LoanPreviewInstallments.Add(new LoanPreviewInstallmentRow(
+                    installment.Number,
+                    installment.DueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    $"{ApplicationCurrency.Code} {installment.Amount.ToDecimal():N2}",
+                    $"{ApplicationCurrency.Code} {installment.Principal.ToDecimal():N2}",
+                    $"{ApplicationCurrency.Code} {installment.Interest.ToDecimal():N2}",
+                    $"{ApplicationCurrency.Code} {installment.PrincipalBalanceAfter.ToDecimal():N2}"));
+            }
         }
-        catch (Exception)
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or OverflowException)
         {
-            LoanPreview = "Revisa los valores para calcular la vista previa.";
+            LoanPreview = "No se pudo calcular el plan.";
+            LoanPreviewError = exception.Message;
         }
     }
+
+    private LoanPlan BuildLoanPlan(
+        string name,
+        Money principal,
+        int count,
+        DateOnly firstDueDate,
+        DateTime utcNow,
+        string? description = null) => SelectedLoanCalculationMethod switch
+        {
+            "Cantidad final acordada" => LoanCalculator.AgreedFinalAmount(
+                name, principal, ParseMoney(LoanAgreedFinalAmount), count,
+                firstDueDate, utcNow, description),
+            "Interés fijo sobre capital inicial" => LoanCalculator.FixedInterestOnInitialPrincipal(
+                name, principal, ParseNonNegativeDecimal(LoanMonthlyInterestPercent, "interés mensual"),
+                count, firstDueDate, utcNow, description),
+            _ => LoanCalculator.MonthlyBalanceInterest(
+                name, principal, ParseNonNegativeDecimal(LoanMonthlyInterestPercent, "interés mensual"),
+                count, firstDueDate, utcNow, description),
+        };
 
     private void ClearLoanForm()
     {
@@ -381,6 +578,8 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
             LoanInstallmentCount = LoanDescription = string.Empty;
         LoanFirstDueDate = timeProvider.GetLocalNow().DateTime.Date;
         LoanPreview = "Completa los datos para ver el plan de cuotas.";
+        LoanPreviewError = string.Empty;
+        LoanPreviewInstallments.Clear();
     }
 
     private void ResetDefinitionForm()
@@ -432,6 +631,7 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
     private static string LoanMethodName(LoanCalculationMethod method) => method switch
     {
         LoanCalculationMethod.MonthlyBalanceInterest => "Interés mensual sobre saldo",
+        LoanCalculationMethod.FixedInterestOnInitialPrincipal => "Interés fijo sobre capital inicial",
         LoanCalculationMethod.AgreedFinalAmount => "Cantidad final acordada",
         _ => "Préstamo anterior",
     };
@@ -458,8 +658,11 @@ public sealed record ObligationPaymentListRow(string Date, string Obligation, st
 public sealed record ObligationSeriesOption(Guid SeriesId, string Display);
 public sealed record LoanRow(Loan Loan, string Name, string InitialBalance, string PendingBalance,
     string Installment, string ExpectedTotal, string TotalInterest, string Method,
+    string StatedMonthlyRate, string EquivalentMonthlyRate, string InstallmentCount,
     string StartDate, string NextDueDate, string State, string Description);
 public sealed record LoanInstallmentRow(LoanInstallment Installment, string Loan, int Number,
     string DueDate, string Amount, string Principal, string Interest, string PrincipalBalance,
     string State, string Description);
-public sealed record LoanPaymentRow(string Date, string Loan, string Amount, string Description);
+public sealed record LoanPaymentRow(LoanPayment Payment, string Date, string Loan, string Amount, string Description);
+public sealed record LoanPreviewInstallmentRow(int Number, string DueDate, string Amount,
+    string Principal, string Interest, string PrincipalBalance);

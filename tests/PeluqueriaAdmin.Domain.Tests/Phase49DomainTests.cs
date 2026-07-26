@@ -160,6 +160,42 @@ public sealed class Phase49DomainTests
             plan.Installments.Select(item => item.DueDate));
     }
 
+    [Fact]
+    public void Phase50B_FixedInterestUsesTheInitialPrincipalForEveryInstallment()
+    {
+        LoanPlan plan = LoanCalculator.FixedInterestOnInitialPrincipal(
+            "Crédito fijo",
+            Money.FromDecimal(1_000m),
+            2m,
+            4,
+            new DateOnly(2026, 8, 15),
+            Utc);
+
+        Assert.Equal(LoanCalculationMethod.FixedInterestOnInitialPrincipal, plan.Loan.CalculationMethod);
+        Assert.Equal(108_000, plan.Loan.ExpectedTotal.MinorUnits);
+        Assert.Equal(8_000, plan.Loan.TotalInterest.MinorUnits);
+        Assert.All(plan.Installments, item => Assert.Equal(2_000, item.Interest.MinorUnits));
+        Assert.Equal(0, plan.Installments[^1].PrincipalBalanceAfter.MinorUnits);
+        Assert.Equal(plan.Loan.ExpectedTotal.MinorUnits, plan.Installments.Sum(item => item.Amount.MinorUnits));
+    }
+
+    [Fact]
+    public void Phase50B_FixedInterestLastInstallmentAbsorbsPrincipalCents()
+    {
+        LoanPlan plan = LoanCalculator.FixedInterestOnInitialPrincipal(
+            "Crédito fijo",
+            Money.FromDecimal(100.01m),
+            0m,
+            3,
+            new DateOnly(2026, 8, 31),
+            Utc);
+
+        Assert.Equal([3_333L, 3_333L, 3_335L], plan.Installments.Select(item => item.Amount.MinorUnits));
+        Assert.Equal(
+            [new DateOnly(2026, 8, 31), new DateOnly(2026, 9, 30), new DateOnly(2026, 10, 31)],
+            plan.Installments.Select(item => item.DueDate));
+    }
+
     private static CollaboratorContribution Contribution(decimal amount) =>
         CollaboratorContribution.Create(Guid.NewGuid(), new DateOnly(2026, 7, 23),
             Money.FromDecimal(amount), "Capital inicial", Utc);

@@ -10,6 +10,7 @@ public enum LoanCalculationMethod
     Legacy = 0,
     MonthlyBalanceInterest = 1,
     AgreedFinalAmount = 2,
+    FixedInterestOnInitialPrincipal = 3,
 }
 
 public sealed class Loan : AuditableEntity
@@ -119,6 +120,27 @@ public sealed class Loan : AuditableEntity
         MarkUpdated(utcNow);
     }
 
+    public void UpdateMetadata(string name, string? description, DateTime utcNow)
+    {
+        Name = NormalizeRequiredText(name, nameof(name));
+        Description = NormalizeOptionalText(description);
+        MarkUpdated(utcNow);
+    }
+
+    public void RecalculatePayments(Money paidTotal, DateOnly? nextDueDate, DateTime utcNow)
+    {
+        if (paidTotal.MinorUnits < 0 || paidTotal.MinorUnits > ExpectedTotal.MinorUnits)
+            throw new ArgumentOutOfRangeException(nameof(paidTotal), "Los pagos no pueden superar el total del préstamo.");
+        PendingBalance = Money.FromMinorUnits(ExpectedTotal.MinorUnits - paidTotal.MinorUnits);
+        if (!IsPaid)
+        {
+            if (CalculationMethod != LoanCalculationMethod.Legacy && !nextDueDate.HasValue)
+                throw new InvalidOperationException("El préstamo pendiente debe conservar una cuota futura.");
+            if (nextDueDate.HasValue) NextDueDate = nextDueDate.Value;
+        }
+        MarkUpdated(utcNow);
+    }
+
     private static Money EnsurePositive(Money amount, string name) => amount.MinorUnits > 0
         ? amount : throw new ArgumentOutOfRangeException(name, "El importe debe ser mayor que cero.");
 }
@@ -150,5 +172,14 @@ public sealed class LoanPayment : AuditableEntity
     {
         if (installmentId == Guid.Empty) throw new ArgumentException("La cuota es obligatoria.", nameof(installmentId));
         return new LoanPayment(Guid.NewGuid(), loanId, installmentId, date, amount, utcNow, description);
+    }
+
+    public void Correct(DateOnly date, Money amount, string? description, DateTime utcNow)
+    {
+        if (amount.MinorUnits <= 0) throw new ArgumentOutOfRangeException(nameof(amount));
+        Date = date;
+        Amount = amount;
+        Description = NormalizeOptionalText(description);
+        MarkUpdated(utcNow);
     }
 }
