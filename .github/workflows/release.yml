@@ -97,8 +97,31 @@ jobs:
             --mainExe PeluqueriaAdmin.App.exe `
             --packTitle "Peluquería Admin" `
             --packAuthors "colombianitov2" `
+            --icon src/PeluqueriaAdmin.App/Assets/kv-logo.ico `
             --runtime win-x64 `
             --outputDir Releases
+
+      - name: Prepare exact installer and portable names
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $generatedSetup = Get-ChildItem -LiteralPath Releases -Filter "*Setup.exe" |
+            Where-Object { $_.Name -ne "PeluqueriaAdmin-Setup-v$version.exe" } |
+            Select-Object -First 1
+          if ($null -eq $generatedSetup) {
+            throw "Velopack no generó un instalador Setup.exe."
+          }
+          $generatedPortable = Get-ChildItem -LiteralPath Releases -Filter "*-Portable.zip" |
+            Where-Object { $_.Name -ne "PeluqueriaAdmin-Portable-v$version-win-x64.zip" } |
+            Select-Object -First 1
+          if ($null -eq $generatedPortable) {
+            throw "Velopack no generó un paquete Portable.zip."
+          }
+
+          Copy-Item -LiteralPath $generatedSetup.FullName `
+            -Destination "Releases/PeluqueriaAdmin-Setup-v$version.exe"
+          Copy-Item -LiteralPath $generatedPortable.FullName `
+            -Destination "Releases/PeluqueriaAdmin-Portable-v$version-win-x64.zip"
 
       - name: Publish GitHub release
         shell: pwsh
@@ -117,4 +140,26 @@ jobs:
             $arguments += @("--pre", "true")
           }
           & .\.tools\vpk.exe @arguments
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish named assets and release notes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $notesFile = "docs/NOTAS_VERSION_$version.md"
+          if (-not (Test-Path -LiteralPath $notesFile)) {
+            throw "No existe el archivo de notas requerido: $notesFile"
+          }
+          gh release upload "${{ github.ref_name }}" `
+            "Releases/PeluqueriaAdmin-Setup-v$version.exe" `
+            "Releases/PeluqueriaAdmin-Portable-v$version-win-x64.zip" `
+            --clobber
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          gh release edit "${{ github.ref_name }}" `
+            --title "Peluquería Admin $version" `
+            --notes-file $notesFile `
+            --prerelease=${{ steps.version.outputs.prerelease }}
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

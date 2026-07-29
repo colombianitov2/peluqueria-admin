@@ -29,4 +29,21 @@ public interface IAdministrationRepository
         WeeklyRate? newRate,
         string completedDraftKey,
         CancellationToken cancellationToken = default);
+
+    Task SaveSettingsAndDailyRateAsync(
+        GeneralSettings settings,
+        DailyRate? newRate,
+        CancellationToken cancellationToken = default) =>
+        SaveSettingsAndRateAsync(settings, null, cancellationToken);
+
+    Task SaveSettingsAndDailyRateCompletingDraftAsync(
+        GeneralSettings settings,
+        DailyRate? newRate,
+        string completedDraftKey,
+        CancellationToken cancellationToken = default) =>
+        SaveSettingsAndRateCompletingDraftAsync(
+            settings,
+            null,
+            completedDraftKey,
+            cancellationToken);
 }

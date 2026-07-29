@@ -2,6 +2,18 @@
 
 Este registro impide que la implementación convierta supuestos en reglas de negocio. Las decisiones resueltas se conservan como trazabilidad; las demás no se consideran aprobadas hasta que el usuario las confirme.
 
+## Decisiones cerradas por Fase 5.2 — 29 de julio de 2026
+
+- La tarifa de Uso del local es diaria y exacta de lunes a sábado; el domingo no cobra.
+- Solo una asignación de silla activa genera cargos.
+- Los cargos diarios vencen agrupados el sábado y conservan la tarifa histórica de su fecha.
+- Los aportes son financiación: afectan saldo disponible por su valor neto, no ganancia.
+- La identidad oficial usa exclusivamente el archivo K&V original suministrado.
+- La versión objetivo es `0.2.0-alpha.2` y debe probarse desde el actualizador de `alpha.1`.
+
+Estas decisiones reemplazan cualquier regla semanal de Uso del local indicada más abajo como
+contexto histórico. No reemplazan la recurrencia semanal válida de obligaciones o mantenimientos.
+
 ## Decisiones resueltas en la Fase 0.1 (18 de julio de 2026)
 
 - **Visibilidad del repositorio:** público.

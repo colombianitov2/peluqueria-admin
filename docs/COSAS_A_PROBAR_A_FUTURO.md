@@ -9,16 +9,16 @@ Esta lista reúne comportamientos que dependen del paso real del tiempo o de cru
 - [ ] Confirmar **Este mes** durante el último día de un mes y el primero del siguiente.
 - [ ] Confirmar **Últimos 3 meses** y **Últimos 6 meses** al cruzar meses de distinta duración.
 - [ ] Confirmar **Este año** durante el 31 de diciembre y el 1 de enero.
-- [ ] Confirmar que **Todo el historial** sigue incluyendo altas, cuotas, pagos, silla y retiro sin duplicados.
+- [ ] Confirmar que **Todo el historial** sigue incluyendo altas, cargos diarios, pagos, silla y retiro sin duplicados.
 
-## Ciclos, cuotas y saldo a favor
+## Cargos diarios y saldo a favor
 
-- [ ] Mantener un trabajador de prueba hasta cumplirse 7, 14, 21 y más días desde su ingreso y verificar una sola cuota por cada periodo completo.
-- [ ] Confirmar que ningún periodo incompleto genera deuda al ingresar o al retirar al trabajador.
-- [ ] Registrar saldo a favor y observar su consumo progresivo al completarse cada periodo semanal.
-- [ ] Repetir manualmente la prueba automatizada `AdvanceBalance_DecreasesOncePerAnchoredWeekAndRestartDoesNotDuplicateCharges`: saldo grande, +7 días, +varias semanas, saldo parcial, faltante exacto y reinicio sin segunda deducción.
-- [ ] Confirmar en fechas futuras la próxima cuota y el próximo pago requerido, con su fecha e importe.
-- [ ] Programar un cambio de tarifa con fecha de vigencia y verificar tarifa histórica en periodos causados y tarifa nueva solo en los futuros.
+- [ ] Mantener un trabajador con silla durante varias semanas y verificar un cargo exacto por cada lunes-sábado y ninguno el domingo.
+- [ ] Confirmar que retirar la silla detiene cargos nuevos desde la fecha efectiva.
+- [ ] Registrar saldo a favor y observar su consumo diario, comprobando que no cambie el domingo.
+- [ ] Repetir manualmente la prueba de saldo grande, varias semanas, saldo parcial, faltante exacto y reinicio sin segunda deducción.
+- [ ] Confirmar en fechas futuras el próximo cobro y el próximo pago requerido, con fecha e importe.
+- [ ] Cambiar la tarifa a mitad de semana y verificar tarifa histórica en días causados y tarifa nueva solo en los futuros.
 
 ## Eliminación lógica y aplicación abierta
 
@@ -28,7 +28,7 @@ Esta lista reúne comportamientos que dependen del paso real del tiempo o de cru
 Para cada comprobación se debe usar una raíz de datos temporal, anotar fecha/hora local, zona horaria, versión, resultado esperado y resultado observado. No debe utilizarse la base real para estas pruebas.
 # Comprobaciones posteriores a Fase 4.7
 
-- Mantener la aplicación abierta durante el cambio de medianoche y comprobar que la campana de mantenimiento, el saldo semanal y el snapshot mensual se renuevan sin reiniciar.
+- Mantener la aplicación abierta durante el cambio de medianoche y comprobar que la campana de mantenimiento, el saldo diario y el snapshot mensual se renuevan sin reiniciar.
 - Repetir las ocho escalas del Resumen mensual en el último día de febrero, cambio de año y zonas horarias con horario de verano.
 - Confirmar que un registro migrado cuya fecha operativa no coincide con `CreatedUtc` aparece en el total diario y en el aviso “sin hora”, pero nunca en una hora inventada.
 - Revisar Inicio, Colaboradores, Ventas, Inventario, Ajustes, Resumen mensual y Balance anual a 100 %, 125 % y 150 % en el segundo monitor.
@@ -46,9 +46,9 @@ Para cada comprobación se debe usar una raíz de datos temporal, anotar fecha/h
 
 ## Comprobaciones posteriores a Fase 4.9
 
-- Dejar una copia temporal cerrada durante uno, dos y varios sábados; al abrirla, verificar que cada cuota se generó una sola vez y consumió el saldo a favor cronológicamente.
+- Dejar una copia temporal cerrada durante uno, dos y varios sábados; al abrirla, verificar que cada cargo diario se generó una sola vez y consumió el saldo a favor cronológicamente.
 - Repetir con saldo suficiente, saldo parcial y sin saldo; anotar saldo restante, deuda, próximo cobro, próximo pago requerido y cobertura estimada.
-- Cambiar la tarifa antes de un sábado futuro y comprobar que las cuotas anteriores conservan la tarifa histórica y la nueva solo rige desde su fecha efectiva.
+- Cambiar la tarifa a mitad de semana y comprobar que los días anteriores conservan la tarifa histórica y la nueva solo rige desde su fecha efectiva.
 - Consultar movimientos cercanos a las 00:00 y durante un cambio real de fecha local; verificar que ayer, hoy y mañana nunca se mezclan.
 - Pagar durante varios meses el préstamo de prueba USD 100 → USD 150 y confirmar cinco cuotas de USD 30, incluido el historial tras reiniciar.
 - Cerrar un año temporal con cuentas, reservas, préstamo, superávit o déficit; comprobar el arrastre separado al año siguiente sin convertirlo en ingreso o gasto nuevo.

@@ -122,11 +122,13 @@ public sealed partial class LocalUseViewModel(
             foreach (LocalUsePerson worker in data.LocalUsePeople.OrderBy(item => item.Name))
             {
                 Chair? chair = data.Chairs.SingleOrDefault(item => item.AssignedPersonId == worker.Id);
-                WorkerAccountBalance account = WeeklyChargeCalculator.CalculateAccount(
+                WorkerAccountBalance account = DailyChargeCalculator.CalculateAccount(
                     worker,
+                    data.DailyCharges.Where(item => item.PersonId == worker.Id),
                     data.WeeklyCharges.Where(item => item.PersonId == worker.Id),
                     data.LocalUsePayments.Where(item => item.PersonId == worker.Id),
-                    data.WeeklyRates,
+                    data.DailyRates,
+                    data.ChairAssignmentPeriods,
                     today);
                 Workers.Add(new WorkerRow(
                     worker,
@@ -507,16 +509,18 @@ public sealed partial class LocalUseViewModel(
 
         Chair? currentChair = data.Chairs.SingleOrDefault(item => item.AssignedPersonId == workerId);
         ProfileChair = currentChair?.Name ?? "Sin silla asignada";
-        WorkerAccountBalance balance = WeeklyChargeCalculator.CalculateAccount(
+        WorkerAccountBalance balance = DailyChargeCalculator.CalculateAccount(
             worker,
+            data.DailyCharges.Where(item => item.PersonId == workerId),
             data.WeeklyCharges.Where(item => item.PersonId == workerId),
             data.LocalUsePayments.Where(item => item.PersonId == workerId),
-            data.WeeklyRates,
+            data.DailyRates,
+            data.ChairAssignmentPeriods,
             today);
         ProfileDebt = FormatMoney(ApplicationCurrency.Code, balance.Debt);
         ProfileCredit = FormatMoney(ApplicationCurrency.Code, balance.Credit);
-        ProfileNextCharge = FormatDate(balance.NextChargeDate, worker.ExitDate.HasValue ? "No aplica (retirado)" : "Sin cuota proyectada");
-        ProfileNextChargeAmount = FormatMoney(ApplicationCurrency.Code, balance.NextChargeAmount);
+        ProfileNextCharge = FormatDate(balance.NextChargeDate, worker.ExitDate.HasValue ? "No aplica (retirado)" : "Sin cobro proyectado");
+        ProfileNextChargeAmount = FormatMoney(ApplicationCurrency.Code, balance.CurrentDailyRate);
         ProfileNextRequiredPayment = FormatDate(
             balance.NextRequiredPaymentDate,
             worker.ExitDate.HasValue ? "No aplica (retirado)" : "Cubierto con saldo a favor");
@@ -525,9 +529,11 @@ public sealed partial class LocalUseViewModel(
             ProfileNextRequiredPayment = $"{ProfileNextRequiredPayment} · {FormatMoney(ApplicationCurrency.Code, balance.NextRequiredPaymentAmount)}";
         }
         ProfileCoveredThrough = FormatDate(balance.CoveredThroughDate, "Sin cobertura completa registrada");
-        ProfileWeeklyRates = string.Join(" · ", data.WeeklyRates
-            .OrderBy(item => item.EffectiveFrom)
-            .Select(item => $"Desde {item.EffectiveFrom:yyyy-MM-dd}: {ApplicationCurrency.Code} {item.Amount.ToDecimal():N2}"));
+        ProfileWeeklyRates = string.Join(" · ", data.DailyRates
+            .OrderBy(item => item.EffectiveDate)
+            .ThenBy(item => item.EffectiveFromUtc)
+            .Select(item => $"Desde {item.EffectiveDate:yyyy-MM-dd} {item.EffectiveFromUtc.ToLocalTime():HH:mm}: "
+                + $"{ApplicationCurrency.Code} {item.Amount.ToDecimal():N2}"));
 
         Guid? preservedChairId = WorkerProfileSelectedChair?.Id;
         WorkerProfileChairOptions.Clear();
@@ -563,10 +569,22 @@ public sealed partial class LocalUseViewModel(
         {
             history.Add((charge.DueDate, charge.CreatedUtc, History(
                 charge.DueDate,
-                "Cuota semanal generada",
+                "Cuota semanal histórica (legado)",
                 $"Periodo {charge.PeriodStart:yyyy-MM-dd} a {charge.PeriodEnd:yyyy-MM-dd}; pago habitual {charge.DueDate:yyyy-MM-dd} (sábado)",
                 $"{ApplicationCurrency.Code} {charge.Amount.ToDecimal():N2}",
                 "Pendiente o pagada según saldo",
+                charge)));
+        }
+
+        foreach (DailyCharge charge in data.DailyCharges.Where(
+            item => item.PersonId == workerId && range.Contains(item.ChargeDate)))
+        {
+            history.Add((charge.ChargeDate, charge.CreatedUtc, History(
+                charge.ChargeDate,
+                "Cargo diario generado",
+                $"Uso de silla; vence el sábado {charge.DueDate:yyyy-MM-dd}",
+                $"{ApplicationCurrency.Code} {charge.Amount.ToDecimal():N2}",
+                DailyChargeStatus(data, workerId, charge, today),
                 charge)));
         }
 
@@ -595,6 +613,45 @@ public sealed partial class LocalUseViewModel(
         {
             WorkerHistoryRows.Add(row);
         }
+    }
+
+    private static string DailyChargeStatus(
+        AdministrationData data,
+        Guid workerId,
+        DailyCharge charge,
+        DateOnly today)
+    {
+        if (charge.Amount.MinorUnits == 0)
+        {
+            return "Cubierto (tarifa diaria USD 0)";
+        }
+
+        if (data.FinancialEvents.Any(item =>
+                item.OperationId == charge.Id
+                && item.EventType == "Cargo cubierto con saldo"))
+        {
+            return "Cubierto con saldo a favor";
+        }
+
+        long cumulativeCharges = checked(
+            data.DailyCharges.Where(item =>
+                    item.PersonId == workerId
+                    && (item.ChargeDate < charge.ChargeDate
+                        || item.ChargeDate == charge.ChargeDate
+                        && item.CreatedUtc <= charge.CreatedUtc))
+                .Sum(item => item.Amount.MinorUnits)
+            + data.WeeklyCharges.Where(item =>
+                    item.PersonId == workerId && item.DueDate <= charge.DueDate)
+                .Sum(item => item.Amount.MinorUnits));
+        long payments = data.LocalUsePayments
+            .Where(item => item.PersonId == workerId && item.PaymentDate <= today)
+            .Sum(item => item.Amount.MinorUnits);
+        if (payments >= cumulativeCharges)
+        {
+            return "Cubierto con pago";
+        }
+
+        return charge.DueDate < today ? "Vencido" : "Pendiente";
     }
 
     private void LoadChairProfile(AdministrationData data, ActivityDateRange range)

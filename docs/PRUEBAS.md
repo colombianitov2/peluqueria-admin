@@ -1,5 +1,14 @@
 # Pruebas y validación
 
+## Fase 5.2
+
+La cobertura nueva verifica cargos diarios lunes-sábado, domingo excluido, tarifa cero, cambios
+históricos 10→15, silla y retiro, pago parcial/anticipado, próximo sábado, cruces de mes/año,
+aportes con diferencias firmadas, saldo disponible, migración alpha.1, Excel, detalle multilínea,
+refresco de vistas e icono K&V multirresolución. La aceptación de publicación exige además Debug y
+Release completos, formato, modelo EF sin cambios, auditorías de dependencias/secretos, empaquetado,
+revisión visual 100/125/150 % y actualización real desde Ajustes.
+
 ## Suite automatizada
 
 La solución contiene cuatro proyectos de pruebas:

@@ -2,9 +2,9 @@
 
 ## Carácter canónico y precedencia
 
-Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 5.0A del 25 de julio de 2026.
+Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 5.2 del 29 de julio de 2026.
 
-La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, cobro semanal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 y 4.5 concretan las reglas vigentes de Uso del local, perfil, fechas, sillas, cuenta, historial y pagos anticipados. La Fase 4.7 sustituyó la notificación de obligaciones, los porcentajes individuales directos y los planes de reposición visibles. La Fase 4.8 sustituye la regla de cierre automático: el cierre mensual vuelve a ser una acción manual visible únicamente en Resumen mensual y crea reservas, exclusiones y distribuciones congeladas. La Fase 4.9 sustituye las etiquetas ambiguas de actividad, el anticipo congelado, la lista mensual dependiente del inventario, el préstamo sin calendario exacto y el balance anual limitado a cierres. La Fase 4.10 sustituye el formulario genérico de alta de inventario, los controles de activación/reserva de la lista mensual, la lista incompleta de tipos y recurrencias de obligaciones y el Manual pendiente. La Fase 5.0A corrige la selección de aportes desde el historial único del colaborador y elimina el selector visual de participaciones pendientes sin cambiar cierres, distribuciones ni fórmulas.
+La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 a 5.0A concretan las reglas posteriores de perfiles, inventario, cierres y aportes. La Fase 5.2 reemplaza por completo la tarifa semanal y todo prorrateo de Uso del local: rige una tarifa diaria exacta de lunes a sábado, condicionada a una asignación de silla activa, con vencimiento acumulado el sábado. También establece trazabilidad financiera separada para aportes y tarifas, saldo disponible visible, logotipo K&V y actualización real desde GitHub.
 
 Los trabajadores son quienes usan y alquilan las sillas. Los colaboradores son exclusivamente inversionistas y nunca ocupan sillas. La interfaz, los mensajes, Excel y la documentación usan esta distinción.
 
@@ -36,10 +36,10 @@ La aplicación:
 - Las personas que trabajan en el local llevan sus propios implementos y productos de trabajo.
 - El local no paga esos implementos ni productos.
 - El dinero que estas personas cobran a sus clientes por sus servicios no pertenece al local y no se registra como ingreso del local.
-- Cada persona paga actualmente USD 12 semanales por utilizar el local y guardar sus pertenencias de trabajo.
-- Los USD 12 constituyen un valor general configurable en Ajustes, no una tarifa individual.
+- Cada persona paga la tarifa diaria general configurada por utilizar el local durante un día cobrable.
+- La tarifa diaria constituye un valor general configurable en Ajustes, no una tarifa individual.
 - El día habitual de pago es sábado.
-- Al ingresar la deuda es cero hasta el sábado de cobro. La primera cuota se calcula proporcionalmente por los días usados desde la fecha de ingreso hasta ese sábado, contando tanto el día de ingreso como el sábado: domingo a sábado equivale a 7/7 de la tarifa y martes a sábado a 5/7. Desde el domingo siguiente, cada cuota corresponde a una semana completa de domingo a sábado. Cada importe se redondea al centavo y conserva la tarifa histórica vigente al inicio de su periodo.
+- Cada lunes, martes, miércoles, jueves, viernes o sábado genera el importe diario exacto cuando el trabajador está vigente y tiene silla asignada. El domingo no genera cargo ni consume saldo. Los cargos se acumulan y vencen el sábado; no existe división ni prorrateo.
 - Los pagos registrados reducen la deuda de cada persona.
 - La página principal muestra el nombre de cada persona con deuda y el importe adeudado.
 
@@ -60,7 +60,7 @@ No incluir:
 
 - fotografía;
 - espacio de almacenamiento asignado;
-- tarifa semanal individual;
+- tarifa diaria individual;
 - campo visible activo/inactivo;
 - semanas pagadas por anticipado;
 - semanas perdonadas;
@@ -81,11 +81,10 @@ El registro de un pago será simple y contendrá únicamente:
 
 ## 4. Sillas y capacidad
 
-Cada silla es un registro individual con nombre o número, fecha de creación, descripción opcional y, si corresponde, un único trabajador vigente asignado. Los colaboradores son inversionistas y nunca ocupan sillas. Se muestran total de sillas, trabajadores vigentes y sillas disponibles.
+Cada silla es un registro individual con nombre o número, fecha de creación, descripción opcional y, si corresponde, un único trabajador vigente asignado. Los periodos históricos de asignación se conservan para determinar exactamente qué días generan cargo. Los colaboradores son inversionistas y nunca ocupan sillas. Se muestran total de sillas, trabajadores vigentes y sillas disponibles.
 
 No incluir:
 
-- historial de ocupación;
 - ubicación de silla;
 - espacio de almacenamiento;
 - mantenimiento individual de silla dentro de esta sección.
@@ -94,7 +93,7 @@ No incluir:
 
 Los ingresos propios del local pueden provenir de:
 
-- pagos semanales por uso del local;
+- pagos por cargos diarios de uso del local;
 - venta de agua, gaseosas u otros productos;
 - venta futura de productos de belleza;
 - otros ingresos registrados manualmente.
@@ -131,13 +130,13 @@ El selector de silla del alta y el selector del perfil son colecciones independi
 
 El perfil se abre por doble clic y reúne datos, cuenta individual, tarifas históricas, pago y silla. Su cabecera permanece fija; solo el historial cronológico, separado visualmente y ordenado de más reciente a más antiguo, se desplaza y virtualiza. El filtro inicial es **Todo el historial**; registrar un pago vuelve a ese filtro para mostrar exactamente un movimiento de inmediato.
 
-Se acepta cualquier pago positivo, incluso anticipado o superior a la deuda acumulada. La deuda acumulada nunca es negativa y el excedente queda como saldo a favor. El crédito cubre las cuotas futuras por orden, sin reiniciar el ciclo semanal anclado al ingreso. La cuenta informa próxima cuota y valor, próximo pago requerido con fecha e importe en la misma tarjeta, y cobertura estimada. No se muestra otra tarjeta que duplique la deuda. Las cuotas causadas conservan su tarifa; las futuras usan la vigente. La eliminación lógica detiene nuevas cuotas, conserva el crédito y no genera devolución en esta fase.
+Se acepta cualquier pago positivo, incluso anticipado o superior a la deuda acumulada. La deuda acumulada nunca es negativa y el excedente queda como saldo a favor. El pago cubre primero los cargos diarios impagados más antiguos; después, el crédito se consume en días cobrables futuros usando la tarifa histórica de cada fecha. El domingo no consume saldo. La cuenta informa tarifa diaria vigente, próximo cobro del sábado, próximo pago requerido con fecha e importe y cobertura estimada. La eliminación lógica o la ausencia de silla detiene cargos nuevos, conserva el crédito y no genera devolución en esta fase.
 
 ## 6.2 Aportes de colaboradores
 
-Cada colaborador dispone de un perfil con aportes de capital, participaciones de cierres y distribuciones. Los aportes son inversión no operativa: no son ventas ni otros ingresos, no aumentan la ganancia neta, no generan un nuevo porcentaje y no alteran el punto de equilibrio. Se conservan mediante eliminación lógica y se incluyen en copias, Excel e historial.
+Cada colaborador dispone de un perfil con aportes de capital, participaciones de cierres y distribuciones. Los aportes son financiación no operativa: aumentan el saldo disponible, pero no son ventas ni otros ingresos, no aumentan la ganancia neta, no generan un nuevo porcentaje y no alteran el punto de equilibrio. Se conservan mediante eliminación lógica y se incluyen en copias, Excel e historial.
 
-El perfil conserva una sola tabla de historial cronológico. Cada evento de aporte mantiene el identificador estable del aporte original. Seleccionar o hacer doble clic sobre un evento cuyo aporte siga activo carga su fecha, valor y descripción para editar el registro correcto. Editar conserva el evento original y agrega el evento de edición con los valores anterior y nuevo. Eliminar exige selección y confirmación, excluye el aporte de los totales vigentes y conserva un evento **Aporte eliminado**. Los eventos de aportes ya eliminados y las filas que no sean aportes no habilitan acciones de edición o eliminación. Después de editar o eliminar se limpia la selección.
+El perfil conserva una sola tabla de historial cronológico. Cada evento mantiene el identificador estable del aporte original. Agregar crea **Aporte agregado** una sola vez; editar conserva el registro, añade **Aporte editado** con valor anterior, nuevo y diferencia, y aplica a caja únicamente esa diferencia; eliminar exige confirmación, resta el último valor activo y añade **Aporte eliminado** sin borrar eventos. Los botones se deshabilitan mientras guardan y los cambios se reflejan inmediatamente en perfil, Inicio y reportes.
 
 El perfil no muestra un selector de participaciones pendientes ni otra lista que lo sustituya. Esta simplificación visual no elimina cierres, asignaciones o pagos históricos y no cambia el comportamiento vigente de **Pagar ganancia completa**.
 
@@ -316,12 +315,12 @@ El porcentaje de colaboradores no modifica el punto exacto donde el resultado es
 
 Configurar, como mínimo:
 
-- valor semanal general por uso del local, inicialmente USD 12;
+- tarifa diaria general por uso del local, inicialmente USD 12;
 - porcentaje de ganancia de colaboradores, inicialmente 20 %;
 - carpeta de exportación, con el Escritorio como valor predeterminado.
 - gastos recurrentes mensuales que intervienen una sola vez en punto de equilibrio, resultado, colaboradores, Balance anual, gráficos, Excel y precio sugerido por silla.
 
-No se crean ajustes individuales que contradigan la tarifa semanal general.
+No se crean ajustes individuales que contradigan la tarifa diaria general.
 
 La moneda única e invariable del programa es USD. Las bases antiguas configuradas en COP se normalizan a USD sin multiplicar, dividir ni convertir ningún valor numérico. El antiguo presupuesto mensual opcional queda obsoleto, se normaliza a cero y no interviene en cálculos.
 
@@ -353,7 +352,8 @@ La página principal muestra exclusivamente:
 - nombre de cada persona que debe pagos por uso del local;
 - monto adeudado por cada persona;
 - cantidad faltante para alcanzar el punto de equilibrio mensual.
-- precio semanal actual, precio semanal sugerido por silla ocupada y equivalente mensual, con explicación breve.
+- saldo disponible del local, separado de la ganancia operativa;
+- tarifa diaria actual, tarifa diaria sugerida por silla ocupada y equivalente mensual, con explicación breve.
 - campana de mantenimientos vencidos o para hoy, con acceso a Mantenimiento.
 - movimientos persistidos del día con selector de fecha, hora local, módulo, operación, entidad, importe y estado.
 
@@ -382,7 +382,7 @@ Copias y exportación:
 - máximo una copia automática diaria cuando la base cambió y retención de las 30 automáticas más recientes;
 - copia diferenciada antes de migrar un esquema existente y antes de restaurar;
 - restauración manual después de validar compatibilidad y con recuperación de la base anterior ante fallo;
-- una única exportación `.xlsx` con todas las hojas lógicas, Notas, historial, futuro conocido, eliminados y borradores; incluye tarifas semanales históricas, lista mensual vigente, compatibilidad heredada de inventario, obligaciones/créditos, recurrencias, saldos y los demás datos persistidos; no ofrece CSV en la interfaz.
+- una única exportación `.xlsx` con todas las hojas lógicas, Notas, historial, futuro conocido, eliminados y borradores; incluye tarifas diarias, cargos diarios, asignaciones, pagos y eventos financieros. Las tablas semanales anteriores se conservan en hojas marcadas como legado; no ofrece CSV en la interfaz.
 - la carpeta del `.xlsx` es configurable, persistente y nunca cambia silenciosamente si ocurre un error.
 
 La arquitectura debe contemplar:
@@ -428,7 +428,7 @@ El ejecutable nunca debe incluir un token personal de GitHub ni otra credencial 
 
 La primera alpha es x64, sin certificado y puede activar una advertencia de SmartScreen. Windows 11 es la plataforma principal de validación; Windows 10 x64 sigue siendo un objetivo no verificado en un equipo real. No se declara verificada una actualización entre Releases hasta disponer de dos versiones publicadas.
 
-La incorporación del logotipo de la empresa y la comprobación del salto real entre versiones mediante GitHub quedan expresamente para una actualización posterior. La Fase 4.10 no publica `alpha.2`, no crea un Release y no modifica el mecanismo de actualización.
+La versión `0.2.0-alpha.2` incorpora el logotipo K&V original en ejecutable, ventana, accesos directos, instalador y portable. Su aceptación exige comprobar el salto real desde `0.2.0-alpha.1` mediante el actualizador interno de GitHub, sin ejecutar manualmente el instalador nuevo.
 
 ## 17. Correcciones de aceptación de la Fase 3.1
 
@@ -475,10 +475,10 @@ Quedan reemplazados el recibo de obligaciones de Inicio, los porcentajes individ
 - La Lista mensual de compra es una entidad nueva vinculada por identificador; no reutiliza `MonthlyRestockPlans`.
 - Los préstamos se administran dentro de Obligaciones y su desembolso se separa de los ingresos operativos.
 
-## Decisiones vigentes de Fase 4.9
+## Decisiones históricas de Fase 4.9, reemplazadas parcialmente por Fase 5.2
 
 - Movimientos del día filtra por fecha local usando `OccurredUtc`, limpia la colección y ordena de más reciente a más antiguo; las operaciones nuevas usan una acción exacta.
-- Cada sábado vencido genera una cuota con su tarifa histórica. Los pagos se aplican cronológicamente: el sobrante es saldo a favor, el faltante es deuda, el próximo cobro es el siguiente sábado y el próximo pago requerido es el primero no cubierto.
+- La regla semanal de esta fase fue reemplazada por cargos diarios de lunes a sábado. Los registros semanales existentes se conservan como legado sin reinterpretación.
 - Los eventos de aportes son inmutables. La eliminación lógica excluye el aporte del total vigente, pero conserva creación, edición, valores anterior/nuevo y eliminación.
 - La Lista mensual de compra admite nombre y categoría libres, `ProductId` nulo y vínculo atómico posterior con inventario. Conteo físico y consumo no se ofrecen en Agregar al inventario; los históricos se conservan.
 - Un préstamo nuevo usa exclusivamente amortización fija sobre saldo o cantidad final acordada. El calendario mensual, capital, interés, saldo y pago asociado se persisten en unidades menores enteras.

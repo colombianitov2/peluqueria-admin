@@ -25,6 +25,13 @@ public sealed class ResponsiveLayoutTests
                     (1.50, 681d, 512d),
                 })
                 {
+                    var home = new HomeView
+                    {
+                        DataContext = new LayoutContext(),
+                    };
+                    AssertFits(home, width, height, scale, inspectDescendants: true);
+                    AssertDailyMovementRowsGrowWithContent(home, scale);
+
                     var administration = new AdministrationView
                     {
                         DataContext = new LayoutContext(),
@@ -232,11 +239,43 @@ public sealed class ResponsiveLayoutTests
             $"El historial quedó sin área desplazable a {scale:P0}; cabecera {header.ActualHeight:N0} de {availableHeight:N0}.");
     }
 
+    private static void AssertDailyMovementRowsGrowWithContent(HomeView home, double scale)
+    {
+        var grid = Assert.IsType<DataGrid>(home.FindName("DailyMovementsGrid"));
+        grid.UpdateLayout();
+        var rows = Enumerable.Range(0, 3)
+            .Select(index =>
+            {
+                grid.ScrollIntoView(grid.Items[index]);
+                grid.UpdateLayout();
+                return Assert.IsType<DataGridRow>(grid.ItemContainerGenerator.ContainerFromIndex(index));
+            })
+            .ToArray();
+
+        Assert.True(rows[1].ActualHeight > rows[0].ActualHeight,
+            $"La fila media no creció respecto de la corta a {scale:P0}.");
+        Assert.True(rows[2].ActualHeight > rows[1].ActualHeight,
+            $"La fila larga no creció respecto de la media a {scale:P0}.");
+    }
+
     private sealed class LayoutContext
     {
         public string Title => "Mantenimiento";
         public string Description => "Descripción de validación visual en una escala aumentada.";
         public ObservableCollection<object> Rows { get; } = [];
+        public ObservableCollection<MovementRow> DailyMovements { get; } =
+        [
+            new("Breve"),
+            new("Descripción de longitud media para verificar que el texto se ajuste correctamente sin ocultar información."),
+            new("Descripción extensa para comprobar visualmente que la columna Detalle muestra varias líneas completas, aumenta la altura de la fila de forma automática y no recorta el contenido aunque incluya información adicional sobre el origen, la autorización y el propósito del movimiento registrado."),
+        ];
+        public string FechaActual => "miércoles, 29 de julio de 2026";
+        public string EstadoServiciosEImpuestos => "Sin obligaciones pendientes";
+        public string EstadoPersonasConPagosPendientes => "Sin personas con deuda";
+        public string SaldoDisponibleDelLocal => "USD 13,00";
+        public string EstadoPuntoDeEquilibrio => "USD 0,00";
+        public string PrecioSugeridoPorSilla => "No se puede calcular: no hay sillas ocupadas";
+        public string DailyMovementsStatus => "3 movimiento(s) encontrado(s).";
         public ObservableCollection<string> ActionOptions { get; } = ["Agregar mantenimiento"];
         public ObservableCollection<string> PrimaryOptions { get; } = [];
         public ObservableCollection<string> SecondaryOptions { get; } = [];
@@ -290,5 +329,15 @@ public sealed class ResponsiveLayoutTests
         public bool IsLoanMode { get; set; }
         public bool ShowInventoryAddForm => true;
         public bool IsEditingInventorySelection => false;
+    }
+
+    private sealed record MovementRow(string Detail)
+    {
+        public string Time => "07:00:00";
+        public string Module => "Otros ingresos";
+        public string Operation => "Creación";
+        public string Entity => "Ingreso de validación";
+        public string Amount => "USD 1,00";
+        public string State => "Confirmado";
     }
 }

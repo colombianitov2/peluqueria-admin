@@ -68,7 +68,7 @@
             no cambia cálculos y no modifica la base de datos.
           </Paragraph>
           <Paragraph FontWeight="SemiBold" Foreground="#475569">
-            Versión documentada: 0.2.0-alpha.1.
+            Versión documentada: 0.2.0-alpha.2.
           </Paragraph>
 
           <Paragraph Style="{StaticResource SubTitle}">Índice</Paragraph>
@@ -134,6 +134,7 @@
           <List MarkerStyle="Disc">
             <ListItem><Paragraph><Bold>Pagos pendientes:</Bold> servicios, impuestos, créditos, otras obligaciones, gastos recurrentes y cuotas de préstamos vencidas o exigibles. Las compras previstas y los mantenimientos se muestran en sus módulos propios.</Paragraph></ListItem>
             <ListItem><Paragraph><Bold>Uso del local:</Bold> muestra cada trabajador con deuda y su importe; los saldos a favor no se presentan como deuda.</Paragraph></ListItem>
+            <ListItem><Paragraph><Bold>Saldo disponible del local:</Bold> combina efectivo trasladado, entradas, financiación y salidas reales; aportes y préstamos no se confunden con ganancia operativa.</Paragraph></ListItem>
             <ListItem><Paragraph><Bold>Punto de equilibrio:</Bold> muestra cuánto falta en el mes después de aplicar la misma fórmula usada por Resumen mensual.</Paragraph></ListItem>
             <ListItem><Paragraph><Bold>Precio sugerido por silla:</Bold> combina todos los gastos recurrentes, ingresos no provenientes de sillas y sillas ocupadas sin contar dos veces ningún importe.</Paragraph></ListItem>
             <ListItem><Paragraph><Bold>Campana de mantenimiento:</Bold> incluye mantenimientos vencidos, de hoy y futuros, con costo estimado y acceso directo a Mantenimiento.</Paragraph></ListItem>
@@ -151,26 +152,26 @@
             ingreso, descripción opcional y, si está disponible, una silla inicial. La silla no es
             obligatoria y puede asignarse después.
           </Paragraph>
-          <Paragraph Style="{StaticResource SubTitle}">Cuenta semanal</Paragraph>
+          <Paragraph Style="{StaticResource SubTitle}">Tarifa diaria y cobro del sábado</Paragraph>
           <Paragraph>
-            La cuenta comienza en cero. El primer cobro se genera el sábado inmediato y se calcula
-            únicamente por los días usados desde la fecha de ingreso hasta ese sábado, contando ambos
-            días. Por ejemplo, domingo a sábado son siete días y martes a sábado son cinco días.
+            La tarifa configurada es un importe exacto por cada día trabajado de lunes a sábado.
+            Solo se genera cargo cuando el trabajador está vigente y tiene una silla asignada.
+            El domingo no genera cargo, no forma parte del periodo cobrable y no consume saldo.
           </Paragraph>
           <Paragraph>
-            <Bold>Primera cuota = tarifa semanal × días usados ÷ 7.</Bold>
-            El resultado se redondea al centavo. Con una tarifa de USD 12, ingresar un martes produce
-            una primera cuota de USD 8,57; ingresar un domingo produce USD 12.
+            <Bold>Cargo de la semana = suma exacta de los cargos diarios de lunes a sábado.</Bold>
+            Con tarifa diaria USD 50, comenzar lunes genera USD 300; miércoles, USD 200; sábado,
+            USD 50; y domingo, USD 0 hasta el lunes siguiente. No existe división ni prorrateo semanal.
           </Paragraph>
           <Paragraph>
-            Desde el domingo siguiente, cada periodo completo va de domingo a sábado y cobra la tarifa
-            semanal completa. Registrar un pago no reinicia el ciclo. Las cuotas ya generadas conservan
-            su importe y las futuras usan la tarifa vigente al inicio de cada periodo.
+            Los importes acumulados vencen el sábado. Cada cambio de tarifa crea una vigencia con fecha
+            y hora; los cargos generados conservan su importe y cada día nuevo usa la tarifa vigente
+            para ese día.
           </Paragraph>          <Paragraph Style="{StaticResource SubTitle}">Perfil del trabajador</Paragraph>
           <List MarkerStyle="Disc">
             <ListItem><Paragraph>Ábralo con doble clic para consultar datos, cuenta, tarifas, pagos, silla e historial.</Paragraph></ListItem>
-            <ListItem><Paragraph>Se acepta cualquier pago positivo, incluso anticipado o superior a la deuda. El excedente cubre cuotas futuras en orden cronológico.</Paragraph></ListItem>
-            <ListItem><Paragraph>La cuenta informa próxima cuota, próximo pago realmente requerido y cobertura estimada.</Paragraph></ListItem>
+            <ListItem><Paragraph>Se acepta cualquier pago positivo. Primero cubre cargos impagados antiguos y el excedente se consume en días cobrables futuros; el domingo no consume saldo.</Paragraph></ListItem>
+            <ListItem><Paragraph>La cuenta informa silla actual, tarifa diaria vigente, deuda, saldo a favor, próximo pago requerido, cobertura estimada y próximo cobro.</Paragraph></ListItem>
             <ListItem><Paragraph>Asignar, cambiar o retirar una silla no mezcla cuentas y no elimina al trabajador.</Paragraph></ListItem>
             <ListItem><Paragraph>Eliminar trabajador libera la silla, detiene cuotas futuras y conserva pagos, crédito e historial. Esta versión no realiza devoluciones automáticas.</Paragraph></ListItem>
           </List>
@@ -179,7 +180,9 @@
           <Paragraph>
             Los colaboradores aportan capital y participan en un fondo de ganancia; no son
             trabajadores, no usan sillas y sus aportes no son ventas ni otros ingresos operativos.
-            Editar o eliminar un aporte conserva eventos históricos con el valor anterior y nuevo.
+            Agregar, editar o eliminar un aporte produce eventos independientes. Editar conserva el
+            identificador y aplica solo la diferencia; eliminar resta el último valor activo sin
+            borrar los eventos anteriores.
           </Paragraph>
           <Paragraph>
             El porcentaje global configurado crea primero el fondo:
@@ -421,13 +424,13 @@
 
           <Paragraph x:Name="Ajustes" Style="{StaticResource SectionTitle}">15. Ajustes</Paragraph>
           <Paragraph>
-            Ajustes contiene la tarifa semanal general, el porcentaje global de ganancia de
+            Ajustes contiene la tarifa diaria general, el porcentaje global de ganancia de
             colaboradores, la carpeta de exportación y gastos recurrentes. La moneda es siempre
             USD. Los cambios válidos se guardan automáticamente; un texto temporalmente inválido se
             conserva como borrador para corregirlo.
           </Paragraph>
           <List MarkerStyle="Disc">
-            <ListItem><Paragraph>Cambiar la tarifa afecta cuotas futuras; no reescribe cuotas históricas.</Paragraph></ListItem>
+            <ListItem><Paragraph>Cambiar la tarifa crea una vigencia nueva y afecta cargos diarios nuevos; no reescribe cargos ni cierres históricos.</Paragraph></ListItem>
             <ListItem><Paragraph>Cambiar el porcentaje no modifica cierres ya confirmados.</Paragraph></ListItem>
             <ListItem><Paragraph>Un gasto recurrente se descuenta una vez por mes desde su fecha inicial. Al eliminarlo se finaliza su vigencia y los meses históricos permanecen calculables y exportables.</Paragraph></ListItem>
             <ListItem><Paragraph>La sección Datos reúne copia, restauración y exportación Excel; Actualizaciones reúne búsqueda, descarga y aplicación.</Paragraph></ListItem>
@@ -482,7 +485,8 @@
             Exportar toda la información a Excel crea un único archivo <Bold>.xlsx</Bold> legible,
             sin necesitar Microsoft Excel instalado. Usa una fecha de corte única, incluye datos
             actuales, históricos, futuros conocidos, Notas, movimientos, cierres, trazabilidad técnica,
-            préstamos, eliminados y borradores claramente separados.
+            préstamos, eliminados y borradores claramente separados. Tarifas y cargos diarios se
+            exportan aparte de las tablas semanales conservadas como legado.
           </Paragraph>
           <List MarkerStyle="Disc">
             <ListItem><Paragraph>La carpeta es configurable y el Escritorio es el valor predeterminado.</Paragraph></ListItem>
@@ -512,10 +516,9 @@
             <ListItem><Paragraph>Si la descarga o instalación falla, conserve abierta la versión actual, no desinstale ni borre datos, compruebe Internet y vuelva a Buscar actualización. Si el error persiste, cree una copia manual .db y reporte el mensaje exacto.</Paragraph></ListItem>
           </List>
           <Paragraph>
-            La prueba real de actualización entre dos Releases aún está pendiente. La siguiente
-            actualización prevista añadirá el logo de la empresa desde GitHub para comprobar que el
-            programa se actualiza sin desinstalarse y sin borrar la información guardada. No se debe
-            declarar esa prueba aprobada hasta ejecutarla y verificar la base de datos después.
+            El icono K&amp;V identifica el ejecutable, la ventana, los accesos directos, el instalador
+            y el paquete portable. Una actualización solo debe considerarse correcta después de
+            reiniciar, confirmar la nueva versión y verificar integridad y datos de la base.
           </Paragraph>
 
           <Paragraph Style="{StaticResource SubTitle}">Solución de problemas y glosario</Paragraph>
@@ -530,7 +533,7 @@
           <List MarkerStyle="Disc">
             <ListItem><Paragraph><Bold>Ingreso operativo:</Bold> dinero cobrado por uso del local, ventas u otros ingresos propios.</Paragraph></ListItem>
             <ListItem><Paragraph><Bold>Financiación:</Bold> préstamos recibidos y aportes; aumenta disponibilidad, no ganancia.</Paragraph></ListItem>
-            <ListItem><Paragraph><Bold>Alquiler pendiente:</Bold> cuota de silla causada que el trabajador todavía no ha pagado.</Paragraph></ListItem>
+            <ListItem><Paragraph><Bold>Alquiler pendiente:</Bold> suma de cargos diarios de silla que el trabajador todavía no ha pagado.</Paragraph></ListItem>
             <ListItem><Paragraph><Bold>Pago pendiente:</Bold> servicio, impuesto, obligación, crédito, cuota, gasto recurrente o mantenimiento opcional conocido que aún debe atenderse.</Paragraph></ListItem>
             <ListItem><Paragraph><Bold>Snapshot:</Bold> fotografía histórica congelada por un cierre confirmado.</Paragraph></ListItem>
             <ListItem><Paragraph><Bold>Eliminación lógica:</Bold> deja de mostrar un registro operativo sin borrar su historia.</Paragraph></ListItem>

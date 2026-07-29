@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Domain.Common;
+using PeluqueriaAdmin.Domain.Finance;
 using PeluqueriaAdmin.Domain.Inventory;
 using PeluqueriaAdmin.Domain.LocalUse;
 using PeluqueriaAdmin.Domain.Settings;
@@ -17,6 +18,79 @@ namespace PeluqueriaAdmin.Infrastructure.Tests;
 
 public sealed class SettingsPersistenceTests
 {
+    [Fact]
+    public async Task DailyRateChange_PersistsPreviousNewAndDifferenceInAuditEvent()
+    {
+        string temporaryRoot = CreateTemporaryRoot();
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+
+        try
+        {
+            ApplicationPaths paths = ApplicationPaths.FromRoot(temporaryRoot);
+            paths.EnsureDirectories();
+            var factory = new TestDbContextFactory(paths.DatabaseFilePath);
+            await new DatabaseInitializer(factory, paths, TimeProvider.System)
+                .InitializeAsync(cancellationToken);
+            var repository = new EfAdministrationRepository(factory);
+            var settingsRepository = new EfSettingsRepository(factory);
+            GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
+            AdministrationData before = await repository.LoadAsync(cancellationToken);
+            DailyRate previous;
+            if (before.DailyRates.Count == 0)
+            {
+                DateTime initialUtc = DateTime.UtcNow;
+                previous = DailyRate.Create(
+                    DateOnly.FromDateTime(initialUtc),
+                    initialUtc,
+                    settings.DailyUsageFee,
+                    initialUtc);
+                await repository.SaveSettingsAndDailyRateAsync(
+                    settings,
+                    previous,
+                    cancellationToken);
+            }
+            else
+            {
+                previous = Assert.Single(before.DailyRates);
+            }
+            DateTime changeUtc = previous.EffectiveFromUtc.AddMinutes(1);
+            settings.Update(
+                Money.FromDecimal(15m),
+                settings.CollaboratorProfit,
+                settings.TotalChairs,
+                settings.ExportDirectory,
+                changeUtc);
+            DailyRate replacement = DailyRate.Create(
+                previous.EffectiveDate,
+                changeUtc,
+                Money.FromDecimal(15m),
+                changeUtc);
+
+            await repository.SaveSettingsAndDailyRateAsync(
+                settings,
+                replacement,
+                cancellationToken);
+
+            await using PeluqueriaDbContext context =
+                await factory.CreateDbContextAsync(cancellationToken);
+            FinancialEvent audit = await context.FinancialEvents
+                .SingleAsync(item => item.OperationId == replacement.Id, cancellationToken);
+            Assert.Equal(previous.Amount.MinorUnits, audit.PreviousValue?.MinorUnits);
+            Assert.Equal(1_500, audit.NewValue?.MinorUnits);
+            Assert.Equal(1_500 - previous.Amount.MinorUnits, audit.DifferenceMinorUnits);
+            Assert.Equal(changeUtc, (await context.DailyRates
+                .SingleAsync(item => item.Id == previous.Id, cancellationToken)).EffectiveToUtc);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(temporaryRoot))
+            {
+                Directory.Delete(temporaryRoot, recursive: true);
+            }
+        }
+    }
+
     [Fact]
     public async Task InitializationAndRepository_AreIdempotentAndPersistent()
     {

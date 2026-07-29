@@ -333,9 +333,15 @@ public static class AdministrationReports
         {
             var charges = data.WeeklyCharges
                 .Where(item => item.PersonId == person.Id)
+                .Select(item => new RemainingCharge(item.PeriodEnd, item.CreatedUtc, item.Amount.MinorUnits))
+                .Concat(data.DailyCharges
+                    .Where(item => item.PersonId == person.Id)
+                    .Select(item => new RemainingCharge(
+                        item.ChargeDate,
+                        item.CreatedUtc,
+                        item.Amount.MinorUnits)))
                 .OrderBy(item => item.PeriodEnd)
                 .ThenBy(item => item.CreatedUtc)
-                .Select(item => new RemainingCharge(item.PeriodEnd, item.CreatedUtc, item.Amount.MinorUnits))
                 .ToArray();
             var payments = data.LocalUsePayments
                 .Where(item => item.PersonId == person.Id)

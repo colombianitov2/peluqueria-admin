@@ -116,7 +116,13 @@ public sealed class ExcelExportService(
             await db.LoanInstallments.AsNoTracking().ToListAsync(cancellationToken),
             await db.LoanPayments.AsNoTracking().ToListAsync(cancellationToken),
             await db.AnnualCloses.AsNoTracking().ToListAsync(cancellationToken),
-            await db.AnnualCarryovers.AsNoTracking().ToListAsync(cancellationToken));
+            await db.AnnualCarryovers.AsNoTracking().ToListAsync(cancellationToken))
+        {
+            DailyRates = await db.DailyRates.AsNoTracking().ToListAsync(cancellationToken),
+            DailyCharges = await db.DailyCharges.AsNoTracking().ToListAsync(cancellationToken),
+            ChairAssignmentPeriods = await db.ChairAssignmentPeriods.AsNoTracking().ToListAsync(cancellationToken),
+            FinancialEvents = await db.FinancialEvents.AsNoTracking().ToListAsync(cancellationToken),
+        };
 
         var deletedPeople = await db.LocalUsePeople.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken);
         var deletedRates = await db.WeeklyRates.IgnoreQueryFilters().AsNoTracking().Where(x => x.DeletedUtc != null).ToListAsync(cancellationToken);
@@ -219,7 +225,7 @@ public sealed class ExcelExportService(
         AddSummary(workbook, snapshot, cutoff, today, version, currency, from, to);
         AddTable(workbook, "Ajustes", ["Ajuste", "Valor", "Unidad"],
         [
-            ["Valor semanal general por uso del local", snapshot.Settings.WeeklyUsageFee.ToDecimal(), currency],
+            ["Tarifa diaria general por uso del local", snapshot.Settings.DailyUsageFee.ToDecimal(), currency],
             ["Ganancia de colaboradores", snapshot.Settings.CollaboratorProfit.BasisPoints / 10000m, "Porcentaje"],
             ["Moneda única", SafeText(currency), "Código ISO"],
             ["Carpeta de exportación", SafeText(snapshot.Settings.ExportDirectory), "Ruta local"],
@@ -240,13 +246,13 @@ public sealed class ExcelExportService(
                 : [(object?[])[SafeText(snapshot.NoteContent), snapshot.NoteUpdatedUtc?.ToLocalTime()]]);
 
         SuggestedChairPrice suggested = SuggestedChairPriceCalculator.Calculate(
-            data, snapshot.Settings.WeeklyUsageFee,
+            data, snapshot.Settings.DailyUsageFee,
             YearMonth.From(today), today);
         AddTable(workbook, "Precio sugerido por silla", ["Concepto", "Valor", "Moneda", "Explicación"],
         [
-            ["Precio semanal actual", Minor(suggested.CurrentWeeklyMinorUnits), currency, "Tarifa configurada"],
-            ["Equivalente mensual actual", Minor(suggested.CurrentMonthlyEquivalentMinorUnits), currency, "Tarifa semanal × 52 / 12"],
-            ["Precio semanal sugerido", Minor(suggested.SuggestedWeeklyPerChairMinorUnits), currency, suggested.Explanation],
+            ["Tarifa diaria actual", Minor(suggested.CurrentDailyMinorUnits), currency, "Tarifa configurada"],
+            ["Ingreso mensual proyectado por sillas", Minor(suggested.ProjectedChairIncomeMinorUnits), currency, "Suma de días-silla de lunes a sábado"],
+            ["Tarifa diaria sugerida", Minor(suggested.SuggestedDailyPerChairMinorUnits), currency, suggested.Explanation],
             ["Precio mensual sugerido", Minor(suggested.SuggestedMonthlyPerChairMinorUnits), currency, suggested.Explanation],
             ["Meta mensual oficial", Minor(suggested.OfficialGoalMinorUnits), currency, "Balance oficial del mes"],
             ["Gastos recurrentes vigentes", Minor(suggested.UnofficialExpensesMinorUnits), currency, "Incluidos una sola vez en el resultado y el Balance anual"],
@@ -254,14 +260,16 @@ public sealed class ExcelExportService(
             ["Monto mensual por cubrir", Minor(suggested.AmountToCoverMinorUnits), currency, $"Calculado entre {suggested.OccupiedChairs} sillas ocupadas"],
         ], moneyColumns: [2]);
 
-        AddTable(workbook, "Uso del local", ["Nombre", "Fecha de ingreso", "Fecha de retiro", "Silla asignada", "Descripción", "Estado", "Deuda actual", "Saldo a favor", "Próximo cobro de cuota", "Próximo pago requerido", "Cobertura estimada hasta", "Moneda"],
+        AddTable(workbook, "Uso del local", ["Nombre", "Fecha de ingreso", "Fecha de retiro", "Silla asignada", "Descripción", "Estado", "Deuda actual", "Saldo a favor", "Próximo cobro", "Próximo pago requerido", "Cobertura estimada hasta", "Moneda"],
             data.LocalUsePeople.OrderBy(x => x.Name).Select(person =>
             {
-                WorkerAccountBalance balance = WeeklyChargeCalculator.CalculateAccount(
+                WorkerAccountBalance balance = DailyChargeCalculator.CalculateAccount(
                     person,
+                    data.DailyCharges.Where(x => x.PersonId == person.Id),
                     data.WeeklyCharges.Where(x => x.PersonId == person.Id),
                     data.LocalUsePayments.Where(x => x.PersonId == person.Id),
-                    data.WeeklyRates,
+                    data.DailyRates,
+                    data.ChairAssignmentPeriods,
                     today);
                 return (object?[])
                 [
@@ -275,15 +283,23 @@ public sealed class ExcelExportService(
             moneyColumns: [7, 8],
             totalColumns: [7, 8]);
 
-        AddTable(workbook, "Tarifas semanales", ["Vigente desde", "Valor semanal", "Moneda", "Estado"],
+        AddTable(workbook, "Tarifas semanales legado", ["Vigente desde", "Valor semanal", "Moneda", "Estado"],
             data.WeeklyRates.OrderBy(x => x.EffectiveFrom).Select(x => (object?[])
             [Date(x.EffectiveFrom), x.Amount.ToDecimal(), currency,
              x.EffectiveFrom <= today ? "Vigente o histórica" : "Futura"]),
             moneyColumns: [2]);
 
+        AddTable(workbook, "Tarifas diarias", ["Vigente desde", "Fecha y hora efectiva", "Finalizada", "Valor diario", "Moneda", "Estado"],
+            data.DailyRates.OrderBy(x => x.EffectiveFromUtc).Select(x => (object?[])
+            [Date(x.EffectiveDate), x.EffectiveFromUtc.ToLocalTime(), x.EffectiveToUtc?.ToLocalTime(),
+             x.Amount.ToDecimal(), currency, x.EffectiveToUtc.HasValue ? "Histórica" : "Vigente"]),
+            moneyColumns: [4]);
+
         IEnumerable<object?[]> workerHistory = data.LocalUsePeople.SelectMany(person =>
             data.WeeklyCharges.Where(x => x.PersonId == person.Id).Select(x => (object?[])
-            [Date(x.PeriodEnd), SafeText(person.Name), "Cuota semanal", SafeText($"Periodo {x.PeriodStart:yyyy-MM-dd} a {x.PeriodEnd:yyyy-MM-dd}; sábado habitual {x.DueDate:yyyy-MM-dd}"), x.Amount.ToDecimal(), currency])
+            [Date(x.PeriodEnd), SafeText(person.Name), "Cuota semanal histórica", SafeText($"Periodo {x.PeriodStart:yyyy-MM-dd} a {x.PeriodEnd:yyyy-MM-dd}; sábado habitual {x.DueDate:yyyy-MM-dd}"), x.Amount.ToDecimal(), currency])
+            .Concat(data.DailyCharges.Where(x => x.PersonId == person.Id).Select(x => (object?[])
+            [Date(x.ChargeDate), SafeText(person.Name), "Cargo diario", SafeText($"Vence el sábado {x.DueDate:yyyy-MM-dd}"), x.Amount.ToDecimal(), currency]))
             .Concat(data.LocalUsePayments.Where(x => x.PersonId == person.Id).Select(x => (object?[])
             [Date(x.PaymentDate), SafeText(person.Name), "Pago", SafeText(x.Description ?? ""), x.Amount.ToDecimal(), currency])))
             .Concat(data.ActivityRecords.Where(x => x.Module == "Uso del local" && x.EntityId.HasValue
@@ -303,10 +319,25 @@ public sealed class ExcelExportService(
                 return (object?[])[SafeText(x.Name), SafeText(person?.Name ?? "Persona eliminada"), Date(person?.EntryDate), person?.IsCurrentOn(today) == true ? "Vigente" : "Asignación por revisar"];
             }));
 
-        AddTable(workbook, "Cuotas semanales", ["Persona", "Periodo inicial", "Periodo final", "Fecha de vencimiento", "Valor", "Moneda", "Estado"],
+        AddTable(workbook, "Asignaciones históricas", ["Silla", "Trabajador", "Inicio", "Fin exclusivo", "Estado"],
+            data.ChairAssignmentPeriods.OrderBy(x => x.StartDate).Select(x => (object?[])
+            [SafeText(data.Chairs.SingleOrDefault(chair => chair.Id == x.ChairId)?.Name ?? "Silla histórica"),
+             SafeText(PersonName(data, snapshot.DeletedPeople, x.PersonId)), Date(x.StartDate),
+             Date(x.EndDateExclusive), x.EndDateExclusive.HasValue ? "Finalizada" : "Vigente"]));
+
+        AddTable(workbook, "Cuotas semanales legado", ["Persona", "Periodo inicial", "Periodo final", "Fecha de vencimiento", "Valor", "Moneda", "Estado"],
             data.WeeklyCharges.OrderBy(x => x.PeriodStart).Select(x => (object?[])
             [SafeText(PersonName(data, snapshot.DeletedPeople, x.PersonId)), Date(x.PeriodStart), Date(x.PeriodEnd), Date(x.DueDate), x.Amount.ToDecimal(), currency,
              x.DueDate <= today ? "Causada" : "Futura"]),
+            moneyColumns: [5],
+            totalColumns: [5]);
+
+        AddTable(workbook, "Cargos diarios", ["Persona", "Silla", "Fecha", "Vencimiento sábado", "Valor diario", "Moneda", "Estado"],
+            data.DailyCharges.OrderBy(x => x.ChargeDate).Select(x => (object?[])
+            [SafeText(PersonName(data, snapshot.DeletedPeople, x.PersonId)),
+             SafeText(data.Chairs.SingleOrDefault(chair => chair.Id == x.ChairId)?.Name ?? "Silla histórica"),
+             Date(x.ChargeDate), Date(x.DueDate), x.Amount.ToDecimal(), currency,
+             x.DueDate < today ? "Vencido o cubierto según pagos" : "Generado"]),
             moneyColumns: [5],
             totalColumns: [5]);
 
@@ -316,10 +347,11 @@ public sealed class ExcelExportService(
             moneyColumns: [3],
             totalColumns: [3]);
 
-        AddTable(workbook, "Cuentas por cobrar", ["Persona", "Cuotas causadas", "Pagos recibidos", "Saldo por cobrar", "Moneda", "Estado"],
+        AddTable(workbook, "Cuentas por cobrar", ["Persona", "Cargos causados", "Pagos recibidos", "Saldo por cobrar", "Moneda", "Estado"],
             data.LocalUsePeople.OrderBy(x => x.Name).Select(person =>
             {
-                decimal charges = data.WeeklyCharges.Where(x => x.PersonId == person.Id && x.PeriodEnd <= today).Sum(x => x.Amount.ToDecimal());
+                decimal charges = data.WeeklyCharges.Where(x => x.PersonId == person.Id && x.PeriodEnd <= today).Sum(x => x.Amount.ToDecimal())
+                    + data.DailyCharges.Where(x => x.PersonId == person.Id && x.ChargeDate <= today).Sum(x => x.Amount.ToDecimal());
                 decimal payments = data.LocalUsePayments.Where(x => x.PersonId == person.Id && x.PaymentDate <= today).Sum(x => x.Amount.ToDecimal());
                 decimal pending = Math.Max(0, charges - payments);
                 return (object?[])[SafeText(person.Name), charges, payments, pending, currency, pending > 0 ? "Pendiente" : "Al día"];
@@ -362,6 +394,15 @@ public sealed class ExcelExportService(
             }));
         AddTable(workbook, "Historial colaboradores", ["Fecha", "Colaborador", "Operación", "Detalle", "Valor", "Moneda"],
             collaboratorHistory.OrderBy(row => row[0]), moneyColumns: [5]);
+
+        AddTable(workbook, "Eventos financieros", ["Id operación", "Fecha y hora", "Entidad", "Id entidad", "Tipo", "Valor anterior", "Valor nuevo", "Diferencia", "Moneda", "Descripción", "Estado"],
+            data.FinancialEvents.OrderBy(x => x.OccurredUtc).Select(x => (object?[])
+            [SafeText(x.OperationId.ToString()), x.OccurredUtc.ToLocalTime(), SafeText(x.EntityType),
+             SafeText(x.EntityId.ToString()), SafeText(x.EventType), x.PreviousValue?.ToDecimal(),
+             x.NewValue?.ToDecimal(), x.DifferenceMinorUnits / 100m, currency,
+             SafeText(x.Description ?? ""), SafeText(x.State)]),
+            moneyColumns: [6, 7, 8],
+            totalColumns: [8]);
 
         AddTable(workbook, "Ventas", ["Producto", "Fecha", "Cantidad", "Valor de venta", "Costo estimado", "Moneda", "Descripción", "Estado"],
             data.InventoryMovements.Where(x => x.Type == InventoryMovementType.Sale).OrderBy(x => x.Date).Select(x => (object?[])
@@ -657,7 +698,11 @@ public sealed class ExcelExportService(
         sheet.Cell(5, 1).Value = "Periodo total cubierto"; sheet.Cell(5, 2).Value = from.HasValue ? $"{from:yyyy-MM-dd} a {to:yyyy-MM-dd}" : "Sin operaciones fechadas";
 
         AdministrationData data = snapshot.Active;
-        decimal localDebt = data.LocalUsePeople.Sum(person => WeeklyChargeCalculator.CalculateDebt(data.WeeklyCharges.Where(x => x.PersonId == person.Id), data.LocalUsePayments.Where(x => x.PersonId == person.Id)).ToDecimal());
+        decimal localDebt = data.LocalUsePeople.Sum(person => DailyChargeCalculator.CalculateDebt(
+            data.DailyCharges.Where(x => x.PersonId == person.Id),
+            data.WeeklyCharges.Where(x => x.PersonId == person.Id),
+            data.LocalUsePayments.Where(x => x.PersonId == person.Id),
+            DateOnly.MaxValue).ToDecimal());
         decimal inventory = data.Products.Sum(product =>
         {
             InventoryMovement[] movements = data.InventoryMovements.Where(x => x.ProductId == product.Id).ToArray();
@@ -963,6 +1008,9 @@ public sealed class ExcelExportService(
         foreach (DraftRecord item in snapshot.Drafts) Add(item.UpdatedUtc);
         dates.AddRange(data.LocalUsePeople.Select(x => x.EntryDate)); dates.AddRange(data.LocalUsePeople.Where(x => x.ExitDate.HasValue).Select(x => x.ExitDate!.Value));
         dates.AddRange(data.WeeklyRates.Select(x => x.EffectiveFrom)); dates.AddRange(data.WeeklyCharges.Select(x => x.PeriodStart)); dates.AddRange(data.LocalUsePayments.Select(x => x.PaymentDate));
+        dates.AddRange(data.DailyRates.Select(x => x.EffectiveDate));
+        dates.AddRange(data.DailyCharges.Select(x => x.ChargeDate));
+        dates.AddRange(data.ChairAssignmentPeriods.Select(x => x.StartDate));
         dates.AddRange(data.Chairs.Select(x => x.CreationDate));
         dates.AddRange(data.InventoryMovements.Select(x => x.Date)); dates.AddRange(data.RestockPlans.Select(x => x.Month.FirstDay));
         dates.AddRange(data.FinancialEntries.Select(x => x.Date));
@@ -1063,8 +1111,8 @@ public sealed class ExcelExportService(
         string type = entity switch
         {
             LocalUsePerson => "Persona que usa el local",
-            WeeklyRate => "Tarifa semanal",
-            WeeklyCharge => "Cuota semanal",
+            WeeklyRate => "Tarifa semanal legado",
+            WeeklyCharge => "Cuota semanal legado",
             LocalUsePayment => "Pago por uso del local",
             Chair => "Silla",
             UnofficialExpense => "Gasto extraoficial",

@@ -2,7 +2,7 @@
 
 ## Alcance y estado
 
-Este documento conserva la comparación técnica inicial y registra la arquitectura implementada hasta la Fase 4.8.
+Este documento conserva la comparación técnica inicial y registra la arquitectura implementada hasta la Fase 5.2.
 
 ## Arquitectura adoptada (18 de julio de 2026)
 
@@ -72,7 +72,7 @@ Infraestructura: SQLite, copias, migraciones, exportación y actualizaciones
 
 - **Presentación:** pantallas, navegación, validación visible y comandos. No contiene fórmulas financieras ni acceso directo a SQLite.
 - **Aplicación:** define contratos y coordina Ajustes, operaciones administrativas, transacciones, datos y actualizaciones.
-- **Dominio:** concentra deuda semanal, inventario, obligaciones, mantenimiento, punto de equilibrio, caja, cierres y distribución.
+- **Dominio:** concentra cargos diarios e historial de tarifas, inventario, obligaciones, mantenimiento, punto de equilibrio, caja, cierres y distribución.
 - **Infraestructura:** implementa SQLite, transacciones, migraciones, copias, restauración y un único libro `.xlsx`. El adaptador Velopack vive en la composición WPF y satisface un contrato de Application.
 
 Esta separación protege las reglas aprobadas y permite probarlas sin depender de la interfaz.
@@ -99,6 +99,13 @@ La migración `Phase46UsdExportsDistributionInventory` es aditiva: incorpora `Se
 La migración `Phase47SimplificationAndNotes` también es aditiva: incorpora la participación interna del fondo sin reutilizar el porcentaje directo heredado, marca ocurrencias de obligación pagadas y agrega la nota singleton. La presentación separa catálogo/pagos y programación/realización; las fórmulas permanecen en Domain/Application y Excel lee una sola transacción consistente.
 
 La migración `Phase48FinancialClosuresReservesLoansInventory` mantiene ese enfoque aditivo. `FinancialMonthCalculator` es el servicio puro compartido por Inicio, Ajustes, Colaboradores, Resumen mensual y Excel; separa cobros, cuentas, egresos, reservas y financiación. `AdministrationService` coordina cierres, reservas, exclusiones, cuotas, consumo de reservas y reapertura en transacciones. WPF solo presenta resultados y confirmaciones. Los snapshots mensuales y anuales permanecen en Domain y SQLite; Excel los lee dentro de una fotografía consistente sin modificar datos.
+
+La migración `Phase52DailyFeesContributionsAndBranding` agrega `DailyRates`, `DailyCharges`,
+`ChairAssignmentPeriods` y `FinancialEvents`. `DailyChargeCalculator` aplica la regla
+lunes-sábado y combina pagos, cargos diarios y cuotas semanales heredadas sin reinterpretarlas.
+Los eventos financieros conservan operación, entidad, valores anterior/nuevo, diferencia y estado.
+La identidad K&V se integra como recurso WPF e icono PE; Velopack reutiliza ese ejecutable en
+instalador, accesos directos y paquete portable.
 - La eliminación funcional es lógica y las consultas normales excluyen registros eliminados.
 - Cada migración se identifica por versión y se ejecuta dentro de una transacción cuando SQLite lo permita.
 - Antes de una migración importante se crea una copia verificada de la base de datos cerrada o mediante el mecanismo seguro de copia de SQLite.

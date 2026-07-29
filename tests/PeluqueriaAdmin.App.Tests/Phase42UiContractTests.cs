@@ -57,8 +57,8 @@ public sealed class Phase42UiContractTests
 
         Assert.Contains("Deuda acumulada", view, StringComparison.Ordinal);
         Assert.Contains("Saldo a favor", view, StringComparison.Ordinal);
-        Assert.Contains("Próximo cobro de cuota", view, StringComparison.Ordinal);
-        Assert.Contains("Valor de la cuota", view, StringComparison.Ordinal);
+        Assert.Contains("Próximo cobro", view, StringComparison.Ordinal);
+        Assert.Contains("Tarifa diaria vigente", view, StringComparison.Ordinal);
         Assert.Contains("Próximo pago requerido", view, StringComparison.Ordinal);
         Assert.DoesNotContain("Importe estimado que faltará", view, StringComparison.Ordinal);
         Assert.Contains("Cobertura estimada hasta", view, StringComparison.Ordinal);

@@ -47,7 +47,24 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
             await context.LoanInstallments.AsNoTracking().OrderBy(item => item.DueDate).ThenBy(item => item.Number).ToListAsync(cancellationToken),
             await context.LoanPayments.AsNoTracking().OrderBy(item => item.Date).ToListAsync(cancellationToken),
             await context.AnnualCloses.AsNoTracking().OrderBy(item => item.Year).ToListAsync(cancellationToken),
-            await context.AnnualCarryovers.AsNoTracking().OrderBy(item => item.TargetYear).ToListAsync(cancellationToken));
+            await context.AnnualCarryovers.AsNoTracking().OrderBy(item => item.TargetYear).ToListAsync(cancellationToken))
+        {
+            DailyRates = await context.DailyRates.AsNoTracking()
+                .OrderBy(item => item.EffectiveDate)
+                .ThenBy(item => item.EffectiveFromUtc)
+                .ToListAsync(cancellationToken),
+            DailyCharges = await context.DailyCharges.AsNoTracking()
+                .OrderBy(item => item.ChargeDate)
+                .ThenBy(item => item.CreatedUtc)
+                .ToListAsync(cancellationToken),
+            ChairAssignmentPeriods = await context.ChairAssignmentPeriods.AsNoTracking()
+                .OrderBy(item => item.StartDate)
+                .ThenBy(item => item.CreatedUtc)
+                .ToListAsync(cancellationToken),
+            FinancialEvents = await context.FinancialEvents.AsNoTracking()
+                .OrderBy(item => item.OccurredUtc)
+                .ToListAsync(cancellationToken),
+        };
     }
 
     public async Task SaveAsync(
@@ -89,9 +106,45 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         await AddSettingsActivityIfChangedAsync(context, settings, cancellationToken);
         context.Settings.Update(settings);
+        if (newRate is not null) context.WeeklyRates.Add(newRate);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task SaveSettingsAndDailyRateAsync(
+        GeneralSettings settings,
+        DailyRate? newRate,
+        CancellationToken cancellationToken = default)
+    {
+        await using PeluqueriaDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await AddSettingsActivityIfChangedAsync(context, settings, cancellationToken);
+        context.Settings.Update(settings);
         if (newRate is not null)
         {
-            context.WeeklyRates.Add(newRate);
+            DailyRate? previousRate = await CloseCurrentDailyRateAsync(
+                context,
+                newRate.EffectiveFromUtc,
+                cancellationToken);
+            context.DailyRates.Add(newRate);
+            context.FinancialEvents.Add(FinancialEvent.Create(
+                newRate.Id,
+                newRate.EffectiveFromUtc,
+                "Tarifa diaria",
+                newRate.Id,
+                "Tarifa diaria modificada",
+                previousRate?.Amount,
+                newRate.Amount,
+                newRate.Amount.MinorUnits - (previousRate?.Amount.MinorUnits ?? 0),
+                $"Tarifa diaria vigente desde {newRate.EffectiveDate:yyyy-MM-dd}."));
+            context.ActivityRecords.Add(ActivityRecord.Create(
+                newRate.EffectiveDate,
+                "Ajustes",
+                "Tarifa diaria modificada",
+                $"Nueva tarifa diaria: USD {newRate.Amount.ToDecimal():N2}",
+                newRate.Id,
+                "El cambio afecta únicamente cargos diarios nuevos; el historial permanece inmutable.",
+                newRate.EffectiveFromUtc));
         }
 
         await context.SaveChangesAsync(cancellationToken);
@@ -110,9 +163,65 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
         await AddSettingsActivityIfChangedAsync(context, settings, cancellationToken);
         context.Settings.Update(settings);
         if (newRate is not null) context.WeeklyRates.Add(newRate);
+        await context.FormDrafts.Where(item => item.Key == completedDraftKey)
+            .ExecuteDeleteAsync(cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task SaveSettingsAndDailyRateCompletingDraftAsync(
+        GeneralSettings settings,
+        DailyRate? newRate,
+        string completedDraftKey,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(completedDraftKey);
+        await using PeluqueriaDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await AddSettingsActivityIfChangedAsync(context, settings, cancellationToken);
+        context.Settings.Update(settings);
+        if (newRate is not null)
+        {
+            DailyRate? previousRate = await CloseCurrentDailyRateAsync(
+                context,
+                newRate.EffectiveFromUtc,
+                cancellationToken);
+            context.DailyRates.Add(newRate);
+            context.FinancialEvents.Add(FinancialEvent.Create(
+                newRate.Id,
+                newRate.EffectiveFromUtc,
+                "Tarifa diaria",
+                newRate.Id,
+                "Tarifa diaria modificada",
+                previousRate?.Amount,
+                newRate.Amount,
+                newRate.Amount.MinorUnits - (previousRate?.Amount.MinorUnits ?? 0),
+                $"Tarifa diaria vigente desde {newRate.EffectiveDate:yyyy-MM-dd}."));
+            context.ActivityRecords.Add(ActivityRecord.Create(
+                newRate.EffectiveDate,
+                "Ajustes",
+                "Tarifa diaria modificada",
+                $"Nueva tarifa diaria: USD {newRate.Amount.ToDecimal():N2}",
+                newRate.Id,
+                "El cambio afecta únicamente cargos diarios nuevos; el historial permanece inmutable.",
+                newRate.EffectiveFromUtc));
+        }
         await context.FormDrafts.Where(item => item.Key == completedDraftKey).ExecuteDeleteAsync(cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task<DailyRate?> CloseCurrentDailyRateAsync(
+        PeluqueriaDbContext context,
+        DateTime effectiveToUtc,
+        CancellationToken cancellationToken)
+    {
+        DailyRate? current = await context.DailyRates
+            .Where(item => item.EffectiveToUtc == null)
+            .OrderByDescending(item => item.EffectiveFromUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+        current?.Close(effectiveToUtc);
+        return current;
     }
 
     private static async Task AddSettingsActivityIfChangedAsync(
@@ -157,7 +266,8 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
 
     private static ActivityRecord? CreateActivity(AuditableEntity entity, bool isAddition)
     {
-        if (entity is ActivityRecord or WeeklyCharge or WeeklyRate or MonthlyCloseParticipant
+        if (entity is ActivityRecord or FinancialEvent or WeeklyCharge or WeeklyRate
+            or DailyCharge or DailyRate or ChairAssignmentPeriod or MonthlyCloseParticipant
             or CollaboratorContribution or CollaboratorContributionEvent or LoanInstallment
             or AnnualCarryover)
         {

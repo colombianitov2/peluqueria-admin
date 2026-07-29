@@ -94,7 +94,13 @@ public sealed class AdministrationServiceTests
             Money.FromDecimal(50m),
             RecurrenceFrequency.Monthly,
             UtcNow);
-        await service.AddAsync(person, cancellationToken);
+        Chair chair = Chair.Create("Silla", person.EntryDate, null, UtcNow);
+        await service.AddChairAsync(chair, cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(
+            person,
+            chair.Id,
+            new DateOnly(2026, 8, 18),
+            cancellationToken);
         await service.AddAsync(obligation, cancellationToken);
 
         AdministrationData first = await service.GenerateScheduledRecordsAsync(
@@ -104,10 +110,10 @@ public sealed class AdministrationServiceTests
             new DateOnly(2026, 8, 18),
             cancellationToken);
 
-        Assert.Single(first.WeeklyRates);
-        Assert.Equal(3, first.WeeklyCharges.Count);
+        Assert.Single(first.DailyRates);
+        Assert.Equal(16, first.DailyCharges.Count);
         Assert.Equal(2, first.Obligations.Count);
-        Assert.Equal(first.WeeklyCharges.Count, second.WeeklyCharges.Count);
+        Assert.Equal(first.DailyCharges.Count, second.DailyCharges.Count);
         Assert.Equal(first.Obligations.Count, second.Obligations.Count);
         Assert.True(repository.LastSaveWasSingleTransaction);
     }
@@ -126,8 +132,11 @@ public sealed class AdministrationServiceTests
             new DateOnly(2026, 7, 1),
             null,
             UtcNow);
-        await service.AddAsync(person, cancellationToken);
-        await service.GenerateScheduledRecordsAsync(
+        Chair chair = Chair.Create("Silla", person.EntryDate, null, UtcNow);
+        await service.AddChairAsync(chair, cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(
+            person,
+            chair.Id,
             new DateOnly(2026, 7, 1),
             cancellationToken);
 
@@ -147,16 +156,16 @@ public sealed class AdministrationServiceTests
             100_000,
             reloaded.LocalUsePayments.Single().Amount.MinorUnits);
         WorkerAccountBalance balance =
-            WeeklyChargeCalculator.CalculateAccount(
+            DailyChargeCalculator.CalculateAccount(
                 person,
+                reloaded.DailyCharges,
                 reloaded.WeeklyCharges,
                 reloaded.LocalUsePayments,
-                reloaded.WeeklyRates,
+                reloaded.DailyRates,
+                reloaded.ChairAssignmentPeriods,
                 new DateOnly(2026, 7, 2));
-        Assert.Equal(100_000, balance.Credit.MinorUnits);
-        Assert.Equal(
-            286,
-            balance.NextRequiredPaymentAmount?.MinorUnits);
+        Assert.Equal(98_800, balance.Credit.MinorUnits);
+        Assert.Equal(DayOfWeek.Saturday, balance.NextRequiredPaymentDate?.DayOfWeek);
     }
 
     [Fact]
@@ -173,17 +182,16 @@ public sealed class AdministrationServiceTests
             new DateOnly(2026, 6, 16),
             null,
             UtcNow);
-        await service.AddLocalUsePersonAsync(
-            person,
-            today,
-            cancellationToken);
+        Chair chair = Chair.Create("Silla", person.EntryDate, null, UtcNow);
+        await service.AddChairAsync(chair, cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(person, chair.Id, today, cancellationToken);
         AdministrationData before = await service.LoadAsync(cancellationToken);
-        Assert.Equal(
-            5_657,
-            WeeklyChargeCalculator.CalculateDebt(
-                before.WeeklyCharges,
-                before.LocalUsePayments,
-                today).MinorUnits);
+        long initialDebt = DailyChargeCalculator.CalculateDebt(
+            before.DailyCharges,
+            before.WeeklyCharges,
+            before.LocalUsePayments,
+            today).MinorUnits;
+        Assert.True(initialDebt > 0);
         repository.FailNextSave = true;
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -199,8 +207,9 @@ public sealed class AdministrationServiceTests
         Assert.Empty(after.LocalUsePayments);
         Assert.Equal(before.ActivityRecords.Count, after.ActivityRecords.Count);
         Assert.Equal(
-            5_657,
-            WeeklyChargeCalculator.CalculateDebt(
+            initialDebt,
+            DailyChargeCalculator.CalculateDebt(
+                after.DailyCharges,
                 after.WeeklyCharges,
                 after.LocalUsePayments,
                 today).MinorUnits);
@@ -221,10 +230,10 @@ public sealed class AdministrationServiceTests
             null,
             UtcNow);
 
-        await service.AddLocalUsePersonAsync(
-            person,
-            new DateOnly(2026, 7, 18),
-            cancellationToken);
+        Chair chair = Chair.Create("Silla", person.EntryDate, null, UtcNow);
+        await service.AddChairAsync(chair, cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(
+            person, chair.Id, new DateOnly(2026, 7, 18), cancellationToken);
         await service.RegisterLocalUsePaymentAsync(
             person.Id,
             new DateOnly(2026, 7, 18),
@@ -232,13 +241,15 @@ public sealed class AdministrationServiceTests
             cancellationToken);
 
         AdministrationData data = await service.LoadAsync(cancellationToken);
-        Assert.Equal(3, data.WeeklyCharges.Count);
+        Assert.Equal(16, data.DailyCharges.Count);
         Assert.Single(data.LocalUsePayments);
         Assert.Equal(
-            1_886,
-            WeeklyChargeCalculator.CalculateDebt(
+            18_000,
+            DailyChargeCalculator.CalculateDebt(
+                data.DailyCharges,
                 data.WeeklyCharges,
-                data.LocalUsePayments).MinorUnits);
+                data.LocalUsePayments,
+                new DateOnly(2026, 7, 18)).MinorUnits);
     }
 
     [Fact]
@@ -248,7 +259,10 @@ public sealed class AdministrationServiceTests
         var repository = new FakeAdministrationRepository();
         var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
         LocalUsePerson person = LocalUsePerson.Create("Ana", new DateOnly(2026, 7, 1), null, UtcNow);
-        await service.AddLocalUsePersonAsync(person, new DateOnly(2026, 7, 18), cancellationToken);
+        Chair chair = Chair.Create("Silla", person.EntryDate, null, UtcNow);
+        await service.AddChairAsync(chair, cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(
+            person, chair.Id, new DateOnly(2026, 7, 18), cancellationToken);
         await service.RegisterLocalUsePaymentAsync(
             person.Id, new DateOnly(2026, 7, 8), Money.FromDecimal(12m), cancellationToken);
 
@@ -257,7 +271,7 @@ public sealed class AdministrationServiceTests
                 person.Id, "Ana", new DateOnly(2026, 7, 5), null,
                 new DateOnly(2026, 7, 18), cancellationToken));
 
-        Assert.Contains("ya tiene pagos", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("históricos", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -411,10 +425,10 @@ public sealed class AdministrationServiceTests
             new DateOnly(2026, 7, 1),
             null,
             UtcNow);
-        await service.AddLocalUsePersonAsync(
-            person,
-            new DateOnly(2026, 7, 8),
-            cancellationToken);
+        Chair workerChair = Chair.Create("Silla de Ana", person.EntryDate, null, UtcNow);
+        await service.AddChairAsync(workerChair, cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(
+            person, workerChair.Id, new DateOnly(2026, 7, 8), cancellationToken);
 
         Product product = Product.Create(
             "Agua",
@@ -690,7 +704,10 @@ public sealed class AdministrationServiceTests
 
         Assert.True(worker.IsDeleted);
         Assert.Null(chair.AssignedPersonId);
-        Assert.Single(repository.Entities.OfType<WeeklyCharge>());
+        Assert.NotEmpty(repository.Entities.OfType<DailyCharge>());
+        Assert.All(
+            repository.Entities.OfType<ChairAssignmentPeriod>(),
+            item => Assert.NotNull(item.EndDateExclusive));
         Assert.Single(repository.Entities.OfType<LocalUsePayment>());
         Assert.Contains(
             repository.Entities.OfType<
@@ -850,8 +867,9 @@ public sealed class AdministrationServiceTests
         Assert.Equal(10_000, result.UnofficialExpensesMinorUnits);
         Assert.Equal(5_000, result.ExpectedNonChairIncomeMinorUnits);
         Assert.Equal(55_000, result.SuggestedMonthlyPerChairMinorUnits);
-        Assert.Equal(12_692, result.SuggestedWeeklyPerChairMinorUnits);
-        Assert.Contains("No resta los pagos", result.Explanation, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(4_583, result.SuggestedDailyPerChairMinorUnits);
+        Assert.Equal(14_400, result.ProjectedChairIncomeMinorUnits);
+        Assert.Contains("lunes a sábado", result.Explanation, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -882,6 +900,60 @@ public sealed class AdministrationServiceTests
     }
 
     [Fact]
+    public async Task ContributionLifecycle_UsesThreeIndependentEventsAndOnlyNetCashDifference()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository();
+        var service = CreateService(
+            repository,
+            new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        DateOnly date = new(2026, 7, 18);
+        Collaborator collaborator = Collaborator.Create("Inversionista", date, null, UtcNow);
+        await service.AddAsync(collaborator, cancellationToken);
+        CollaboratorContribution contribution = CollaboratorContribution.Create(
+            collaborator.Id, date, Money.FromDecimal(100m), "Capital inicial", UtcNow);
+
+        await service.AddCollaboratorContributionAsync(contribution, cancellationToken);
+        await service.UpdateCollaboratorContributionAsync(
+            contribution.Id, date, Money.FromDecimal(150m), "Capital corregido", cancellationToken);
+        AdministrationData edited = await service.LoadAsync(cancellationToken);
+        Assert.Equal(15_000, Assert.Single(edited.CollaboratorContributions).Amount.MinorUnits);
+        Assert.Equal(
+            [10_000L, 5_000L],
+            edited.FinancialEvents
+                .Where(item => item.EntityId == contribution.Id)
+                .OrderBy(item => item.OccurredUtc)
+                .Select(item => item.DifferenceMinorUnits)
+                .ToArray());
+
+        await service.AddAsync(FinancialEntry.CreateUnexpectedExpense(
+            date, "Reparación", Money.FromDecimal(150m), UtcNow), cancellationToken);
+        MonthlyCashBreakdown beforeDelete = AdministrationReports.MonthlyCash(
+            await service.LoadAsync(cancellationToken),
+            Percentage.FromPercent(20m),
+            new YearMonth(2026, 7));
+        Assert.Equal(0, beforeDelete.CarryOutMinorUnits);
+        Assert.Equal(15_000, beforeDelete.CollaboratorContributionsMinorUnits);
+        Assert.Equal(0, beforeDelete.TotalIncomeMinorUnits);
+        Assert.Equal(15_000, beforeDelete.BreakEvenMinorUnits);
+        Assert.Equal(-15_000, beforeDelete.DifferenceMinorUnits);
+
+        await service.DeleteCollaboratorContributionAsync(contribution.Id, cancellationToken);
+        AdministrationData deleted = await service.LoadAsync(cancellationToken);
+        FinancialEvent[] events = deleted.FinancialEvents
+            .Where(item => item.EntityId == contribution.Id)
+            .ToArray();
+        Assert.Equal(3, events.Length);
+        Assert.Equal(3, events.Select(item => item.OperationId).Distinct().Count());
+        Assert.Equal(
+            ["Aporte agregado", "Aporte editado", "Aporte eliminado"],
+            events.Select(item => item.EventType).ToArray());
+        Assert.Equal([10_000L, 5_000L, -15_000L],
+            events.Select(item => item.DifferenceMinorUnits).ToArray());
+        Assert.Empty(deleted.CollaboratorContributions);
+    }
+
+    [Fact]
     public async Task SaveSettings_RecordsNewRateOnlyWhenFeeChanges()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
@@ -895,8 +967,8 @@ public sealed class AdministrationServiceTests
         await useCase.ExecuteAsync(new SaveSettingsRequest(15m, 20m, 0m, 0, "USD"), cancellationToken);
         await useCase.ExecuteAsync(new SaveSettingsRequest(15m, 25m, 0m, 0, "USD"), cancellationToken);
 
-        Assert.Single(repository.Entities.OfType<WeeklyRate>());
-        Assert.Equal(1_500, repository.Entities.OfType<WeeklyRate>().Single().Amount.MinorUnits);
+        Assert.Single(repository.Entities.OfType<DailyRate>());
+        Assert.Equal(1_500, repository.Entities.OfType<DailyRate>().Single().Amount.MinorUnits);
         Assert.Equal(2_500, settingsRepository.Settings.CollaboratorProfit.BasisPoints);
     }
 
@@ -1137,7 +1209,13 @@ public sealed class AdministrationServiceTests
                 Entities.OfType<LoanInstallment>().Where(Active).ToArray(),
                 Entities.OfType<LoanPayment>().Where(Active).ToArray(),
                 Entities.OfType<AnnualClose>().Where(Active).ToArray(),
-                Entities.OfType<AnnualCarryover>().Where(Active).ToArray()));
+                Entities.OfType<AnnualCarryover>().Where(Active).ToArray())
+            {
+                DailyRates = Entities.OfType<DailyRate>().Where(Active).ToArray(),
+                DailyCharges = Entities.OfType<DailyCharge>().Where(Active).ToArray(),
+                ChairAssignmentPeriods = Entities.OfType<ChairAssignmentPeriod>().Where(Active).ToArray(),
+                FinancialEvents = Entities.OfType<FinancialEvent>().Where(Active).ToArray(),
+            });
 
         public Task SaveAsync(
             IReadOnlyCollection<AuditableEntity> additions,
@@ -1181,6 +1259,23 @@ public sealed class AdministrationServiceTests
             string completedDraftKey,
             CancellationToken cancellationToken = default) =>
             SaveSettingsAndRateAsync(settings, newRate, cancellationToken);
+
+        public Task SaveSettingsAndDailyRateAsync(
+            GeneralSettings settings,
+            DailyRate? newRate,
+            CancellationToken cancellationToken = default)
+        {
+            if (newRate is not null) Entities.Add(newRate);
+            LastSaveWasSingleTransaction = true;
+            return Task.CompletedTask;
+        }
+
+        public Task SaveSettingsAndDailyRateCompletingDraftAsync(
+            GeneralSettings settings,
+            DailyRate? newRate,
+            string completedDraftKey,
+            CancellationToken cancellationToken = default) =>
+            SaveSettingsAndDailyRateAsync(settings, newRate, cancellationToken);
 
         private static bool Active(AuditableEntity entity) => !entity.IsDeleted;
     }

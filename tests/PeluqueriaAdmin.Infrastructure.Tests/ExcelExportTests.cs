@@ -54,15 +54,15 @@ public sealed class ExcelExportTests
             using var workbook = new XLWorkbook(first.FilePath);
             string[] requiredSheets =
             [
-                "Resumen general", "Ajustes", "Notas", "Uso del local", "Cuotas semanales",
-                "Tarifas semanales", "Precio sugerido por silla", "Sillas", "Asignaciones actuales",
+                "Resumen general", "Ajustes", "Notas", "Uso del local", "Cuotas semanales legado",
+                "Tarifas semanales legado", "Tarifas diarias", "Cargos diarios", "Precio sugerido por silla", "Sillas", "Asignaciones actuales", "Asignaciones históricas",
                 "Pagos por uso del local", "Historial trabajadores", "Colaboradores", "Aportes colaboradores", "Historial colaboradores", "Ventas", "Productos",
                 "Inventario actual", "Movimientos de inventario", "Lista mensual de compra",
                 "Planes de reposición", "Compatibilidad inventario",
                 "Otros ingresos", "Gastos", "Imprevistos", "Gastos recurrentes", "Obligaciones",
                 "Pagos de obligaciones", "Cuentas por cobrar", "Cuentas por pagar", "Préstamos", "Cuotas de préstamos", "Pagos de préstamos", "Mantenimiento", "Cierres mensuales", "Reservas financieras", "Exclusiones de cierre",
                 "Distribuciones a colaboradores", "Pagos a colaboradores",
-                "Resúmenes mensuales", "Balance anual", "Cierres anuales", "Saldos arrastrados", "Flujo de caja", "Movimientos generales", "Historial fin. colaboradores", "Historial eliminado",
+                "Resúmenes mensuales", "Balance anual", "Cierres anuales", "Saldos arrastrados", "Flujo de caja", "Movimientos generales", "Eventos financieros", "Historial fin. colaboradores", "Historial eliminado",
                 "Borradores sin finalizar",
             ];
             Assert.All(requiredSheets, sheet => Assert.True(workbook.TryGetWorksheet(sheet, out _), sheet));
@@ -83,11 +83,11 @@ public sealed class ExcelExportTests
             Assert.Equal("Moneda persistida", settings.Cell(9, 1).GetString());
             Assert.Equal(XLDataType.DateTime, settings.Cell(10, 2).DataType);
             Assert.True(workbook.TryGetWorksheet("Flujo de caja", out _));
-            IXLWorksheet weeklyRates = workbook.Worksheet("Tarifas semanales");
-            Assert.Equal("Vigente desde", weeklyRates.Cell(1, 1).GetString());
-            Assert.Equal(XLDataType.DateTime, weeklyRates.Cell(2, 1).DataType);
-            Assert.Equal(XLDataType.Number, weeklyRates.Cell(2, 2).DataType);
-            Assert.Contains("0.00", weeklyRates.Cell(2, 2).Style.NumberFormat.Format, StringComparison.Ordinal);
+            IXLWorksheet dailyRates = workbook.Worksheet("Tarifas diarias");
+            Assert.Equal("Vigente desde", dailyRates.Cell(1, 1).GetString());
+            Assert.Equal(XLDataType.DateTime, dailyRates.Cell(2, 1).DataType);
+            Assert.Equal(XLDataType.Number, dailyRates.Cell(2, 4).DataType);
+            Assert.Contains("0.00", dailyRates.Cell(2, 4).Style.NumberFormat.Format, StringComparison.Ordinal);
 
             IXLWorksheet products = workbook.Worksheet("Productos");
             Assert.Equal("=SUM(1,1)", products.Cell(2, 1).GetString());
@@ -153,7 +153,6 @@ public sealed class ExcelExportTests
                 deletedHistory.RowsUsed(),
                 row => row.Cell(1).GetString() == "Pago de préstamo"
                     && row.Cell(4).GetString() == "Préstamo eliminado auditado");
-            Assert.Contains("Trabajador eliminado con historial", workbook.Worksheet("Cuotas semanales").Column(1).CellsUsed().Select(x => x.GetString()));
             Assert.Contains("Trabajador eliminado con historial", workbook.Worksheet("Pagos por uso del local").Column(1).CellsUsed().Select(x => x.GetString()));
             Assert.Contains("no finalizado", workbook.Worksheet("Borradores sin finalizar").Cell(2, 3).GetString(), StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("+borrador", workbook.Worksheet("Otros ingresos").Column(2).CellsUsed().Select(x => x.GetString()));
@@ -215,7 +214,7 @@ public sealed class ExcelExportTests
             Assert.Equal("Estado", workbook.Worksheet("Movimientos generales").Cell(1, 9).GetString());
             Assert.True(workbook.Worksheet("Notas").Cell(2, 1).Style.Alignment.WrapText);
             Assert.DoesNotContain(
-                workbook.Worksheet("Tarifas semanales").Column(1).CellsUsed(),
+                workbook.Worksheet("Tarifas semanales legado").Column(1).CellsUsed(),
                 cell => cell.GetString() == "TOTAL");
             Assert.DoesNotContain(
                 workbook.Worksheet("Precio sugerido por silla").Column(1).CellsUsed(),
@@ -243,9 +242,14 @@ public sealed class ExcelExportTests
                 .Single(row => row.Cell(1).GetString() == "Obligaciones pendientes");
             Assert.Equal(expectedObligations, obligationsSummaryRow.Cell(2).GetValue<decimal>());
             LocalUsePerson person = data.LocalUsePeople.Single();
-            decimal expectedDebt = WeeklyChargeCalculator.CalculateDebt(
+            decimal expectedDebt = DailyChargeCalculator.CalculateAccount(
+                person,
+                data.DailyCharges.Where(x => x.PersonId == person.Id),
                 data.WeeklyCharges.Where(x => x.PersonId == person.Id),
-                data.LocalUsePayments.Where(x => x.PersonId == person.Id)).ToDecimal();
+                data.LocalUsePayments.Where(x => x.PersonId == person.Id),
+                data.DailyRates,
+                data.ChairAssignmentPeriods,
+                new DateOnly(2026, 7, 18)).Debt.ToDecimal();
             IXLRow useRow = workbook.Worksheet("Uso del local").RowsUsed().Single(row => row.Cell(1).GetString() == person.Name);
             Assert.Equal(expectedDebt, useRow.Cell(7).GetValue<decimal>());
 
