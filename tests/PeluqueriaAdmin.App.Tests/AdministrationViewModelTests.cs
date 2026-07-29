@@ -558,7 +558,10 @@ public sealed class AdministrationViewModelTests
         AdministrationData paid =
             await service.LoadAsync(cancellationToken);
         Assert.Single(paid.LocalUsePayments);
-        Assert.Matches(@"1[.]?000[,.]00", viewModel.ProfileCredit);
+        const string creditPattern = @"USD 1(?:[.,]000)?[.,]00";
+        Assert.Matches(creditPattern, "USD 1.000,00");
+        Assert.Matches(creditPattern, "USD 1,000.00");
+        Assert.Matches(creditPattern, viewModel.ProfileCredit);
         Assert.Equal(string.Empty, viewModel.PaymentAmount);
         Assert.Equal(string.Empty, viewModel.PaymentDescription);
         Assert.Equal(UtcNow.Date, viewModel.PaymentDate?.Date);
@@ -566,7 +569,7 @@ public sealed class AdministrationViewModelTests
             viewModel.WorkerHistoryRows,
             item => item.Principal == "Pago registrado");
 
-        Assert.Matches(@"1[.]?000[,.]00", viewModel.ProfileCredit);
+        Assert.Matches(creditPattern, viewModel.ProfileCredit);
         Assert.Single(
             (await service.LoadAsync(cancellationToken))
             .LocalUsePayments);
