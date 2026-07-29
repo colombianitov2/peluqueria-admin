@@ -1,10 +1,41 @@
+using System.Globalization;
 using System.IO;
+using System.Reflection;
 using System.Security.Cryptography;
+using PeluqueriaAdmin.App.ViewModels;
 
 namespace PeluqueriaAdmin.App.Tests;
 
 public sealed class Phase52UiAndBrandingTests
 {
+    [Theory]
+    [InlineData("es-CO", "12,50")]
+    [InlineData("en-US", "12.50")]
+    public void EditableDecimal_ParsesTheAdministratorCultureWithoutInventingAValue(
+        string cultureName,
+        string input)
+    {
+        MethodInfo parser = typeof(SettingsViewModel).GetMethod(
+            "TryParseDecimal",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("No se encontró el analizador de importes.");
+        CultureInfo previousCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(cultureName);
+            object?[] arguments = [input, 0m];
+
+            bool parsed = Assert.IsType<bool>(parser.Invoke(null, arguments));
+
+            Assert.True(parsed);
+            Assert.Equal(12.50m, Assert.IsType<decimal>(arguments[1]));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+        }
+    }
+
     [Fact]
     public void HomeMovementDetail_WrapsAndLetsEachRowGrowAutomatically()
     {
@@ -71,7 +102,7 @@ public sealed class Phase52UiAndBrandingTests
         Assert.Contains("Próximo cobro", localUse, StringComparison.Ordinal);
         Assert.Contains("domingo no consume saldo", localUse, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(
-            "Tarifa diaria general por uso del local (USD)",
+            "Tarifa diaria por uso del local (USD)",
             settings,
             StringComparison.Ordinal);
         Assert.DoesNotContain("periodos completos de siete días", localUse, StringComparison.OrdinalIgnoreCase);

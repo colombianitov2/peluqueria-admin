@@ -19,7 +19,7 @@ public sealed class Phase412InventoryWorkflowTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(Utc));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), Utc));
         var clock = new FixedTimeProvider(new DateTimeOffset(Utc));
         var drafts = new FakeFormDraftStore();
         var service = new AdministrationService(repository, settingsRepository, clock);
@@ -104,7 +104,7 @@ public sealed class Phase412InventoryWorkflowTests
     public void PurchaseList_TotalIsQuantityTimesUnitOrPackagePrice()
     {
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(Utc));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), Utc));
         var clock = new FixedTimeProvider(new DateTimeOffset(Utc));
         var viewModel = new InventoryViewModel(
             new AdministrationViewModel(

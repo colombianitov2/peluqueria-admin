@@ -27,7 +27,7 @@ public sealed record HomeDebt(string Name, Money Amount);
 public sealed record HomeDashboard(
     IReadOnlyList<PendingHomeObligation> Obligations,
     IReadOnlyList<HomeDebt> Debts,
-    long MissingMinorUnits);
+    long? MissingMinorUnits);
 
 public sealed record ChairCapacity(int Total, int CurrentPeople, int Available, int Overcapacity);
 
@@ -35,7 +35,7 @@ public static class HomeDashboardCalculator
 {
     public static HomeDashboard Calculate(
         AdministrationData data,
-        Percentage collaboratorPercentage,
+        Percentage? collaboratorPercentage,
         DateOnly today)
     {
         DateOnly endOfMonth = new YearMonth(today.Year, today.Month).LastDay;
@@ -90,11 +90,13 @@ public static class HomeDashboardCalculator
             .Where(item => item.Amount.MinorUnits > 0)
             .OrderBy(item => item.Name)
             .ToArray();
-        MonthlySummaryResult summary = AdministrationReports.MonthlySummary(
-            data,
-            collaboratorPercentage,
-            YearMonth.From(today));
-        return new HomeDashboard(obligations, debts, summary.MissingMinorUnits);
+        long? missing = collaboratorPercentage.HasValue
+            ? AdministrationReports.MonthlySummary(
+                data,
+                collaboratorPercentage.Value,
+                YearMonth.From(today)).MissingMinorUnits
+            : null;
+        return new HomeDashboard(obligations, debts, missing);
     }
 
     public static ChairCapacity Capacity(AdministrationData data, DateOnly date)

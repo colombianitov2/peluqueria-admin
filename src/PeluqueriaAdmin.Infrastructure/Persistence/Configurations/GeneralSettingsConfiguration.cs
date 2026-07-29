@@ -33,17 +33,17 @@ internal sealed class GeneralSettingsConfiguration : IEntityTypeConfiguration<Ge
 
         builder.Property(settings => settings.WeeklyUsageFee)
             .HasConversion(
-                value => value.MinorUnits,
-                value => Money.FromMinorUnits(value))
+                value => value.HasValue ? value.Value.MinorUnits : (long?)null,
+                value => value.HasValue ? Money.FromMinorUnits(value.Value) : null)
             .HasColumnName("WeeklyUsageFeeMinorUnits")
-            .IsRequired();
+            .IsRequired(false);
 
         builder.Property(settings => settings.CollaboratorProfit)
             .HasConversion(
-                value => value.BasisPoints,
-                value => Percentage.FromBasisPoints(value))
+                value => value.HasValue ? value.Value.BasisPoints : (int?)null,
+                value => value.HasValue ? Percentage.FromBasisPoints(value.Value) : null)
             .HasColumnName("CollaboratorProfitBasisPoints")
-            .IsRequired();
+            .IsRequired(false);
 
         builder.Property(settings => settings.OptionalSuppliesMonthlyBudget)
             .HasConversion(

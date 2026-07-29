@@ -53,7 +53,6 @@ public sealed partial class MainViewModel : ObservableObject
         this.administrationService = administrationService;
         this.getSettings = getSettings;
         this.timeProvider = timeProvider;
-        MovementQueryDate = timeProvider.GetLocalNow().DateTime.Date;
         administrationService.DataChanged += OnAdministrationDataChanged;
         NavigationItems =
         [
@@ -129,19 +128,25 @@ public sealed partial class MainViewModel : ObservableObject
     private string estadoPuntoDeEquilibrio = "Sin faltante calculado";
 
     [ObservableProperty]
-    private string saldoDisponibleDelLocal = $"{ApplicationCurrency.Code} 0.00";
+    private string saldoDisponibleDelLocal = "Sin calcular";
 
     [ObservableProperty]
     private string precioSugeridoPorSilla = "No se puede calcular: no hay sillas ocupadas";
 
     [ObservableProperty] private int maintenanceNotificationCount;
     [ObservableProperty] private bool isMaintenanceNotificationsOpen;
-    [ObservableProperty] private DateTime? movementQueryDate = DateTime.Today;
-    [ObservableProperty] private string dailyMovementsStatus = "Sin movimientos registrados para la fecha consultada.";
+    [ObservableProperty] private DateTime? movementQueryDate;
+    [ObservableProperty] private string dailyMovementsStatus = "Sin configurar: selecciona una fecha.";
 
     [RelayCommand]
     private async Task ConsultDailyMovementsAsync()
     {
+        if (!MovementQueryDate.HasValue)
+        {
+            DailyMovements.Clear();
+            DailyMovementsStatus = "Sin configurar: selecciona una fecha.";
+            return;
+        }
         AdministrationData data = await administrationService.LoadAsync();
         PopulateDailyMovements(data);
     }
@@ -288,9 +293,12 @@ public sealed partial class MainViewModel : ObservableObject
         }
         MaintenanceNotificationCount = MaintenanceNotifications.Count;
 
+        Percentage? collaboratorPercentage = settings.CollaboratorProfitPercent.HasValue
+            ? Percentage.FromPercent(settings.CollaboratorProfitPercent.Value)
+            : null;
         HomeDashboard dashboard = HomeDashboardCalculator.Calculate(
             data,
-            Percentage.FromPercent(settings.CollaboratorProfitPercent),
+            collaboratorPercentage,
             today);
         PendingPayments.Clear();
         foreach (PendingHomeObligation item in dashboard.Obligations)
@@ -314,35 +322,67 @@ public sealed partial class MainViewModel : ObservableObject
             ? "Sin personas con deuda"
             : string.Join(Environment.NewLine, debts);
 
-        FinancialMonthSnapshot financial = FinancialMonthCalculator.Calculate(
-            data, Percentage.FromPercent(settings.CollaboratorProfitPercent), month);
-        EstadoPuntoDeEquilibrio = $"{ApplicationCurrency.Code} {financial.ShortfallMinorUnits / 100m:N2}";
-        MonthlyCashBreakdown cash = AdministrationReports.MonthlyCash(
-            data,
-            Percentage.FromPercent(settings.CollaboratorProfitPercent),
-            month);
-        SaldoDisponibleDelLocal =
-            $"{ApplicationCurrency.Code} {cash.CarryOutMinorUnits / 100m:N2}";
+        if (collaboratorPercentage.HasValue)
+        {
+            FinancialMonthSnapshot financial = FinancialMonthCalculator.Calculate(
+                data,
+                collaboratorPercentage.Value,
+                month);
+            EstadoPuntoDeEquilibrio =
+                $"{ApplicationCurrency.Code} {financial.ShortfallMinorUnits / 100m:N2}";
+            MonthlyCashBreakdown cash = AdministrationReports.MonthlyCash(
+                data,
+                collaboratorPercentage.Value,
+                month);
+            SaldoDisponibleDelLocal =
+                $"{ApplicationCurrency.Code} {cash.CarryOutMinorUnits / 100m:N2}";
+        }
+        else
+        {
+            EstadoPuntoDeEquilibrio =
+                "Sin calcular: configura Ganancia colaboradores (%) en Ajustes.";
+            SaldoDisponibleDelLocal =
+                "Sin calcular: configura Ganancia colaboradores (%) en Ajustes.";
+        }
         PopulateDailyMovements(data);
 
-        SuggestedChairPrice suggested = SuggestedChairPriceCalculator.Calculate(
-            data,
-            Money.FromDecimal(settings.WeeklyUsageFee),
-            month,
-            today);
-        PrecioSugeridoPorSilla = suggested.CanCalculate
-            ? $"Tarifa diaria actual: {ApplicationCurrency.Code} {suggested.CurrentDailyMinorUnits / 100m:N2}{Environment.NewLine}"
-                + $"Tarifa diaria sugerida por día-silla: {ApplicationCurrency.Code} {suggested.SuggestedDailyPerChairMinorUnits / 100m:N2}{Environment.NewLine}"
-                + $"Días-silla cobrables del mes: {suggested.ChargeableChairDays}{Environment.NewLine}"
-                + $"Ingreso proyectado por sillas: {ApplicationCurrency.Code} {suggested.ProjectedChairIncomeMinorUnits / 100m:N2}{Environment.NewLine}"
-                + suggested.Explanation
-            : suggested.Explanation;
+        if (settings.DailyUsageFee.HasValue && collaboratorPercentage.HasValue)
+        {
+            SuggestedChairPrice suggested = SuggestedChairPriceCalculator.Calculate(
+                data,
+                Money.FromDecimal(settings.DailyUsageFee.Value),
+                collaboratorPercentage.Value,
+                month,
+                today);
+            PrecioSugeridoPorSilla = suggested.CanCalculate
+                ? $"Tarifa diaria actual: {ApplicationCurrency.Code} {suggested.CurrentDailyMinorUnits / 100m:N2}{Environment.NewLine}"
+                    + $"Tarifa diaria sugerida por día-silla: {ApplicationCurrency.Code} {suggested.SuggestedDailyPerChairMinorUnits / 100m:N2}{Environment.NewLine}"
+                    + $"Días-silla cobrables del mes: {suggested.ChargeableChairDays}{Environment.NewLine}"
+                    + $"Ingreso proyectado por sillas: {ApplicationCurrency.Code} {suggested.ProjectedChairIncomeMinorUnits / 100m:N2}{Environment.NewLine}"
+                    + suggested.Explanation
+                : suggested.Explanation;
+        }
+        else
+        {
+            var missing = new List<string>();
+            if (!settings.DailyUsageFee.HasValue)
+                missing.Add("Tarifa diaria por uso del local (USD)");
+            if (!collaboratorPercentage.HasValue)
+                missing.Add("Ganancia colaboradores (%)");
+            PrecioSugeridoPorSilla =
+                $"Sin calcular: configura {string.Join(" y ", missing)} en Ajustes.";
+        }
     }
 
     private void PopulateDailyMovements(AdministrationData data)
     {
-        DateOnly date = DateOnly.FromDateTime(MovementQueryDate ?? timeProvider.GetLocalNow().DateTime.Date);
         DailyMovements.Clear();
+        if (!MovementQueryDate.HasValue)
+        {
+            DailyMovementsStatus = "Sin configurar: selecciona una fecha.";
+            return;
+        }
+        DateOnly date = DateOnly.FromDateTime(MovementQueryDate.Value);
         foreach (var item in DailyActivityQuery.ForLocalDate(data.ActivityRecords, date, TimeZoneInfo.Local))
         {
             long? amount = ActivityAmount(data, item.EntityId);

@@ -7,15 +7,28 @@ public sealed class GeneralSettingsTests
     private static readonly DateTime UtcNow = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public void CreateDefault_UsesApprovedExactValues()
+    public void CreateUnconfigured_LeavesEditableSettingsEmpty()
     {
-        GeneralSettings settings = GeneralSettings.CreateDefault(UtcNow);
+        GeneralSettings settings = GeneralSettings.CreateUnconfigured(UtcNow);
 
         Assert.Equal(GeneralSettings.SingletonId, settings.Id);
-        Assert.Equal(1_200, settings.WeeklyUsageFee.MinorUnits);
-        Assert.Equal(12.00m, settings.WeeklyUsageFee.ToDecimal());
-        Assert.Equal(2_000, settings.CollaboratorProfit.BasisPoints);
-        Assert.Equal(20.00m, settings.CollaboratorProfit.ToPercent());
+        Assert.Null(settings.WeeklyUsageFee);
+        Assert.Null(settings.CollaboratorProfit);
+        Assert.Equal(string.Empty, settings.ExportDirectory);
+        Assert.Equal(UtcNow, settings.CreatedUtc);
+        Assert.Equal(UtcNow, settings.UpdatedUtc);
+    }
+
+    [Fact]
+    public void CreateConfigured_UsesOnlyExplicitValues()
+    {
+        GeneralSettings settings = GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow);
+
+        Assert.Equal(GeneralSettings.SingletonId, settings.Id);
+        Assert.Equal(1_200, settings.WeeklyUsageFee!.Value.MinorUnits);
+        Assert.Equal(12.00m, settings.WeeklyUsageFee.Value.ToDecimal());
+        Assert.Equal(2_000, settings.CollaboratorProfit!.Value.BasisPoints);
+        Assert.Equal(20.00m, settings.CollaboratorProfit.Value.ToPercent());
         Assert.Equal(0, settings.OptionalSuppliesMonthlyBudget.MinorUnits);
         Assert.Equal(0, settings.TotalChairs);
         Assert.Equal("USD", settings.CurrencyCode.Value);
@@ -52,7 +65,7 @@ public sealed class GeneralSettingsTests
     [Fact]
     public void Update_RejectsNegativeChairs()
     {
-        GeneralSettings settings = GeneralSettings.CreateDefault(UtcNow);
+        GeneralSettings settings = GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow);
 
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.Update(
             Money.FromDecimal(12m),
@@ -72,7 +85,7 @@ public sealed class GeneralSettingsTests
     [Fact]
     public void LegacyCopAndOptionalBudget_AreNormalizedWithoutChangingAmounts()
     {
-        GeneralSettings settings = GeneralSettings.CreateDefault(UtcNow);
+        GeneralSettings settings = GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow);
 
         settings.Update(
             Money.FromDecimal(123.45m),
@@ -82,8 +95,8 @@ public sealed class GeneralSettingsTests
             CurrencyCode.From("COP"),
             UtcNow.AddMinutes(1));
 
-        Assert.Equal(12_345, settings.WeeklyUsageFee.MinorUnits);
-        Assert.Equal(1_725, settings.CollaboratorProfit.BasisPoints);
+        Assert.Equal(12_345, settings.WeeklyUsageFee!.Value.MinorUnits);
+        Assert.Equal(1_725, settings.CollaboratorProfit!.Value.BasisPoints);
         Assert.Equal(0, settings.OptionalSuppliesMonthlyBudget.MinorUnits);
         Assert.Equal("USD", settings.CurrencyCode.Value);
     }

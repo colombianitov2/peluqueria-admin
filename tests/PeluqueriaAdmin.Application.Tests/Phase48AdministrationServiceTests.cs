@@ -372,7 +372,7 @@ public sealed class Phase48AdministrationServiceTests
     }
 
     private static AdministrationService CreateService(FakeRepository repository) => new(
-        repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)),
+        repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)),
         new FixedTimeProvider(new DateTimeOffset(UtcNow)));
 
     private sealed class FakeSettingsRepository(GeneralSettings settings) : ISettingsRepository

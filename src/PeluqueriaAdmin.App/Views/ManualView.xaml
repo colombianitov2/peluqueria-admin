@@ -68,7 +68,7 @@
             no cambia cálculos y no modifica la base de datos.
           </Paragraph>
           <Paragraph FontWeight="SemiBold" Foreground="#475569">
-            Versión documentada: 0.2.0-alpha.2.
+            Versión documentada: 0.2.0-alpha.3.
           </Paragraph>
 
           <Paragraph Style="{StaticResource SubTitle}">Índice</Paragraph>
@@ -200,7 +200,8 @@
           <Paragraph x:Name="Ventas" Style="{StaticResource SectionTitle}">4. Ventas</Paragraph>
           <Paragraph>
             Ventas permite buscar por nombre, sin distinguir mayúsculas, únicamente productos de
-            categorías vendibles. Al elegir uno se muestran existencia y precio predeterminado.
+            categorías vendibles. Al elegir uno se muestran existencia y último precio guardado como
+            referencia, pero el precio de la nueva venta permanece vacío hasta que se escriba.
             Escriba cantidad y precio unitario; revise el total antes de confirmar.
           </Paragraph>
           <List MarkerStyle="Disc">
@@ -430,6 +431,8 @@
             conserva como borrador para corregirlo.
           </Paragraph>
           <List MarkerStyle="Disc">
+            <ListItem><Paragraph>En una instalación nueva, todos los campos editables comienzan vacíos. Vacío significa Sin configurar y no equivale a cero.</Paragraph></ListItem>
+            <ListItem><Paragraph>Es necesario escribir o seleccionar expresamente valores, fechas, porcentajes, cantidades, categorías y frecuencias; el programa no usa cero, la fecha actual ni la primera opción como reemplazo.</Paragraph></ListItem>
             <ListItem><Paragraph>Cambiar la tarifa crea una vigencia nueva y afecta cargos diarios nuevos; no reescribe cargos ni cierres históricos.</Paragraph></ListItem>
             <ListItem><Paragraph>Cambiar el porcentaje no modifica cierres ya confirmados.</Paragraph></ListItem>
             <ListItem><Paragraph>Un gasto recurrente se descuenta una vez por mes desde su fecha inicial. Al eliminarlo se finaliza su vigencia y los meses históricos permanecen calculables y exportables.</Paragraph></ListItem>
@@ -489,7 +492,7 @@
             exportan aparte de las tablas semanales conservadas como legado.
           </Paragraph>
           <List MarkerStyle="Disc">
-            <ListItem><Paragraph>La carpeta es configurable y el Escritorio es el valor predeterminado.</Paragraph></ListItem>
+            <ListItem><Paragraph>La carpeta debe configurarse expresamente antes de exportar; no se preselecciona el Escritorio.</Paragraph></ListItem>
             <ListItem><Paragraph>El nombre contiene fecha y hora; si ya existe, se añade un sufijo y nunca se sobrescribe.</Paragraph></ListItem>
             <ListItem><Paragraph>Primero se escribe un temporal. Si falla, se elimina y no queda un libro parcial.</Paragraph></ListItem>
             <ListItem><Paragraph>Los valores se escriben con tipos de fecha, dinero, porcentaje y cantidad; los textos peligrosos no se ejecutan como fórmulas.</Paragraph></ListItem>

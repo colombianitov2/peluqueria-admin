@@ -10,11 +10,11 @@ public sealed class GeneralSettings
 
     public int Id { get; private set; }
 
-    public Money WeeklyUsageFee { get; private set; }
+    public Money? WeeklyUsageFee { get; private set; }
 
-    public Money DailyUsageFee => WeeklyUsageFee;
+    public Money? DailyUsageFee => WeeklyUsageFee;
 
-    public Percentage CollaboratorProfit { get; private set; }
+    public Percentage? CollaboratorProfit { get; private set; }
 
     public Money OptionalSuppliesMonthlyBudget { get; private set; }
 
@@ -28,15 +28,13 @@ public sealed class GeneralSettings
 
     public DateTime UpdatedUtc { get; private set; }
 
-    public static GeneralSettings CreateDefault(DateTime utcNow)
+    public static GeneralSettings CreateUnconfigured(DateTime utcNow)
     {
         EnsureUtc(utcNow);
 
         return new GeneralSettings
         {
             Id = SingletonId,
-            WeeklyUsageFee = Money.FromDecimal(12.00m),
-            CollaboratorProfit = Percentage.FromPercent(20.00m),
             OptionalSuppliesMonthlyBudget = Money.FromDecimal(0.00m),
             TotalChairs = 0,
             CurrencyCode = CurrencyCode.From(ApplicationCurrency.Code),
@@ -46,9 +44,19 @@ public sealed class GeneralSettings
         };
     }
 
-    public void Update(
-        Money weeklyUsageFee,
+    public static GeneralSettings CreateConfigured(
+        Money dailyUsageFee,
         Percentage collaboratorProfit,
+        DateTime utcNow)
+    {
+        GeneralSettings settings = CreateUnconfigured(utcNow);
+        settings.Update(dailyUsageFee, collaboratorProfit, 0, string.Empty, utcNow);
+        return settings;
+    }
+
+    public void Update(
+        Money? weeklyUsageFee,
+        Percentage? collaboratorProfit,
         int totalChairs,
         string? exportDirectory,
         DateTime utcNow)
@@ -76,8 +84,8 @@ public sealed class GeneralSettings
     }
 
     public void Update(
-        Money weeklyUsageFee,
-        Percentage collaboratorProfit,
+        Money? weeklyUsageFee,
+        Percentage? collaboratorProfit,
         Money retiredOptionalSuppliesMonthlyBudget,
         int totalChairs,
         CurrencyCode retiredCurrencyCode,
@@ -103,6 +111,16 @@ public sealed class GeneralSettings
         UpdatedUtc = utcNow;
         return true;
     }
+
+    public Money RequireDailyUsageFee() =>
+        DailyUsageFee
+        ?? throw new InvalidOperationException(
+            "Sin configurar: define la Tarifa diaria por uso del local (USD) en Ajustes.");
+
+    public Percentage RequireCollaboratorProfit() =>
+        CollaboratorProfit
+        ?? throw new InvalidOperationException(
+            "Sin configurar: define la Ganancia colaboradores (%) en Ajustes.");
 
     private static void EnsureUtc(DateTime value)
     {

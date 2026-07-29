@@ -73,7 +73,7 @@ public sealed partial class AdministrationViewModel(
     private string extraText = string.Empty;
 
     [ObservableProperty]
-    private string dateText = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    private string dateText = string.Empty;
 
     [ObservableProperty]
     private string endDateText = string.Empty;
@@ -97,13 +97,13 @@ public sealed partial class AdministrationViewModel(
     private EntityOption? selectedSecondaryEntityOption;
 
     [ObservableProperty]
-    private string selectedPeriod = "Hoy";
+    private string selectedPeriod = string.Empty;
 
     [ObservableProperty]
-    private DateTime? customPeriodFrom = DateTime.Today;
+    private DateTime? customPeriodFrom;
 
     [ObservableProperty]
-    private DateTime? customPeriodThrough = DateTime.Today;
+    private DateTime? customPeriodThrough;
 
     [ObservableProperty]
     private bool showCustomPeriod;
@@ -112,9 +112,9 @@ public sealed partial class AdministrationViewModel(
 
     [ObservableProperty] private bool showSpecificYearQuery;
 
-    [ObservableProperty] private DateTime? specificDate = timeProvider.GetLocalNow().DateTime.Date;
+    [ObservableProperty] private DateTime? specificDate;
 
-    [ObservableProperty] private string specificYearText = timeProvider.GetLocalNow().Year.ToString(CultureInfo.InvariantCulture);
+    [ObservableProperty] private string specificYearText = string.Empty;
 
     [ObservableProperty] private string historicalRecordsWithoutTime = string.Empty;
 
@@ -176,7 +176,7 @@ public sealed partial class AdministrationViewModel(
     private bool confirmDelete;
 
     [ObservableProperty]
-    private DateTime? formDate = DateTime.Today;
+    private DateTime? formDate;
 
     [ObservableProperty]
     private DateTime? formEndDate;
@@ -345,17 +345,6 @@ public sealed partial class AdministrationViewModel(
         Title = module;
         ConfigureModule();
         ClearForm();
-        if (module == AnnualBalanceModule)
-        {
-            int currentYear = timeProvider.GetLocalNow().Year;
-            SpecificYearText = currentYear.ToString(CultureInfo.InvariantCulture);
-            DateText = new DateOnly(currentYear, 1, 1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        }
-        else if (module == MonthlySummaryModule)
-        {
-            SpecificDate = timeProvider.GetLocalNow().DateTime.Date;
-            DateText = DateOnly.FromDateTime(SpecificDate.Value).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        }
         suppressFormTracking = false;
         await RefreshAsync();
         if (module is not (MonthlySummaryModule or AnnualBalanceModule))
@@ -392,6 +381,31 @@ public sealed partial class AdministrationViewModel(
 
             AdministrationData data = await service.GenerateScheduledRecordsAsync(throughDate);
             SettingsDto settings = await getSettings.ExecuteAsync();
+            PopulateAvailableYears(data, today.Year);
+            if (Title == AnnualBalanceModule && string.IsNullOrWhiteSpace(SpecificYearText))
+            {
+                Rows.Clear();
+                AnnualMonthRows.Clear();
+                AnnualSummaryRows.Clear();
+                StatusMessage = "Sin configurar: selecciona el año que deseas consultar.";
+                IsError = false;
+                return;
+            }
+            if (Title == MonthlySummaryModule && !TryParseDate(DateText, out _))
+            {
+                Rows.Clear();
+                FinancialMonthRows.Clear();
+                FinancialCommitmentRows.Clear();
+                SeatRentalDebtRows.Clear();
+                IncomeLegendRows.Clear();
+                ExpenseLegendRows.Clear();
+                IncomeGoalChart.Series.Clear();
+                ExpenseCompositionChart.Series.Clear();
+                ResultEvolutionChart.Series.Clear();
+                StatusMessage = "Sin configurar: selecciona el mes que deseas consultar.";
+                IsError = false;
+                return;
+            }
             Rows.Clear();
             foreach (OperationRow row in BuildRows(data, settings))
             {
@@ -412,7 +426,6 @@ public sealed partial class AdministrationViewModel(
             AvailableChairs = capacity.Available;
 
             PopulateSelectors(data);
-            PopulateAvailableYears(data, today.Year);
             if (Title == MonthlySummaryModule)
             {
                 BuildMonthlyCharts(data, settings);
@@ -508,7 +521,7 @@ public sealed partial class AdministrationViewModel(
         YearMonth month = YearMonth.From(ParseDate(DateText, "mes"));
         MonthlyClose? close = data.MonthlyCloses.Where(item => item.Month == month && item.IsConfirmed)
             .OrderByDescending(item => item.ClosedUtc).FirstOrDefault();
-        Percentage collaboratorPercentage = Percentage.FromPercent(settings.CollaboratorProfitPercent);
+        Percentage collaboratorPercentage = Percentage.FromPercent(settings.RequireCollaboratorProfitPercent());
         FinancialMonthSnapshot snapshot = close?.ToFinancialSnapshot()
             ?? FinancialMonthCalculator.Calculate(data, collaboratorPercentage, month);
         MonthlyCashBreakdown breakdown = AdministrationReports.MonthlyCash(
@@ -584,7 +597,7 @@ public sealed partial class AdministrationViewModel(
     private void PopulateAnnualClose(AdministrationData data, SettingsDto settings, DateOnly today)
     {
         int year = ParseSpecificYear();
-        Percentage collaboratorPercentage = Percentage.FromPercent(settings.CollaboratorProfitPercent);
+        Percentage collaboratorPercentage = Percentage.FromPercent(settings.RequireCollaboratorProfitPercent());
         AnnualFinancialReport report = AnnualFinancialCalculator.Calculate(
             data,
             collaboratorPercentage,
@@ -799,15 +812,17 @@ public sealed partial class AdministrationViewModel(
             _ => null,
         };
         if (!type.HasValue) return;
+        if (string.IsNullOrWhiteSpace(SelectedPeriod)) return;
         ActivityPeriod period = SelectedPeriod switch
         {
+            "Hoy" => ActivityPeriod.Today,
             "Esta semana" => ActivityPeriod.ThisWeek,
             "Este mes" => ActivityPeriod.ThisMonth,
             "Últimos 3 meses" => ActivityPeriod.LastThreeMonths,
             "Últimos 6 meses" => ActivityPeriod.LastSixMonths,
             "Este año" => ActivityPeriod.ThisYear,
             "Rango personalizado" => ActivityPeriod.Custom,
-            _ => ActivityPeriod.Today,
+            _ => throw new ArgumentException("Selecciona el periodo que deseas consultar."),
         };
         ActivityDateRange range = ActivityPeriodCalculator.Calculate(
             period, today,
@@ -1292,7 +1307,7 @@ public sealed partial class AdministrationViewModel(
         await service.CloseMonthAsync(
             month,
             BuildMonthlyInput(data, settings, month),
-            Percentage.FromPercent(settings.CollaboratorProfitPercent),
+            Percentage.FromPercent(settings.RequireCollaboratorProfitPercent()),
             participantIds,
             completedDraftKey: completedDraftKey,
             description: OptionalDescriptionText);
@@ -1313,14 +1328,14 @@ public sealed partial class AdministrationViewModel(
     private async Task UpdateEntityAsync(AuditableEntity entity, string completedDraftKey)
     {
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
-        DateOnly date = ParseDate(DateText, "fecha");
+        DateOnly RequiredDate() => ParseDate(DateText, "fecha");
         switch (entity)
         {
             case Chair chair:
                 await service.UpdateChairAsync(
                     chair.Id,
                     PrimaryText,
-                    date,
+                    RequiredDate(),
                     OptionalDescriptionText,
                     completedDraftKey: completedDraftKey);
                 break;
@@ -1328,24 +1343,25 @@ public sealed partial class AdministrationViewModel(
                 await service.UpdateLocalUsePersonAsync(
                     person.Id,
                     PrimaryText,
-                    date,
+                    RequiredDate(),
                     ParseOptionalDate(EndDateText),
                     DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
                     completedDraftKey: completedDraftKey,
                     description: OptionalDescriptionText);
                 break;
             case LocalUsePayment payment:
+                DateOnly paymentDate = RequiredDate();
                 AdministrationData localData = await service.LoadAsync();
                 Money available = DailyChargeCalculator.CalculateDebt(
                     localData.DailyCharges.Where(item => item.PersonId == payment.PersonId),
                     localData.WeeklyCharges.Where(item => item.PersonId == payment.PersonId),
                     localData.LocalUsePayments.Where(item => item.PersonId == payment.PersonId && item.Id != payment.Id),
-                    date);
-                payment.Update(date, ParseMoney(AmountText), available, utcNow, OptionalDescriptionText);
+                    paymentDate);
+                payment.Update(paymentDate, ParseMoney(AmountText), available, utcNow, OptionalDescriptionText);
                 await service.UpdateAsync(payment, completedDraftKey: completedDraftKey);
                 break;
             case Collaborator collaborator:
-                collaborator.Update(PrimaryText, date, ParseOptionalDate(EndDateText), utcNow, OptionalDescriptionText);
+                collaborator.Update(PrimaryText, RequiredDate(), ParseOptionalDate(EndDateText), utcNow, OptionalDescriptionText);
                 await service.UpdateAsync(collaborator, completedDraftKey: completedDraftKey);
                 break;
             case Product product:
@@ -1361,7 +1377,7 @@ public sealed partial class AdministrationViewModel(
                 break;
             case InventoryMovement movement:
                 movement.Correct(
-                    date,
+                    RequiredDate(),
                     ParseDecimal(QuantityText, "variación de cantidad"),
                     ParseOptionalMoney(AmountText),
                     ParseOptionalMoney(SecondaryAmountText),
@@ -1371,7 +1387,7 @@ public sealed partial class AdministrationViewModel(
                 break;
             case FinancialEntry financial:
                 financial.Update(
-                    date,
+                    RequiredDate(),
                     PrimaryText,
                     financial.Type == FinancialEntryType.Expense ? ParseExpenseCategory(SecondaryText) : null,
                     ParseMoney(AmountText),
@@ -1383,7 +1399,7 @@ public sealed partial class AdministrationViewModel(
                 obligation.Update(
                     PrimaryText,
                     ParseObligationType(SecondaryText),
-                    date,
+                    RequiredDate(),
                     ParseMoney(AmountText),
                     ParseRecurrence(ExtraText),
                     utcNow,
@@ -1394,14 +1410,14 @@ public sealed partial class AdministrationViewModel(
                     timeProvider.GetLocalNow().Month).LastDay);
                 break;
             case ObligationPayment obligationPayment:
-                obligationPayment.Update(date, ParseMoney(AmountText), utcNow, OptionalDescriptionText);
+                obligationPayment.Update(RequiredDate(), ParseMoney(AmountText), utcNow, OptionalDescriptionText);
                 await service.UpdateAsync(obligationPayment, completedDraftKey: completedDraftKey);
                 break;
             case MaintenanceRecord maintenance:
                 maintenance.Update(
                     PrimaryText,
                     SecondaryText,
-                    date,
+                    RequiredDate(),
                     ParseOptionalMoney(AmountText),
                     ParseOptionalDate(EndDateText),
                     ParseOptionalMoney(SecondaryAmountText),
@@ -1417,7 +1433,7 @@ public sealed partial class AdministrationViewModel(
                     .Where(item => item.ParticipantId == participant.Id && item.Id != distribution.Id)
                     .Sum(item => item.Amount.MinorUnits);
                 distribution.Update(
-                    date,
+                    RequiredDate(),
                     ParseMoney(AmountText),
                     Money.FromMinorUnits(participant.Amount.MinorUnits - otherPaid),
                     utcNow,
@@ -1431,19 +1447,8 @@ public sealed partial class AdministrationViewModel(
 
     private IEnumerable<OperationRow> BuildActivityRows(AdministrationData data, DateOnly today)
     {
-        ActivityPeriod period = SelectedPeriod switch
-        {
-            "Esta semana" => ActivityPeriod.ThisWeek,
-            "Este mes" => ActivityPeriod.ThisMonth,
-            "Últimos 3 meses" => ActivityPeriod.LastThreeMonths,
-            "Últimos 6 meses" => ActivityPeriod.LastSixMonths,
-            "Este año" => ActivityPeriod.ThisYear,
-            "Rango personalizado" => ActivityPeriod.Custom,
-            _ => ActivityPeriod.Today,
-        };
-        DateOnly? customFrom = CustomPeriodFrom.HasValue ? DateOnly.FromDateTime(CustomPeriodFrom.Value) : null;
-        DateOnly? customThrough = CustomPeriodThrough.HasValue ? DateOnly.FromDateTime(CustomPeriodThrough.Value) : null;
-        ActivityDateRange range = ActivityPeriodCalculator.Calculate(period, today, customFrom, customThrough);
+        if (string.IsNullOrWhiteSpace(SelectedPeriod)) return [];
+        ActivityDateRange range = CurrentActivityRange(today);
         string[] modules = Title switch
         {
             PayrollModule => ["Colaboradores", "Resumen mensual"],
@@ -1461,6 +1466,40 @@ public sealed partial class AdministrationViewModel(
                 string.Empty,
                 item.Action,
                 null));
+    }
+
+    private ActivityDateRange CurrentActivityRange(DateOnly today)
+    {
+        if (SelectedPeriod == "Fecha específica")
+        {
+            DateOnly date = SpecificDate.HasValue
+                ? DateOnly.FromDateTime(SpecificDate.Value)
+                : throw new ArgumentException("Selecciona la fecha que deseas consultar.");
+            return new ActivityDateRange(date, date);
+        }
+
+        if (SelectedPeriod == "Año específico")
+        {
+            int year = ParseSpecificYear();
+            return new ActivityDateRange(new DateOnly(year, 1, 1), new DateOnly(year, 12, 31));
+        }
+
+        ActivityPeriod period = SelectedPeriod switch
+        {
+            "Hoy" => ActivityPeriod.Today,
+            "Esta semana" => ActivityPeriod.ThisWeek,
+            "Este mes" => ActivityPeriod.ThisMonth,
+            "Últimos 3 meses" => ActivityPeriod.LastThreeMonths,
+            "Últimos 6 meses" => ActivityPeriod.LastSixMonths,
+            "Este año" => ActivityPeriod.ThisYear,
+            "Rango personalizado" => ActivityPeriod.Custom,
+            _ => throw new ArgumentException("Selecciona el periodo que deseas consultar."),
+        };
+        return ActivityPeriodCalculator.Calculate(
+            period,
+            today,
+            CustomPeriodFrom.HasValue ? DateOnly.FromDateTime(CustomPeriodFrom.Value) : null,
+            CustomPeriodThrough.HasValue ? DateOnly.FromDateTime(CustomPeriodThrough.Value) : null);
     }
 
     private IEnumerable<OperationRow> BuildRows(AdministrationData data, SettingsDto settings) => Title switch
@@ -1637,7 +1676,7 @@ public sealed partial class AdministrationViewModel(
         YearMonth month = YearMonth.From(ParseDate(DateText, "mes a consultar"));
         MonthlyCashBreakdown result = AdministrationReports.MonthlyCash(
             data,
-            Percentage.FromPercent(settings.CollaboratorProfitPercent),
+            Percentage.FromPercent(settings.RequireCollaboratorProfitPercent()),
             month);
         return
         [
@@ -1883,10 +1922,16 @@ public sealed partial class AdministrationViewModel(
 
     private ChartBuckets BuildChartBuckets(DateOnly today)
     {
+        if (string.IsNullOrWhiteSpace(SelectedPeriod))
+        {
+            throw new ArgumentException("Selecciona el periodo que deseas consultar.");
+        }
         if (SelectedPeriod is "Hoy" or "Fecha específica")
         {
-            DateOnly target = SelectedPeriod == "Fecha específica" && SpecificDate.HasValue
-                ? DateOnly.FromDateTime(SpecificDate.Value)
+            DateOnly target = SelectedPeriod == "Fecha específica"
+                ? SpecificDate.HasValue
+                    ? DateOnly.FromDateTime(SpecificDate.Value)
+                    : throw new ArgumentException("Selecciona la fecha que deseas consultar.")
                 : today;
             string[] labels = Enumerable.Range(0, 24).Select(hour => $"{hour:00}:00").ToArray();
             return new ChartBuckets(
@@ -1945,10 +1990,11 @@ public sealed partial class AdministrationViewModel(
             point => point.Date >= from && point.Date <= through ? point.Date.DayNumber - from.DayNumber : null);
     }
 
-    private int ParseSpecificYear() => int.TryParse(
-        SpecificYearText, NumberStyles.None, CultureInfo.InvariantCulture, out int year) && year is >= 1 and <= 9999
-        ? year
-        : DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime).Year;
+    private int ParseSpecificYear() =>
+        int.TryParse(SpecificYearText, NumberStyles.None, CultureInfo.InvariantCulture, out int year)
+            && year is >= 1 and <= 9999
+            ? year
+            : throw new ArgumentException("Selecciona el año que deseas consultar.");
 
     private DateOnly LocalDate(DateTime utc) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(
         DateTime.SpecifyKind(utc, DateTimeKind.Utc), timeProvider.LocalTimeZone));
@@ -1983,7 +2029,7 @@ public sealed partial class AdministrationViewModel(
         DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         AnnualFinancialReport report = AnnualFinancialCalculator.Calculate(
             data,
-            Percentage.FromPercent(settings.CollaboratorProfitPercent),
+            Percentage.FromPercent(settings.RequireCollaboratorProfitPercent()),
             year,
             today);
         foreach (AnnualMonthFinancial financialMonth in report.Months)
@@ -2141,8 +2187,26 @@ public sealed partial class AdministrationViewModel(
     private async Task RestoreDraftAsync()
     {
         HasRecoveredDraft = false;
-        if (string.IsNullOrWhiteSpace(SelectedAction)) return;
-        FormDraft? draft = await formDraftStore.FindAsync(CurrentDraftKey());
+        FormDraft? draft;
+        if (string.IsNullOrWhiteSpace(SelectedAction))
+        {
+            draft = (await formDraftStore.LoadAllAsync())
+                .Where(item => item.Module == Title
+                    && !item.IsEdit
+                    && ActionOptions.Contains(item.FormType))
+                .OrderByDescending(item => item.UpdatedUtc)
+                .FirstOrDefault();
+            if (draft is null) return;
+            suppressFormTracking = true;
+            SelectedAction = draft.FormType;
+            ConfigureFieldPresentation();
+            suppressFormTracking = false;
+            await RefreshAsync();
+        }
+        else
+        {
+            draft = await formDraftStore.FindAsync(CurrentDraftKey());
+        }
         if (draft is null) return;
         FormPayload? payload = JsonSerializer.Deserialize<FormPayload>(draft.PayloadJson);
         if (payload is null) return;
@@ -2267,23 +2331,10 @@ public sealed partial class AdministrationViewModel(
     {
         CollaboratorHistoryRows.Clear();
         if (Title != CollaboratorsModule || SelectedRow?.Entity is not Collaborator collaborator) return;
+        if (string.IsNullOrWhiteSpace(SelectedPeriod)) return;
         AdministrationData data = await service.LoadAsync();
         DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
-        ActivityPeriod period = SelectedPeriod switch
-        {
-            "Esta semana" => ActivityPeriod.ThisWeek,
-            "Este mes" => ActivityPeriod.ThisMonth,
-            "Últimos 3 meses" => ActivityPeriod.LastThreeMonths,
-            "Últimos 6 meses" => ActivityPeriod.LastSixMonths,
-            "Este año" => ActivityPeriod.ThisYear,
-            "Rango personalizado" => ActivityPeriod.Custom,
-            _ => ActivityPeriod.Today,
-        };
-        ActivityDateRange range = ActivityPeriodCalculator.Calculate(
-            period,
-            today,
-            CustomPeriodFrom.HasValue ? DateOnly.FromDateTime(CustomPeriodFrom.Value) : null,
-            CustomPeriodThrough.HasValue ? DateOnly.FromDateTime(CustomPeriodThrough.Value) : null);
+        ActivityDateRange range = CurrentActivityRange(today);
         foreach (MonthlyCloseParticipant participant in data.MonthlyCloseParticipants
             .Where(item => item.CollaboratorId == collaborator.Id))
         {
@@ -2359,7 +2410,9 @@ public sealed partial class AdministrationViewModel(
 
     partial void OnDateTextChanged(string value)
     {
-        if (TryParseDate(value, out DateOnly date)) FormDate = date.ToDateTime(TimeOnly.MinValue);
+        FormDate = TryParseDate(value, out DateOnly date)
+            ? date.ToDateTime(TimeOnly.MinValue)
+            : null;
         TrackFormChange();
         if (Title is MonthlySummaryModule or AnnualBalanceModule) _ = RefreshAsync();
     }
@@ -2372,7 +2425,9 @@ public sealed partial class AdministrationViewModel(
 
     partial void OnFormDateChanged(DateTime? value)
     {
-        if (value.HasValue) DateText = DateOnly.FromDateTime(value.Value).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        DateText = value.HasValue
+            ? DateOnly.FromDateTime(value.Value).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            : string.Empty;
     }
 
     partial void OnFormEndDateChanged(DateTime? value) => EndDateText = value.HasValue
@@ -2456,8 +2511,7 @@ public sealed partial class AdministrationViewModel(
         AvailableYearOptions.Clear();
         foreach (int year in years)
             AvailableYearOptions.Add(year.ToString(CultureInfo.InvariantCulture));
-        if (!AvailableYearOptions.Contains(SpecificYearText))
-            SpecificYearText = currentYear.ToString(CultureInfo.InvariantCulture);
+        if (!AvailableYearOptions.Contains(SpecificYearText)) SpecificYearText = string.Empty;
     }
 
     private void PopulateSeatRentalDebts(AdministrationData data, YearMonth month)
@@ -2610,7 +2664,7 @@ public sealed partial class AdministrationViewModel(
             ActionOptions.Add(action);
         }
 
-        SelectedAction = ActionOptions.FirstOrDefault() ?? string.Empty;
+        SelectedAction = string.Empty;
         IsFormVisible = ActionOptions.Count > 0;
         ShowLocalUseSummary = Title == LocalUseModule;
         ShowCharts = Title == MonthlySummaryModule;
@@ -2850,7 +2904,7 @@ public sealed partial class AdministrationViewModel(
         SelectedMonthlyPlanId = null;
         SecondaryText = string.Empty;
         ExtraText = string.Empty;
-        DateText = FormatDate(DateOnly.FromDateTime(DateTime.Today));
+        DateText = string.Empty;
         EndDateText = string.Empty;
         AmountText = string.Empty;
         SecondaryAmountText = string.Empty;

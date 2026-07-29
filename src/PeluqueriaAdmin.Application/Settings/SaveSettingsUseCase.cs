@@ -17,18 +17,23 @@ public sealed class SaveSettingsUseCase(
         ArgumentNullException.ThrowIfNull(request);
 
         GeneralSettings settings = await repository.GetAsync(cancellationToken);
-        Money dailyUsageFee = Money.FromDecimal(request.DailyUsageFee);
+        Money? dailyUsageFee = request.DailyUsageFee.HasValue
+            ? Money.FromDecimal(request.DailyUsageFee.Value)
+            : null;
+        Percentage? collaboratorProfit = request.CollaboratorProfitPercent.HasValue
+            ? Percentage.FromPercent(request.CollaboratorProfitPercent.Value)
+            : null;
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
-        DailyRate? newRate = settings.DailyUsageFee == dailyUsageFee
+        DailyRate? newRate = !dailyUsageFee.HasValue || settings.DailyUsageFee == dailyUsageFee
             ? null
             : DailyRate.Create(
                 DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
                 utcNow,
-                dailyUsageFee,
+                dailyUsageFee.Value,
                 utcNow);
         settings.Update(
             dailyUsageFee,
-            Percentage.FromPercent(request.CollaboratorProfitPercent),
+            collaboratorProfit,
             settings.TotalChairs,
             request.ExportDirectory,
             utcNow);

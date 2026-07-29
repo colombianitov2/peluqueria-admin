@@ -35,15 +35,15 @@ public sealed partial class SalesViewModel(
     [ObservableProperty] private SalesProductOption? selectedProduct;
     [ObservableProperty] private bool isProductDropDownOpen;
     [ObservableProperty] private bool hasNoProducts;
-    [ObservableProperty] private DateTime? saleDate = DateTime.Today;
+    [ObservableProperty] private DateTime? saleDate;
     [ObservableProperty] private string quantityText = string.Empty;
     [ObservableProperty] private string unitPriceText = string.Empty;
     [ObservableProperty] private string descriptionText = string.Empty;
     [ObservableProperty] private string selectedAvailability = "Selecciona un producto";
     [ObservableProperty] private string calculatedTotal = string.Empty;
-    [ObservableProperty] private string selectedPeriod = "Este mes";
-    [ObservableProperty] private DateTime? customPeriodFrom = DateTime.Today;
-    [ObservableProperty] private DateTime? customPeriodThrough = DateTime.Today;
+    [ObservableProperty] private string selectedPeriod = string.Empty;
+    [ObservableProperty] private DateTime? customPeriodFrom;
+    [ObservableProperty] private DateTime? customPeriodThrough;
     [ObservableProperty] private bool showCustomPeriod;
     [ObservableProperty] private string statusMessage = string.Empty;
     [ObservableProperty] private bool isError;
@@ -79,10 +79,12 @@ public sealed partial class SalesViewModel(
             }
             ApplyProductFilter();
 
-            ActivityDateRange range = CurrentRange();
+            ActivityDateRange? range = CurrentRange();
             Sales.Clear();
             foreach (InventoryMovement sale in data.InventoryMovements
-                .Where(item => item.Type == InventoryMovementType.Sale && range.Contains(item.Date))
+                .Where(item => item.Type == InventoryMovementType.Sale
+                    && range.HasValue
+                    && range.Value.Contains(item.Date))
                 .OrderByDescending(item => item.Date).ThenByDescending(item => item.CreatedUtc))
             {
                 Product? product = data.Products.SingleOrDefault(item => item.Id == sale.ProductId);
@@ -155,7 +157,7 @@ public sealed partial class SalesViewModel(
         SearchText = string.Empty;
         SelectedProduct = null;
         suppressSearch = false;
-        SaleDate = DateTime.Today;
+        SaleDate = null;
         QuantityText = string.Empty;
         UnitPriceText = string.Empty;
         DescriptionText = string.Empty;
@@ -192,7 +194,7 @@ public sealed partial class SalesViewModel(
             return;
         }
         SelectedAvailability = $"Existencia disponible: {SelectedProduct.AvailableQuantity:0.###}";
-        UnitPriceText = SelectedProduct.DefaultPrice?.ToString("0.00", CultureInfo.CurrentCulture) ?? "Sin precio configurado";
+        UnitPriceText = string.Empty;
         UpdateTotal();
     }
 
@@ -214,8 +216,9 @@ public sealed partial class SalesViewModel(
         CalculatedTotal = $"Total: {ApplicationCurrency.Code} {total.ToDecimal():N2}";
     }
 
-    private ActivityDateRange CurrentRange()
+    private ActivityDateRange? CurrentRange()
     {
+        if (string.IsNullOrWhiteSpace(SelectedPeriod)) return null;
         DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         ActivityPeriod period = SelectedPeriod switch
         {
@@ -225,7 +228,8 @@ public sealed partial class SalesViewModel(
             "Últimos 6 meses" => ActivityPeriod.LastSixMonths,
             "Este año" => ActivityPeriod.ThisYear,
             "Rango personalizado" => ActivityPeriod.Custom,
-            _ => ActivityPeriod.Today,
+            "Hoy" => ActivityPeriod.Today,
+            _ => throw new ArgumentException("Selecciona el periodo que deseas consultar."),
         };
         return ActivityPeriodCalculator.Calculate(
             period, today,

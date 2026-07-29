@@ -181,7 +181,7 @@ public sealed class Phase50AContributionWorkflowTests
     private static async Task<WorkflowContext> CreateContextAsync()
     {
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(Utc));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), Utc));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(Utc));
         var drafts = new FakeFormDraftStore();
         var service = new AdministrationService(repository, settingsRepository, timeProvider);

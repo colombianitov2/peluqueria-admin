@@ -25,7 +25,7 @@ public sealed class InventorySalesRegressionTests
             var factory = new TestFactory(paths.DatabaseFilePath);
             var clock = new FixedClock(new DateTimeOffset(2026, 7, 19, 12, 0, 0, TimeSpan.Zero));
             var backup = new DatabaseBackupService(factory, paths, clock);
-            await new DatabaseInitializer(factory, paths, clock, backup).InitializeAsync(cancellationToken);
+            await new ConfiguredDatabaseInitializer(factory, paths, clock, backup).InitializeAsync(cancellationToken);
             var service = new AdministrationService(
                 new EfAdministrationRepository(factory), new EfSettingsRepository(factory), clock);
             DateOnly date = new(2026, 7, 19);

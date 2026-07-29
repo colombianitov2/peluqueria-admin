@@ -30,7 +30,7 @@ public sealed class AdvancePaymentPersistenceTests
             ApplicationPaths paths = ApplicationPaths.FromRoot(root);
             paths.EnsureDirectories();
             var firstFactory = new Factory(paths.DatabaseFilePath);
-            await new DatabaseInitializer(
+            await new ConfiguredDatabaseInitializer(
                 firstFactory,
                 paths,
                 clock).InitializeAsync(cancellationToken);
@@ -108,7 +108,7 @@ public sealed class AdvancePaymentPersistenceTests
             ApplicationPaths paths = ApplicationPaths.FromRoot(root);
             paths.EnsureDirectories();
             var firstFactory = new Factory(paths.DatabaseFilePath);
-            await new DatabaseInitializer(firstFactory, paths, clock).InitializeAsync(cancellationToken);
+            await new ConfiguredDatabaseInitializer(firstFactory, paths, clock).InitializeAsync(cancellationToken);
             var firstService = new AdministrationService(
                 new EfAdministrationRepository(firstFactory),
                 new EfSettingsRepository(firstFactory),
@@ -173,7 +173,7 @@ public sealed class AdvancePaymentPersistenceTests
             ApplicationPaths paths = ApplicationPaths.FromRoot(root);
             paths.EnsureDirectories();
             var factory = new Factory(paths.DatabaseFilePath);
-            await new DatabaseInitializer(
+            await new ConfiguredDatabaseInitializer(
                 factory,
                 paths,
                 clock).InitializeAsync(cancellationToken);

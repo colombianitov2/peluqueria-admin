@@ -16,7 +16,7 @@ public sealed class Phase411BackupTests
             ApplicationPaths paths = ApplicationPaths.FromRoot(root);
             var factory = new Factory(paths.DatabaseFilePath);
             var service = new DatabaseBackupService(factory, paths, TimeProvider.System);
-            await new DatabaseInitializer(factory, paths, TimeProvider.System, service)
+            await new ConfiguredDatabaseInitializer(factory, paths, TimeProvider.System, service)
                 .InitializeAsync(TestContext.Current.CancellationToken);
             string before = await service.CreateManualAsync(TestContext.Current.CancellationToken);
             string corrupt = Path.Combine(root, "corrupt.db");
@@ -47,7 +47,7 @@ public sealed class Phase411BackupTests
             ApplicationPaths paths = ApplicationPaths.FromRoot(root);
             var factory = new Factory(paths.DatabaseFilePath);
             var service = new DatabaseBackupService(factory, paths, TimeProvider.System);
-            await new DatabaseInitializer(factory, paths, TimeProvider.System, service)
+            await new ConfiguredDatabaseInitializer(factory, paths, TimeProvider.System, service)
                 .InitializeAsync(TestContext.Current.CancellationToken);
             string candidate = await service.CreateManualAsync(TestContext.Current.CancellationToken);
             await using (var connection = new SqliteConnection($"Data Source={candidate};Pooling=False"))

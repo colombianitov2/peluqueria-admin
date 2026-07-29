@@ -3,26 +3,26 @@ namespace PeluqueriaAdmin.App.Tests;
 public sealed class ReleaseVersionContractTests
 {
     [Fact]
-    public void Phase52_VersionMetadataAndDocumentationAreConsistent()
+    public void Phase521_VersionMetadataAndDocumentationAreConsistent()
     {
         string project = RepositoryFiles.Read(
             "src", "PeluqueriaAdmin.App", "PeluqueriaAdmin.App.csproj");
         string manual = RepositoryFiles.Read(
             "src", "PeluqueriaAdmin.App", "Views", "ManualView.xaml");
         string externalManual = RepositoryFiles.Read("docs", "MANUAL_USUARIO.md");
-        string releaseNotes = RepositoryFiles.Read("docs", "NOTAS_VERSION_0.2.0-alpha.2.md");
+        string releaseNotes = RepositoryFiles.Read("docs", "NOTAS_VERSION_0.2.0-alpha.3.md");
 
-        Assert.Contains("<Version>0.2.0-alpha.2</Version>", project, StringComparison.Ordinal);
+        Assert.Contains("<Version>0.2.0-alpha.3</Version>", project, StringComparison.Ordinal);
         Assert.Contains("<AssemblyVersion>0.2.0.0</AssemblyVersion>", project, StringComparison.Ordinal);
-        Assert.Contains("<FileVersion>0.2.0.2</FileVersion>", project, StringComparison.Ordinal);
-        Assert.Contains("<InformationalVersion>0.2.0-alpha.2</InformationalVersion>", project, StringComparison.Ordinal);
+        Assert.Contains("<FileVersion>0.2.0.3</FileVersion>", project, StringComparison.Ordinal);
+        Assert.Contains("<InformationalVersion>0.2.0-alpha.3</InformationalVersion>", project, StringComparison.Ordinal);
         Assert.Contains("<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>", project, StringComparison.Ordinal);
-        Assert.Contains("Versión documentada: 0.2.0-alpha.2", manual, StringComparison.Ordinal);
-        Assert.Contains("Versión documentada: **0.2.0-alpha.2**", externalManual, StringComparison.Ordinal);
-        Assert.Contains("Versión preliminar pública", releaseNotes, StringComparison.Ordinal);
+        Assert.Contains("Versión documentada: 0.2.0-alpha.3", manual, StringComparison.Ordinal);
+        Assert.Contains("Versión documentada: **0.2.0-alpha.3**", externalManual, StringComparison.Ordinal);
+        Assert.Contains("Versión preliminar candidata", releaseNotes, StringComparison.Ordinal);
         Assert.Contains("no está firmado digitalmente", releaseNotes, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(
-            "PeluqueriaAdmin-Setup-v0.2.0-alpha.2.exe",
+            "PeluqueriaAdmin-Setup-v0.2.0-alpha.3.exe",
             releaseNotes,
             StringComparison.Ordinal);
     }

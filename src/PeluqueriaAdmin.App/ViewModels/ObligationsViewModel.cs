@@ -28,16 +28,16 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
     [ObservableProperty] private bool isAddMode = true;
     [ObservableProperty] private bool isLoanMode;
     [ObservableProperty] private string nameText = string.Empty;
-    [ObservableProperty] private string selectedType = "Servicio";
-    [ObservableProperty] private string selectedRecurrence = "Sin recurrencia";
-    [ObservableProperty] private DateTime? initialDueDate = DateTime.Today;
+    [ObservableProperty] private string selectedType = string.Empty;
+    [ObservableProperty] private string selectedRecurrence = string.Empty;
+    [ObservableProperty] private DateTime? initialDueDate;
     [ObservableProperty] private string expectedAmountText = string.Empty;
     [ObservableProperty] private string obligationDescription = string.Empty;
     [ObservableProperty] private ObligationCatalogRow? selectedObligation;
     [ObservableProperty] private bool isEditing;
     [ObservableProperty] private bool confirmDelete;
     [ObservableProperty] private ObligationSeriesOption? selectedPaymentOption;
-    [ObservableProperty] private DateTime? paymentDate = DateTime.Today;
+    [ObservableProperty] private DateTime? paymentDate;
     [ObservableProperty] private string paymentAmountText = string.Empty;
     [ObservableProperty] private string paymentDescription = string.Empty;
     [ObservableProperty] private ObligationPaymentListRow? selectedObligationPayment;
@@ -48,11 +48,11 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
 
     [ObservableProperty] private string loanName = string.Empty;
     [ObservableProperty] private string loanInitialBalance = string.Empty;
-    [ObservableProperty] private string selectedLoanCalculationMethod = "Interés mensual sobre saldo";
+    [ObservableProperty] private string selectedLoanCalculationMethod = string.Empty;
     [ObservableProperty] private string loanMonthlyInterestPercent = string.Empty;
     [ObservableProperty] private string loanAgreedFinalAmount = string.Empty;
     [ObservableProperty] private string loanInstallmentCount = string.Empty;
-    [ObservableProperty] private DateTime? loanFirstDueDate = DateTime.Today;
+    [ObservableProperty] private DateTime? loanFirstDueDate;
     [ObservableProperty] private string loanDescription = string.Empty;
     [ObservableProperty] private string loanPreview = "Completa los datos para ver el plan de cuotas.";
     [ObservableProperty] private string loanPreviewError = string.Empty;
@@ -62,7 +62,7 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
     [ObservableProperty] private bool isEditingLoan;
     [ObservableProperty] private bool canEditLoanTerms = true;
     [ObservableProperty] private bool confirmLoanDelete;
-    [ObservableProperty] private DateTime? loanPaymentDate = DateTime.Today;
+    [ObservableProperty] private DateTime? loanPaymentDate;
     [ObservableProperty] private string loanPaymentAmount = string.Empty;
     [ObservableProperty] private string loanPaymentDescription = string.Empty;
     [ObservableProperty] private LoanPaymentRow? selectedLoanPayment;
@@ -481,7 +481,7 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
                 RequiredDate(PaymentDate, "fecha de pago"),
                 ParseMoney(PaymentAmountText),
                 PaymentDescription);
-            PaymentDate = timeProvider.GetLocalNow().DateTime.Date;
+            PaymentDate = null;
             PaymentAmountText = string.Empty;
             PaymentDescription = string.Empty;
             StatusMessage = "El pago se registró y la ocurrencia quedó pagada.";
@@ -663,16 +663,18 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
             "Interés fijo sobre capital inicial" => LoanCalculator.FixedInterestOnInitialPrincipal(
                 name, principal, ParseNonNegativeDecimal(LoanMonthlyInterestPercent, "interés mensual"),
                 count, firstDueDate, utcNow, description),
-            _ => LoanCalculator.MonthlyBalanceInterest(
+            "Interés mensual sobre saldo" => LoanCalculator.MonthlyBalanceInterest(
                 name, principal, ParseNonNegativeDecimal(LoanMonthlyInterestPercent, "interés mensual"),
                 count, firstDueDate, utcNow, description),
+            _ => throw new ArgumentException("Selecciona el método de cálculo del préstamo."),
         };
 
     private void ClearLoanForm()
     {
         LoanName = LoanInitialBalance = LoanMonthlyInterestPercent = LoanAgreedFinalAmount =
             LoanInstallmentCount = LoanDescription = string.Empty;
-        LoanFirstDueDate = timeProvider.GetLocalNow().DateTime.Date;
+        SelectedLoanCalculationMethod = string.Empty;
+        LoanFirstDueDate = null;
         LoanPreview = "Completa los datos para ver el plan de cuotas.";
         LoanPreviewError = string.Empty;
         LoanPreviewInstallments.Clear();
@@ -681,9 +683,9 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
     private void ResetDefinitionForm()
     {
         NameText = string.Empty;
-        SelectedType = "Servicio";
-        SelectedRecurrence = "Sin recurrencia";
-        InitialDueDate = timeProvider.GetLocalNow().DateTime.Date;
+        SelectedType = string.Empty;
+        SelectedRecurrence = string.Empty;
+        InitialDueDate = null;
         ExpectedAmountText = string.Empty;
         ObligationDescription = string.Empty;
         SelectedObligation = null;
@@ -708,14 +710,16 @@ public sealed partial class ObligationsViewModel(AdministrationService service, 
         "Impuesto" => ObligationType.Tax,
         "Crédito" => ObligationType.Credit,
         "Otra obligación" => ObligationType.OtherRecurring,
-        _ => ObligationType.Service,
+        "Servicio" => ObligationType.Service,
+        _ => throw new ArgumentException("Selecciona el tipo de obligación."),
     };
     private static RecurrenceFrequency ParseRecurrence(string value) => value switch
     {
         "Semanal" => RecurrenceFrequency.Weekly,
         "Mensual" => RecurrenceFrequency.Monthly,
         "Anual" => RecurrenceFrequency.Annual,
-        _ => RecurrenceFrequency.None,
+        "Sin recurrencia" => RecurrenceFrequency.None,
+        _ => throw new ArgumentException("Selecciona la recurrencia."),
     };
     private static decimal ParseNonNegativeDecimal(string value, string field)
     {

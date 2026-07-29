@@ -8,6 +8,27 @@ namespace PeluqueriaAdmin.Domain.Tests;
 
 public sealed class ReportsAndCollaboratorsTests
 {
+    [Fact]
+    public void NewCollaborator_HasNoIndividualPercentageUntilAdministratorConfiguresIt()
+    {
+        DateTime utcNow = new(2026, 7, 29, 22, 0, 0, DateTimeKind.Utc);
+        Collaborator collaborator = Collaborator.Create(
+            "Sin porcentaje",
+            new DateOnly(2026, 7, 29),
+            null,
+            utcNow);
+
+        Assert.Null(collaborator.ProfitShareBasisPoints);
+        Assert.Null(collaborator.FundParticipationBasisPoints);
+        Assert.Throws<InvalidOperationException>(
+            () => collaborator.RequireFundParticipationBasisPoints());
+
+        collaborator.UpdateFundParticipation(Percentage.FromPercent(0m), utcNow.AddMinutes(1));
+
+        Assert.Equal(0, collaborator.FundParticipationBasisPoints);
+        Assert.Equal(0, collaborator.RequireFundParticipationBasisPoints());
+    }
+
     private static readonly DateTime UtcNow = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]

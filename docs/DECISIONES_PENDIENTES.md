@@ -2,6 +2,16 @@
 
 Este registro impide que la implementación convierta supuestos en reglas de negocio. Las decisiones resueltas se conservan como trazabilidad; las demás no se consideran aprobadas hasta que el usuario las confirme.
 
+## Decisiones cerradas por Fase 5.2.1 — 29 de julio de 2026
+
+- Ningún campo editable por el administrador tiene valor, fecha ni selección predeterminada.
+- Vacío significa sin configurar; cero solo existe cuando fue guardado expresamente.
+- Los cálculos no usan alternativas para datos ausentes y las operaciones dependientes quedan bloqueadas con una explicación del ajuste faltante.
+- Una instalación nueva no crea historial de configuración antes del primer guardado.
+- Las actualizaciones preservan valores e historial reales, incluso si coinciden con antiguos valores predeterminados.
+- El antiguo porcentaje inicial de colaboradores del 20 %, la tarifa inicial de USD 12 y la carpeta inicial Escritorio quedan expresamente reemplazados.
+- La corrección se prepara como candidato `0.2.0-alpha.3`; esta fase no autoriza etiqueta, Release, instalación ni actualización real.
+
 ## Decisiones cerradas por Fase 5.2 — 29 de julio de 2026
 
 - La tarifa de Uso del local es diaria y exacta de lunes a sábado; el domingo no cobra.

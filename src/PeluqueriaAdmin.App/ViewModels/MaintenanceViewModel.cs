@@ -37,26 +37,26 @@ public sealed partial class MaintenanceViewModel(
 
     [ObservableProperty] private string assetText = string.Empty;
     [ObservableProperty] private string maintenanceTypeText = string.Empty;
-    [ObservableProperty] private DateTime? scheduledDate = DateTime.Today;
+    [ObservableProperty] private DateTime? scheduledDate;
     [ObservableProperty] private string estimatedCostText = string.Empty;
-    [ObservableProperty] private string selectedFrequency = "Una vez";
+    [ObservableProperty] private string selectedFrequency = string.Empty;
     [ObservableProperty] private string customIntervalText = string.Empty;
-    [ObservableProperty] private string selectedCustomUnit = "Días";
+    [ObservableProperty] private string selectedCustomUnit = string.Empty;
     [ObservableProperty] private bool showCustomInterval;
     [ObservableProperty] private string descriptionText = string.Empty;
     [ObservableProperty] private MaintenanceRow? selectedRow;
     [ObservableProperty] private MaintenanceRow? selectedHistoryRow;
     [ObservableProperty] private MaintenanceRow? selectedPendingToComplete;
-    [ObservableProperty] private string selectedHistoryAsset = "Historial de todos los equipos";
+    [ObservableProperty] private string selectedHistoryAsset = string.Empty;
     [ObservableProperty] private bool isEditing;
     [ObservableProperty] private bool isEditingCompleted;
     private Guid? editingMaintenanceId;
-    [ObservableProperty] private DateTime? completedDate = DateTime.Today;
+    [ObservableProperty] private DateTime? completedDate;
     [ObservableProperty] private string actualCostText = string.Empty;
     [ObservableProperty] private bool confirmStop;
-    [ObservableProperty] private string selectedPeriod = "Todos";
-    [ObservableProperty] private DateTime? customPeriodFrom = DateTime.Today;
-    [ObservableProperty] private DateTime? customPeriodThrough = DateTime.Today;
+    [ObservableProperty] private string selectedPeriod = string.Empty;
+    [ObservableProperty] private DateTime? customPeriodFrom;
+    [ObservableProperty] private DateTime? customPeriodThrough;
     [ObservableProperty] private bool showCustomPeriod;
     [ObservableProperty] private string statusMessage = string.Empty;
     [ObservableProperty] private bool isError;
@@ -91,7 +91,9 @@ public sealed partial class MaintenanceViewModel(
                 {
                     HistoryAssetOptions.Add(asset);
                 }
-                if (!HistoryAssetOptions.Contains(SelectedHistoryAsset)) SelectedHistoryAsset = "Historial de todos los equipos";
+                if (!string.IsNullOrWhiteSpace(SelectedHistoryAsset)
+                    && !HistoryAssetOptions.Contains(SelectedHistoryAsset))
+                    SelectedHistoryAsset = string.Empty;
             }
             finally { suppressFilterRefresh = false; }
             foreach (MaintenanceRecord record in data.MaintenanceRecords.OrderBy(item => item.ScheduledDate))
@@ -102,7 +104,9 @@ public sealed partial class MaintenanceViewModel(
                     PendingRecords.Add(row);
                     PendingCompletionOptions.Add(row);
                 }
-                else if ((!range.HasValue || range.Value.Contains(record.CompletedDate.Value))
+                else if ((SelectedPeriod == "Todos"
+                        || range.HasValue && range.Value.Contains(record.CompletedDate.Value))
+                    && !string.IsNullOrWhiteSpace(SelectedHistoryAsset)
                     && (SelectedHistoryAsset == "Historial de todos los equipos"
                         || string.Equals(record.Asset, SelectedHistoryAsset, StringComparison.OrdinalIgnoreCase)))
                 {
@@ -165,7 +169,7 @@ public sealed partial class MaintenanceViewModel(
                 ParseRequiredMoney(ActualCostText),
                 SelectedPendingToComplete.Record.Description);
             SelectedPendingToComplete = null;
-            CompletedDate = timeProvider.GetLocalNow().DateTime.Date;
+            CompletedDate = null;
             ActualCostText = string.Empty;
             StatusMessage = "El mantenimiento se marcó como realizado.";
             IsError = false;
@@ -304,9 +308,9 @@ public sealed partial class MaintenanceViewModel(
     private void ClearScheduleForm()
     {
         suppressChanges = true;
-        AssetText = string.Empty; MaintenanceTypeText = string.Empty; ScheduledDate = DateTime.Today;
-        EstimatedCostText = string.Empty; SelectedFrequency = "Una vez"; CustomIntervalText = string.Empty;
-        SelectedCustomUnit = "Días"; DescriptionText = string.Empty;
+        AssetText = string.Empty; MaintenanceTypeText = string.Empty; ScheduledDate = null;
+        EstimatedCostText = string.Empty; SelectedFrequency = string.Empty; CustomIntervalText = string.Empty;
+        SelectedCustomUnit = string.Empty; DescriptionText = string.Empty;
         IsEditing = false; IsEditingCompleted = false; editingMaintenanceId = null;
         suppressChanges = false;
     }
@@ -372,15 +376,16 @@ public sealed partial class MaintenanceViewModel(
     private ActivityDateRange? CurrentRange()
     {
         if (SelectedPeriod == "Todos") return null;
+        if (string.IsNullOrWhiteSpace(SelectedPeriod)) return null;
         DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
-        ActivityPeriod period = SelectedPeriod switch { "Esta semana" => ActivityPeriod.ThisWeek, "Este mes" => ActivityPeriod.ThisMonth, "Últimos 3 meses" => ActivityPeriod.LastThreeMonths, "Últimos 6 meses" => ActivityPeriod.LastSixMonths, "Este año" => ActivityPeriod.ThisYear, "Rango personalizado" => ActivityPeriod.Custom, _ => ActivityPeriod.Today };
+        ActivityPeriod period = SelectedPeriod switch { "Hoy" => ActivityPeriod.Today, "Esta semana" => ActivityPeriod.ThisWeek, "Este mes" => ActivityPeriod.ThisMonth, "Últimos 3 meses" => ActivityPeriod.LastThreeMonths, "Últimos 6 meses" => ActivityPeriod.LastSixMonths, "Este año" => ActivityPeriod.ThisYear, "Rango personalizado" => ActivityPeriod.Custom, _ => throw new ArgumentException("Selecciona el periodo que deseas consultar.") };
         return ActivityPeriodCalculator.Calculate(period, today,
             CustomPeriodFrom.HasValue ? DateOnly.FromDateTime(CustomPeriodFrom.Value) : null,
             CustomPeriodThrough.HasValue ? DateOnly.FromDateTime(CustomPeriodThrough.Value) : null);
     }
 
-    private static MaintenanceFrequency ParseFrequency(string value) => value switch { "Semanal" => MaintenanceFrequency.Weekly, "Quincenal" => MaintenanceFrequency.Biweekly, "Mensual" => MaintenanceFrequency.Monthly, "Cada 2 meses" => MaintenanceFrequency.EveryTwoMonths, "Cada 3 meses" => MaintenanceFrequency.EveryThreeMonths, "Cada 6 meses" => MaintenanceFrequency.EverySixMonths, "Anual" => MaintenanceFrequency.Yearly, "Personalizada" => MaintenanceFrequency.Custom, _ => MaintenanceFrequency.Once };
-    private static MaintenanceIntervalUnit ParseUnit(string value) => value switch { "Semanas" => MaintenanceIntervalUnit.Weeks, "Meses" => MaintenanceIntervalUnit.Months, "Años" => MaintenanceIntervalUnit.Years, _ => MaintenanceIntervalUnit.Days };
+    private static MaintenanceFrequency ParseFrequency(string value) => value switch { "Una vez" => MaintenanceFrequency.Once, "Semanal" => MaintenanceFrequency.Weekly, "Quincenal" => MaintenanceFrequency.Biweekly, "Mensual" => MaintenanceFrequency.Monthly, "Cada 2 meses" => MaintenanceFrequency.EveryTwoMonths, "Cada 3 meses" => MaintenanceFrequency.EveryThreeMonths, "Cada 6 meses" => MaintenanceFrequency.EverySixMonths, "Anual" => MaintenanceFrequency.Yearly, "Personalizada" => MaintenanceFrequency.Custom, _ => throw new ArgumentException("Selecciona la frecuencia del mantenimiento.") };
+    private static MaintenanceIntervalUnit ParseUnit(string value) => value switch { "Días" => MaintenanceIntervalUnit.Days, "Semanas" => MaintenanceIntervalUnit.Weeks, "Meses" => MaintenanceIntervalUnit.Months, "Años" => MaintenanceIntervalUnit.Years, _ => throw new ArgumentException("Selecciona la unidad del intervalo.") };
     private static string FrequencyName(MaintenanceRecord value) => value.Frequency switch { MaintenanceFrequency.Weekly => "Semanal", MaintenanceFrequency.Biweekly => "Quincenal", MaintenanceFrequency.Monthly => "Mensual", MaintenanceFrequency.EveryTwoMonths => "Cada 2 meses", MaintenanceFrequency.EveryThreeMonths => "Cada 3 meses", MaintenanceFrequency.EverySixMonths => "Cada 6 meses", MaintenanceFrequency.Yearly => "Anual", MaintenanceFrequency.Custom => $"Cada {value.CustomInterval} {UnitName(value.CustomIntervalUnit)}", _ => "Una vez" };
     private static string UnitName(MaintenanceIntervalUnit? unit) => unit switch { MaintenanceIntervalUnit.Weeks => "semanas", MaintenanceIntervalUnit.Months => "meses", MaintenanceIntervalUnit.Years => "años", _ => "días" };
     private static MaintenanceRow ToRow(MaintenanceRecord record) => new(

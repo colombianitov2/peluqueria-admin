@@ -38,6 +38,7 @@ public sealed class Phase410FinancialIntegrationTests
         SuggestedChairPrice pendingPrice = SuggestedChairPriceCalculator.Calculate(
             pendingData,
             Money.FromDecimal(12),
+            Percentage.FromPercent(0),
             July,
             new DateOnly(2026, 7, 23));
 

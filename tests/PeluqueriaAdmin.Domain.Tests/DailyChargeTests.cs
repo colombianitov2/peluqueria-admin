@@ -104,6 +104,38 @@ public sealed class DailyChargeTests
     }
 
     [Fact]
+    public void UnconfiguredRateGap_GeneratesNoChargesAndNeverFallsBack()
+    {
+        DateOnly monday = new(2026, 7, 27);
+        DateOnly wednesday = monday.AddDays(2);
+        DateOnly friday = monday.AddDays(4);
+        DateOnly saturday = monday.AddDays(5);
+        LocalUsePerson person = LocalUsePerson.Create("Con intervalo vacío", monday, null, UtcNow);
+        Chair chair = Chair.Create("Silla", monday, null, UtcNow);
+        ChairAssignmentPeriod assignment =
+            ChairAssignmentPeriod.Create(chair.Id, person.Id, monday, UtcNow);
+        DailyRate ten = DailyRate.Create(monday, UtcNow, Money.FromDecimal(10m), UtcNow);
+        ten.Close(wednesday, UtcNow.AddDays(2));
+        DailyRate fifteen = DailyRate.Create(
+            friday,
+            UtcNow.AddDays(4),
+            Money.FromDecimal(15m),
+            UtcNow.AddDays(4));
+
+        IReadOnlyList<DailyCharge> charges = DailyChargeCalculator.Generate(
+            person, [], [ten, fifteen], [assignment], saturday, UtcNow.AddDays(5));
+
+        Assert.Equal(
+            [monday, monday.AddDays(1), friday, saturday],
+            charges.Select(item => item.ChargeDate).ToArray());
+        Assert.Equal([10m, 10m, 15m, 15m],
+            charges.Select(item => item.Amount.ToDecimal()).ToArray());
+        Assert.Null(DailyChargeCalculator.TryRateFor([ten, fifteen], wednesday));
+        Assert.Throws<InvalidOperationException>(
+            () => DailyChargeCalculator.RateFor([ten, fifteen], wednesday));
+    }
+
+    [Fact]
     public void MissingOrClosedChairAssignment_StopsFutureCharges()
     {
         DateOnly monday = new(2026, 7, 27);

@@ -252,8 +252,8 @@ internal sealed class CollaboratorConfiguration : IEntityTypeConfiguration<Colla
         AdministrationConfiguration.ConfigureAudit(builder);
         builder.Property(item => item.Name).HasMaxLength(200).IsRequired();
         builder.Property(item => item.Description).HasMaxLength(1000);
-        builder.Property(item => item.ProfitShareBasisPoints).HasDefaultValue(0);
-        builder.Property(item => item.FundParticipationBasisPoints).HasDefaultValue(0);
+        builder.Property(item => item.ProfitShareBasisPoints).IsRequired(false);
+        builder.Property(item => item.FundParticipationBasisPoints).IsRequired(false);
         builder.ToTable(table => table.HasCheckConstraint(
             "CK_Collaborators_ProfitShareBasisPoints",
             "ProfitShareBasisPoints >= 0 AND ProfitShareBasisPoints <= 10000"));

@@ -28,6 +28,8 @@ public sealed class DailyRate : AuditableEntity
 
     public DateTime? EffectiveToUtc { get; private set; }
 
+    public DateOnly? EffectiveToDateExclusive { get; private set; }
+
     public Money Amount { get; private set; }
 
     public static DailyRate Create(
@@ -37,9 +39,15 @@ public sealed class DailyRate : AuditableEntity
         DateTime utcNow) =>
         new(Guid.NewGuid(), effectiveDate, effectiveFromUtc, amount, utcNow);
 
-    public void Close(DateTime effectiveToUtc)
+    public void Close(DateOnly effectiveToDateExclusive, DateTime effectiveToUtc)
     {
         EnsureUtc(effectiveToUtc);
+        if (effectiveToDateExclusive < EffectiveDate)
+        {
+            throw new ArgumentException(
+                "La fecha final de una tarifa no puede preceder su inicio.",
+                nameof(effectiveToDateExclusive));
+        }
         if (effectiveToUtc < EffectiveFromUtc)
         {
             throw new ArgumentException(
@@ -47,7 +55,12 @@ public sealed class DailyRate : AuditableEntity
                 nameof(effectiveToUtc));
         }
 
+        EffectiveToDateExclusive = effectiveToDateExclusive;
         EffectiveToUtc = effectiveToUtc;
         MarkUpdated(effectiveToUtc);
     }
+
+    public bool AppliesOn(DateOnly date) =>
+        EffectiveDate <= date
+        && (!EffectiveToDateExclusive.HasValue || date < EffectiveToDateExclusive.Value);
 }

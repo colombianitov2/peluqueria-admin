@@ -307,7 +307,7 @@ public sealed class ResponsiveLayoutTests
         public bool ConfirmDelete { get; set; }
         public bool UpdateReady => false;
         public string StatusMessage => "Borrador recuperado para validar texto largo.";
-        public DateTime? FormDate { get; set; } = DateTime.Today;
+        public DateTime? FormDate { get; set; }
         public DateTime? FormEndDate { get; set; }
         public string PrimaryText { get; set; } = string.Empty;
         public string SecondaryText { get; set; } = string.Empty;
@@ -315,11 +315,11 @@ public sealed class ResponsiveLayoutTests
         public string AmountText { get; set; } = string.Empty;
         public string SecondaryAmountText { get; set; } = string.Empty;
         public string QuantityText { get; set; } = string.Empty;
-        public string WeeklyUsageFee { get; set; } = "12000,00";
-        public string CollaboratorProfitPercent { get; set; } = "20,00";
-        public string OptionalSuppliesMonthlyBudget { get; set; } = "100000,00";
-        public string TotalChairs { get; set; } = "10";
-        public string CurrencyCode { get; set; } = "COP";
+        public string WeeklyUsageFee { get; set; } = string.Empty;
+        public string CollaboratorProfitPercent { get; set; } = string.Empty;
+        public string OptionalSuppliesMonthlyBudget { get; set; } = string.Empty;
+        public string TotalChairs { get; set; } = string.Empty;
+        public string CurrencyCode { get; set; } = "USD";
         public string RestorePath { get; set; } = string.Empty;
         public bool IsWorkerProfileOpen { get; set; }
         public int ProfileTabIndex { get; set; } = 1;

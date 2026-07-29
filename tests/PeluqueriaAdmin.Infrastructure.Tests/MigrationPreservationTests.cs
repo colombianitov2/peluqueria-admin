@@ -299,7 +299,7 @@ public sealed class MigrationPreservationTests
                 await context.GetService<IMigrator>().MigrateAsync(phase41, cancellationToken);
                 if (!await context.Settings.AnyAsync(cancellationToken))
                 {
-                    context.Settings.Add(GeneralSettings.CreateDefault(utc));
+                    context.Settings.Add(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), utc));
                 }
 
                 collaboratorId = Guid.NewGuid();

@@ -27,19 +27,19 @@ public sealed class DataManagementTests
             (ApplicationPaths paths, TestDbContextFactory factory, FixedTimeProvider timeProvider) =
                 CreateDependencies(temporaryRoot);
             var backupService = new DatabaseBackupService(factory, paths, timeProvider);
-            var initializer = new DatabaseInitializer(factory, paths, timeProvider, backupService);
+            var initializer = new ConfiguredDatabaseInitializer(factory, paths, timeProvider, backupService);
             await initializer.InitializeAsync(cancellationToken);
 
             var settingsRepository = new EfSettingsRepository(factory);
             GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
-            Assert.Equal(1_200, settings.WeeklyUsageFee.MinorUnits);
+            Assert.Equal(1_200, settings.WeeklyUsageFee!.Value.MinorUnits);
 
             string backupPath = await backupService.CreateManualAsync(cancellationToken);
             Assert.True(File.Exists(backupPath));
 
             settings.Update(
                 Money.FromDecimal(99.99m),
-                settings.CollaboratorProfit,
+                settings.RequireCollaboratorProfit(),
                 settings.OptionalSuppliesMonthlyBudget,
                 settings.TotalChairs,
                 settings.CurrencyCode,
@@ -47,12 +47,12 @@ public sealed class DataManagementTests
             await settingsRepository.SaveAsync(settings, cancellationToken);
             Assert.Equal(
                 9_999,
-                (await settingsRepository.GetAsync(cancellationToken)).WeeklyUsageFee.MinorUnits);
+                (await settingsRepository.GetAsync(cancellationToken)).WeeklyUsageFee!.Value.MinorUnits);
 
             await backupService.RestoreAsync(backupPath, cancellationToken);
 
             GeneralSettings restored = await new EfSettingsRepository(factory).GetAsync(cancellationToken);
-            Assert.Equal(1_200, restored.WeeklyUsageFee.MinorUnits);
+            Assert.Equal(1_200, restored.WeeklyUsageFee!.Value.MinorUnits);
             Assert.Single(Directory.EnumerateFiles(paths.BackupsDirectory, "pre-restore-*.db"));
         }
         finally
@@ -72,7 +72,7 @@ public sealed class DataManagementTests
             (ApplicationPaths paths, TestDbContextFactory factory, FixedTimeProvider timeProvider) =
                 CreateDependencies(temporaryRoot);
             var backupService = new DatabaseBackupService(factory, paths, timeProvider);
-            var initializer = new DatabaseInitializer(factory, paths, timeProvider, backupService);
+            var initializer = new ConfiguredDatabaseInitializer(factory, paths, timeProvider, backupService);
             await initializer.InitializeAsync(cancellationToken);
             var settingsRepository = new EfSettingsRepository(factory);
             var administrationService = new AdministrationService(
@@ -88,6 +88,10 @@ public sealed class DataManagementTests
             Collaborator collaborator = Collaborator.Create(
                 "Ana", new DateOnly(2026, 7, 1), null, timeProvider.GetUtcNow().UtcDateTime);
             await administrationService.AddAsync(collaborator, cancellationToken);
+            await administrationService.UpdateCollaboratorFundParticipationAsync(
+                collaborator.Id,
+                Percentage.FromPercent(100m),
+                cancellationToken);
             await administrationService.AddCollaboratorContributionAsync(
                 CollaboratorContribution.Create(
                     collaborator.Id,

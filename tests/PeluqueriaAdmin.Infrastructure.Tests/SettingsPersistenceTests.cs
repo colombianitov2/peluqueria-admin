@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using PeluqueriaAdmin.Application.Administration;
 using PeluqueriaAdmin.Application.Settings;
+using PeluqueriaAdmin.Domain.Collaborators;
 using PeluqueriaAdmin.Domain.Common;
 using PeluqueriaAdmin.Domain.Finance;
 using PeluqueriaAdmin.Domain.Inventory;
@@ -19,6 +20,167 @@ namespace PeluqueriaAdmin.Infrastructure.Tests;
 public sealed class SettingsPersistenceTests
 {
     [Fact]
+    public async Task FreshInitialization_RemainsUnconfiguredWithoutRateOrHistoryAfterRestart()
+    {
+        string temporaryRoot = CreateTemporaryRoot();
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+
+        try
+        {
+            ApplicationPaths paths = ApplicationPaths.FromRoot(temporaryRoot);
+            var factory = new TestDbContextFactory(paths.DatabaseFilePath);
+            var timeProvider = new FixedTimeProvider(
+                new DateTimeOffset(2026, 7, 29, 12, 0, 0, TimeSpan.Zero));
+            var initializer = new DatabaseInitializer(factory, paths, timeProvider);
+
+            await initializer.InitializeAsync(cancellationToken);
+            await initializer.InitializeAsync(cancellationToken);
+
+            await using PeluqueriaDbContext context =
+                await factory.CreateDbContextAsync(cancellationToken);
+            GeneralSettings settings = await context.Settings.SingleAsync(cancellationToken);
+            Assert.Null(settings.DailyUsageFee);
+            Assert.Null(settings.CollaboratorProfit);
+            Assert.Equal(string.Empty, settings.ExportDirectory);
+            Assert.Empty(await context.DailyRates.ToArrayAsync(cancellationToken));
+            Assert.Empty(await context.FinancialEvents.ToArrayAsync(cancellationToken));
+            Assert.Empty(await context.ActivityRecords.ToArrayAsync(cancellationToken));
+
+            Collaborator collaborator = Collaborator.Create(
+                "Sin porcentaje",
+                new DateOnly(2026, 7, 29),
+                null,
+                timeProvider.GetUtcNow().UtcDateTime);
+            context.Collaborators.Add(collaborator);
+            await context.SaveChangesAsync(cancellationToken);
+            context.ChangeTracker.Clear();
+
+            Collaborator persisted = await context.Collaborators.SingleAsync(cancellationToken);
+            Assert.Null(persisted.ProfitShareBasisPoints);
+            Assert.Null(persisted.FundParticipationBasisPoints);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(temporaryRoot))
+            {
+                Directory.Delete(temporaryRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ExplicitZero_IsConfiguredAndCreatesTheFirstDailyRate()
+    {
+        string temporaryRoot = CreateTemporaryRoot();
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+
+        try
+        {
+            ApplicationPaths paths = ApplicationPaths.FromRoot(temporaryRoot);
+            var factory = new TestDbContextFactory(paths.DatabaseFilePath);
+            var timeProvider = new FixedTimeProvider(
+                new DateTimeOffset(2026, 7, 29, 13, 0, 0, TimeSpan.Zero));
+            await new DatabaseInitializer(factory, paths, timeProvider)
+                .InitializeAsync(cancellationToken);
+            var settingsRepository = new EfSettingsRepository(factory);
+            var administrationRepository = new EfAdministrationRepository(factory);
+            var useCase = new SaveSettingsUseCase(
+                settingsRepository,
+                administrationRepository,
+                timeProvider);
+
+            SettingsDto saved = await useCase.ExecuteAsync(
+                new SaveSettingsRequest(0m, 0m, string.Empty),
+                cancellationToken);
+
+            Assert.Equal(0m, saved.DailyUsageFee);
+            Assert.Equal(0m, saved.CollaboratorProfitPercent);
+            await using PeluqueriaDbContext context =
+                await factory.CreateDbContextAsync(cancellationToken);
+            DailyRate rate = Assert.Single(
+                await context.DailyRates.ToArrayAsync(cancellationToken));
+            Assert.Equal(0, rate.Amount.MinorUnits);
+            Assert.Single(await context.FinancialEvents
+                .Where(item => item.OperationId == rate.Id)
+                .ToArrayAsync(cancellationToken));
+
+            GeneralSettings reloaded = await new EfSettingsRepository(factory)
+                .GetAsync(cancellationToken);
+            Assert.Equal(0, reloaded.RequireDailyUsageFee().MinorUnits);
+            Assert.Equal(0, reloaded.RequireCollaboratorProfit().BasisPoints);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(temporaryRoot))
+            {
+                Directory.Delete(temporaryRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ClearingDailyRate_ClosesItsVigencyAndDoesNotCoverTheUnconfiguredGap()
+    {
+        string temporaryRoot = CreateTemporaryRoot();
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+
+        try
+        {
+            ApplicationPaths paths = ApplicationPaths.FromRoot(temporaryRoot);
+            var factory = new TestDbContextFactory(paths.DatabaseFilePath);
+            var timeProvider = new MutableTimeProvider(
+                new DateTimeOffset(2026, 7, 1, 12, 0, 0, TimeSpan.Zero));
+            await new DatabaseInitializer(factory, paths, timeProvider)
+                .InitializeAsync(cancellationToken);
+            var useCase = new SaveSettingsUseCase(
+                new EfSettingsRepository(factory),
+                new EfAdministrationRepository(factory),
+                timeProvider);
+
+            await useCase.ExecuteAsync(
+                new SaveSettingsRequest(12m, 20m, string.Empty),
+                cancellationToken);
+            timeProvider.AdvanceDays(2);
+            await useCase.ExecuteAsync(
+                new SaveSettingsRequest(null, 20m, string.Empty),
+                cancellationToken);
+            timeProvider.AdvanceDays(2);
+            await useCase.ExecuteAsync(
+                new SaveSettingsRequest(15m, 20m, string.Empty),
+                cancellationToken);
+
+            await using PeluqueriaDbContext context =
+                await factory.CreateDbContextAsync(cancellationToken);
+            DailyRate[] rates = await context.DailyRates
+                .OrderBy(item => item.EffectiveFromUtc)
+                .ToArrayAsync(cancellationToken);
+            Assert.Equal(2, rates.Length);
+            Assert.Equal(new DateTime(2026, 7, 3, 12, 0, 0, DateTimeKind.Utc), rates[0].EffectiveToUtc);
+            Assert.Equal(new DateOnly(2026, 7, 3), rates[0].EffectiveToDateExclusive);
+            Assert.Equal(new DateTime(2026, 7, 5, 12, 0, 0, DateTimeKind.Utc), rates[1].EffectiveFromUtc);
+            Assert.DoesNotContain(
+                rates,
+                item => item.EffectiveFromUtc <= new DateTime(2026, 7, 4, 12, 0, 0, DateTimeKind.Utc)
+                    && (!item.EffectiveToUtc.HasValue
+                        || new DateTime(2026, 7, 4, 12, 0, 0, DateTimeKind.Utc) < item.EffectiveToUtc.Value));
+            Assert.Contains(
+                await context.FinancialEvents.ToArrayAsync(cancellationToken),
+                item => item.EventType == "Tarifa diaria desconfigurada"
+                    && item.NewValue == null);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(temporaryRoot))
+            {
+                Directory.Delete(temporaryRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task DailyRateChange_PersistsPreviousNewAndDifferenceInAuditEvent()
     {
         string temporaryRoot = CreateTemporaryRoot();
@@ -29,7 +191,7 @@ public sealed class SettingsPersistenceTests
             ApplicationPaths paths = ApplicationPaths.FromRoot(temporaryRoot);
             paths.EnsureDirectories();
             var factory = new TestDbContextFactory(paths.DatabaseFilePath);
-            await new DatabaseInitializer(factory, paths, TimeProvider.System)
+            await new ConfiguredDatabaseInitializer(factory, paths, TimeProvider.System)
                 .InitializeAsync(cancellationToken);
             var repository = new EfAdministrationRepository(factory);
             var settingsRepository = new EfSettingsRepository(factory);
@@ -42,7 +204,7 @@ public sealed class SettingsPersistenceTests
                 previous = DailyRate.Create(
                     DateOnly.FromDateTime(initialUtc),
                     initialUtc,
-                    settings.DailyUsageFee,
+                    settings.RequireDailyUsageFee(),
                     initialUtc);
                 await repository.SaveSettingsAndDailyRateAsync(
                     settings,
@@ -56,7 +218,7 @@ public sealed class SettingsPersistenceTests
             DateTime changeUtc = previous.EffectiveFromUtc.AddMinutes(1);
             settings.Update(
                 Money.FromDecimal(15m),
-                settings.CollaboratorProfit,
+                settings.RequireCollaboratorProfit(),
                 settings.TotalChairs,
                 settings.ExportDirectory,
                 changeUtc);
@@ -104,7 +266,7 @@ public sealed class SettingsPersistenceTests
             var factory = new TestDbContextFactory(paths.DatabaseFilePath);
             var timeProvider = new FixedTimeProvider(
                 new DateTimeOffset(2026, 7, 18, 12, 0, 0, TimeSpan.Zero));
-            var initializer = new DatabaseInitializer(factory, paths, timeProvider);
+            var initializer = new ConfiguredDatabaseInitializer(factory, paths, timeProvider);
 
             await initializer.InitializeAsync(cancellationToken);
             await initializer.InitializeAsync(cancellationToken);
@@ -125,7 +287,7 @@ public sealed class SettingsPersistenceTests
 
             var repository = new EfSettingsRepository(factory);
             GeneralSettings initial = await repository.GetAsync(cancellationToken);
-            Assert.Equal(1_200, initial.WeeklyUsageFee.MinorUnits);
+            Assert.Equal(1_200, initial.WeeklyUsageFee!.Value.MinorUnits);
             Assert.Equal("USD", initial.CurrencyCode.Value);
 
             DateTime updatedUtc = new(2026, 7, 18, 13, 0, 0, DateTimeKind.Utc);
@@ -140,8 +302,8 @@ public sealed class SettingsPersistenceTests
 
             var reloadedRepository = new EfSettingsRepository(factory);
             GeneralSettings reloaded = await reloadedRepository.GetAsync(cancellationToken);
-            Assert.Equal(1_575, reloaded.WeeklyUsageFee.MinorUnits);
-            Assert.Equal(2_550, reloaded.CollaboratorProfit.BasisPoints);
+            Assert.Equal(1_575, reloaded.WeeklyUsageFee!.Value.MinorUnits);
+            Assert.Equal(2_550, reloaded.CollaboratorProfit!.Value.BasisPoints);
             Assert.Equal(0, reloaded.OptionalSuppliesMonthlyBudget.MinorUnits);
             Assert.Equal(8, reloaded.TotalChairs);
             Assert.Equal("USD", reloaded.CurrencyCode.Value);
@@ -169,11 +331,11 @@ public sealed class SettingsPersistenceTests
         {
             ApplicationPaths paths = ApplicationPaths.FromRoot(temporaryRoot);
             var factory = new TestDbContextFactory(paths.DatabaseFilePath);
-            var initializer = new DatabaseInitializer(factory, paths, TimeProvider.System);
+            var initializer = new ConfiguredDatabaseInitializer(factory, paths, TimeProvider.System);
             await initializer.InitializeAsync(cancellationToken);
 
             await using PeluqueriaDbContext context = await factory.CreateDbContextAsync(cancellationToken);
-            GeneralSettings duplicate = GeneralSettings.CreateDefault(DateTime.UtcNow);
+            GeneralSettings duplicate = GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), DateTime.UtcNow);
             context.Settings.Add(duplicate);
 
             await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync(cancellationToken));
@@ -215,7 +377,7 @@ public sealed class SettingsPersistenceTests
                     """, cancellationToken);
             }
 
-            var initializer = new DatabaseInitializer(
+            var initializer = new ConfiguredDatabaseInitializer(
                 factory,
                 paths,
                 new FixedTimeProvider(new DateTimeOffset(utcNow)));
@@ -237,7 +399,10 @@ public sealed class SettingsPersistenceTests
 
             await using PeluqueriaDbContext verification = await factory.CreateDbContextAsync(cancellationToken);
             Assert.Equal(1, await verification.Settings.CountAsync(cancellationToken));
-            Assert.Equal("USD", (await verification.Settings.SingleAsync(cancellationToken)).CurrencyCode.Value);
+            GeneralSettings preserved = await verification.Settings.SingleAsync(cancellationToken);
+            Assert.Equal("USD", preserved.CurrencyCode.Value);
+            Assert.Equal(1_200, preserved.RequireDailyUsageFee().MinorUnits);
+            Assert.Equal(2_000, preserved.RequireCollaboratorProfit().BasisPoints);
             Assert.Contains(
                 await verification.Database.GetAppliedMigrationsAsync(cancellationToken),
                 name => name.EndsWith("_CompleteAdministration", StringComparison.Ordinal));
@@ -279,5 +444,12 @@ public sealed class SettingsPersistenceTests
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
+    private sealed class MutableTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        private DateTimeOffset current = utcNow;
+        public override DateTimeOffset GetUtcNow() => current;
+        public void AdvanceDays(int days) => current = current.AddDays(days);
     }
 }

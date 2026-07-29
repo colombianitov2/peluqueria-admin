@@ -25,7 +25,7 @@ public sealed class ActivityAuditTests
             var factory = new Factory(paths.DatabaseFilePath);
             DateTime utc = new(2026, 7, 19, 12, 0, 0, DateTimeKind.Utc);
             var clock = new FixedTimeProvider(new DateTimeOffset(utc));
-            await new DatabaseInitializer(factory, paths, clock).InitializeAsync(cancellationToken);
+            await new ConfiguredDatabaseInitializer(factory, paths, clock).InitializeAsync(cancellationToken);
             var repository = new EfAdministrationRepository(factory);
             var service = new AdministrationService(repository, new EfSettingsRepository(factory), clock);
             FinancialEntry entry = FinancialEntry.CreateExpense(
@@ -65,7 +65,7 @@ public sealed class ActivityAuditTests
             var factory = new Factory(paths.DatabaseFilePath);
             DateTime utc = new(2026, 7, 22, 12, 0, 0, DateTimeKind.Utc);
             var clock = new FixedTimeProvider(new DateTimeOffset(utc));
-            await new DatabaseInitializer(factory, paths, clock).InitializeAsync(cancellationToken);
+            await new ConfiguredDatabaseInitializer(factory, paths, clock).InitializeAsync(cancellationToken);
             var repository = new EfAdministrationRepository(factory);
             var settingsRepository = new EfSettingsRepository(factory);
             GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);

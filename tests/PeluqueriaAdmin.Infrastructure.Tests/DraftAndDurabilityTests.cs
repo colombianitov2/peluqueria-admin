@@ -24,7 +24,7 @@ public sealed class DraftAndDurabilityTests
         try
         {
             (ApplicationPaths paths, TestDbContextFactory factory) = CreateDependencies(root);
-            await new DatabaseInitializer(factory, paths, TimeProvider.System).InitializeAsync(cancellationToken);
+            await new ConfiguredDatabaseInitializer(factory, paths, TimeProvider.System).InitializeAsync(cancellationToken);
             const string draftKey = "Otros ingresos:Registrar ingreso:new";
             var store = new EfFormDraftStore(factory);
             await store.UpsertAsync(FormDraft.Create(
@@ -65,7 +65,7 @@ public sealed class DraftAndDurabilityTests
         try
         {
             (ApplicationPaths paths, TestDbContextFactory factory) = CreateDependencies(root);
-            await new DatabaseInitializer(factory, paths, TimeProvider.System).InitializeAsync(cancellationToken);
+            await new ConfiguredDatabaseInitializer(factory, paths, TimeProvider.System).InitializeAsync(cancellationToken);
             await using PeluqueriaDbContext context = await factory.CreateDbContextAsync(cancellationToken);
             await context.Database.OpenConnectionAsync(cancellationToken);
             DbConnection connection = context.Database.GetDbConnection();

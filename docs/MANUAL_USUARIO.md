@@ -1,6 +1,6 @@
 # Manual de usuario
 
-Versión documentada: **0.2.0-alpha.2**.
+Versión documentada: **0.2.0-alpha.3**.
 
 Peluquería Admin es una herramienta interna en USD. No es un sistema contable, fiscal ni
 tributario oficial y no registra clientes, proveedores, comprobantes, medios de pago ni los
@@ -226,11 +226,16 @@ exportación. Los valores válidos se autoguardan. Un gasto extraoficial usa nom
 efectiva; afecta mensualmente resultado, punto de equilibrio, colaboradores, Balance, gráficos y Excel.
 Editar corrige su vigencia y eliminar la finaliza sin borrar historia.
 
+En una instalación nueva, todos esos campos comienzan vacíos. Vacío significa **Sin configurar** y no
+equivale a cero. Es necesario escribir o seleccionar expresamente cada valor, fecha, porcentaje,
+cantidad, categoría o frecuencia antes de ejecutar una operación que lo necesite. La aplicación no
+reemplaza un campo vacío por cero, la fecha actual ni la primera opción de una lista.
+
 Cambiar la tarifa diaria crea una vigencia nueva inmediatamente. No modifica cargos, meses o años
 históricos ya cerrados.
 
-Datos permite crear copias, restaurar y exportar Excel. La ruta predeterminada de exportación es el
-Escritorio y **Cambiar carpeta** permite elegir otra.
+Datos permite crear copias, restaurar y exportar Excel. Antes de exportar es necesario elegir
+expresamente una carpeta mediante **Cambiar carpeta**.
 
 ## 16. Notas
 

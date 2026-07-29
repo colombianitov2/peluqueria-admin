@@ -54,18 +54,18 @@ public sealed partial class LocalUseViewModel(
 
     public ObservableCollection<OperationRow> ChairHistoryRows { get; } = [];
 
-    [ObservableProperty] private string selectedAction = "Añadir silla";
-    [ObservableProperty] private string selectedPeriod = "Hoy";
-    [ObservableProperty] private string selectedWorkerHistoryPeriod = "Todo el historial";
-    [ObservableProperty] private DateTime? customPeriodFrom = timeProvider.GetLocalNow().DateTime.Date;
-    [ObservableProperty] private DateTime? customPeriodThrough = timeProvider.GetLocalNow().DateTime.Date;
+    [ObservableProperty] private string selectedAction = string.Empty;
+    [ObservableProperty] private string selectedPeriod = string.Empty;
+    [ObservableProperty] private string selectedWorkerHistoryPeriod = string.Empty;
+    [ObservableProperty] private DateTime? customPeriodFrom;
+    [ObservableProperty] private DateTime? customPeriodThrough;
     [ObservableProperty] private bool showCustomPeriod;
     [ObservableProperty] private bool showCustomWorkerHistoryPeriod;
     [ObservableProperty] private int totalChairs;
     [ObservableProperty] private int currentWorkers;
     [ObservableProperty] private int availableChairs;
     [ObservableProperty] private string nameText = string.Empty;
-    [ObservableProperty] private DateTime? actionDate = timeProvider.GetLocalNow().DateTime.Date;
+    [ObservableProperty] private DateTime? actionDate;
     [ObservableProperty] private string descriptionText = string.Empty;
     [ObservableProperty] private EntityOption? selectedNewWorkerChair;
     [ObservableProperty] private bool isWorkerAction;
@@ -86,7 +86,7 @@ public sealed partial class LocalUseViewModel(
     [ObservableProperty] private string profileNextRequiredPayment = string.Empty;
     [ObservableProperty] private string profileCoveredThrough = string.Empty;
     [ObservableProperty] private int profileTabIndex = 1;
-    [ObservableProperty] private DateTime? paymentDate = timeProvider.GetLocalNow().DateTime.Date;
+    [ObservableProperty] private DateTime? paymentDate;
     [ObservableProperty] private string paymentAmount = string.Empty;
     [ObservableProperty] private string paymentDescription = string.Empty;
     [ObservableProperty] private EntityOption? workerProfileSelectedChair;
@@ -115,30 +115,38 @@ public sealed partial class LocalUseViewModel(
             DateOnly today = Today();
             AdministrationData data = await service.GenerateScheduledRecordsAsync(today);
             SettingsDto settings = await getSettings.ExecuteAsync();
-            ActivityDateRange range = CurrentRange(today);
-            ActivityDateRange workerHistoryRange = CurrentWorkerHistoryRange(today);
+            ActivityDateRange? range = CurrentRange(today);
+            ActivityDateRange? workerHistoryRange = CurrentWorkerHistoryRange(today);
 
             Workers.Clear();
             foreach (LocalUsePerson worker in data.LocalUsePeople.OrderBy(item => item.Name))
             {
                 Chair? chair = data.Chairs.SingleOrDefault(item => item.AssignedPersonId == worker.Id);
-                WorkerAccountBalance account = DailyChargeCalculator.CalculateAccount(
-                    worker,
-                    data.DailyCharges.Where(item => item.PersonId == worker.Id),
-                    data.WeeklyCharges.Where(item => item.PersonId == worker.Id),
-                    data.LocalUsePayments.Where(item => item.PersonId == worker.Id),
-                    data.DailyRates,
-                    data.ChairAssignmentPeriods,
-                    today);
+                bool canProjectAccount = settings.DailyUsageFee.HasValue && data.DailyRates.Count > 0;
+                WorkerAccountBalance? account = canProjectAccount
+                    ? DailyChargeCalculator.CalculateAccount(
+                        worker,
+                        data.DailyCharges.Where(item => item.PersonId == worker.Id),
+                        data.WeeklyCharges.Where(item => item.PersonId == worker.Id),
+                        data.LocalUsePayments.Where(item => item.PersonId == worker.Id),
+                        data.DailyRates,
+                        data.ChairAssignmentPeriods,
+                        today)
+                    : null;
+                (Money debt, Money credit) = AccountTotals(data, worker.Id, today);
                 Workers.Add(new WorkerRow(
                     worker,
                     worker.Name,
                     worker.EntryDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                     chair?.Name ?? "Sin silla",
-                    FormatMoney(ApplicationCurrency.Code, account.Debt),
-                    FormatMoney(ApplicationCurrency.Code, account.Credit),
-                    FormatDate(account.NextChargeDate, worker.ExitDate.HasValue ? "No aplica" : "Sin cobro proyectado"),
-                    FormatDate(account.NextRequiredPaymentDate, worker.ExitDate.HasValue ? "No aplica" : "Cubierto"),
+                    FormatMoney(ApplicationCurrency.Code, account?.Debt ?? debt),
+                    FormatMoney(ApplicationCurrency.Code, account?.Credit ?? credit),
+                    account is null
+                        ? "Sin calcular: configura la tarifa diaria"
+                        : FormatDate(account.NextChargeDate, worker.ExitDate.HasValue ? "No aplica" : "Sin cobro proyectado"),
+                    account is null
+                        ? "Sin calcular: configura la tarifa diaria"
+                        : FormatDate(account.NextRequiredPaymentDate, worker.ExitDate.HasValue ? "No aplica" : "Cubierto"),
                     worker.IsCurrentOn(today) ? "Vigente" : "Retirado"));
             }
 
@@ -176,7 +184,7 @@ public sealed partial class LocalUseViewModel(
 
             ActivityRows.Clear();
             foreach (var activity in data.ActivityRecords
-                .Where(item => item.Module == Module && range.Contains(item.ActivityDate))
+                .Where(item => item.Module == Module && RangeContains(range, item.ActivityDate))
                 .OrderByDescending(item => item.OccurredUtc))
             {
                 ActivityRows.Add(new OperationRow(
@@ -227,7 +235,7 @@ public sealed partial class LocalUseViewModel(
                     Chair.Create(NameText, date, DescriptionText, utcNow),
                     completedDraftKey: ActionDraftKey);
             }
-            else
+            else if (SelectedAction == "Añadir trabajador")
             {
                 Guid? chairId = SelectedNewWorkerChair is { Id: var selectedChairId }
                     && selectedChairId != Guid.Empty
@@ -250,6 +258,10 @@ public sealed partial class LocalUseViewModel(
                         Today(),
                         completedDraftKey: ActionDraftKey);
                 }
+            }
+            else
+            {
+                throw new InvalidOperationException("Sin configurar: selecciona una acción.");
             }
 
             ClearActionForm();
@@ -283,7 +295,7 @@ public sealed partial class LocalUseViewModel(
         ProfileDescription = SelectedWorkerRow.Worker.Description ?? string.Empty;
         ProfileEntryDate = SelectedWorkerRow.Worker.EntryDate.ToDateTime(TimeOnly.MinValue);
         ProfileTabIndex = 1;
-        SelectedWorkerHistoryPeriod = "Todo el historial";
+        SelectedWorkerHistoryPeriod = string.Empty;
         ShowCustomWorkerHistoryPeriod = false;
         suppressChanges = false;
         await RefreshAsync();
@@ -374,10 +386,9 @@ public sealed partial class LocalUseViewModel(
                 completedDraftKey: key,
                 description: PaymentDescription);
             suppressChanges = true;
+            PaymentDate = null;
             PaymentAmount = string.Empty;
             PaymentDescription = string.Empty;
-            SelectedWorkerHistoryPeriod = "Todo el historial";
-            ShowCustomWorkerHistoryPeriod = false;
             suppressChanges = false;
             await RefreshAsync();
             StatusMessage = "Pago registrado correctamente.";
@@ -490,7 +501,7 @@ public sealed partial class LocalUseViewModel(
     private async Task LoadWorkerProfileAsync(
         AdministrationData data,
         SettingsDto settings,
-        ActivityDateRange range,
+        ActivityDateRange? range,
         DateOnly today)
     {
         if (SelectedWorkerRow is null)
@@ -509,31 +520,45 @@ public sealed partial class LocalUseViewModel(
 
         Chair? currentChair = data.Chairs.SingleOrDefault(item => item.AssignedPersonId == workerId);
         ProfileChair = currentChair?.Name ?? "Sin silla asignada";
-        WorkerAccountBalance balance = DailyChargeCalculator.CalculateAccount(
-            worker,
-            data.DailyCharges.Where(item => item.PersonId == workerId),
-            data.WeeklyCharges.Where(item => item.PersonId == workerId),
-            data.LocalUsePayments.Where(item => item.PersonId == workerId),
-            data.DailyRates,
-            data.ChairAssignmentPeriods,
-            today);
-        ProfileDebt = FormatMoney(ApplicationCurrency.Code, balance.Debt);
-        ProfileCredit = FormatMoney(ApplicationCurrency.Code, balance.Credit);
-        ProfileNextCharge = FormatDate(balance.NextChargeDate, worker.ExitDate.HasValue ? "No aplica (retirado)" : "Sin cobro proyectado");
-        ProfileNextChargeAmount = FormatMoney(ApplicationCurrency.Code, balance.CurrentDailyRate);
-        ProfileNextRequiredPayment = FormatDate(
-            balance.NextRequiredPaymentDate,
-            worker.ExitDate.HasValue ? "No aplica (retirado)" : "Cubierto con saldo a favor");
-        if (balance.NextRequiredPaymentDate.HasValue && balance.NextRequiredPaymentAmount.HasValue)
+        if (!settings.DailyUsageFee.HasValue || data.DailyRates.Count == 0)
         {
-            ProfileNextRequiredPayment = $"{ProfileNextRequiredPayment} · {FormatMoney(ApplicationCurrency.Code, balance.NextRequiredPaymentAmount)}";
+            (Money debt, Money credit) = AccountTotals(data, workerId, today);
+            ProfileDebt = FormatMoney(ApplicationCurrency.Code, debt);
+            ProfileCredit = FormatMoney(ApplicationCurrency.Code, credit);
+            ProfileNextCharge = "Sin calcular: configura la Tarifa diaria por uso del local (USD).";
+            ProfileNextChargeAmount = "Sin configurar";
+            ProfileNextRequiredPayment = "Sin calcular: configura la tarifa diaria.";
+            ProfileCoveredThrough = "Sin calcular: configura la tarifa diaria.";
+            ProfileWeeklyRates = "Sin configurar: no hay una tarifa diaria guardada.";
         }
-        ProfileCoveredThrough = FormatDate(balance.CoveredThroughDate, "Sin cobertura completa registrada");
-        ProfileWeeklyRates = string.Join(" · ", data.DailyRates
-            .OrderBy(item => item.EffectiveDate)
-            .ThenBy(item => item.EffectiveFromUtc)
-            .Select(item => $"Desde {item.EffectiveDate:yyyy-MM-dd} {item.EffectiveFromUtc.ToLocalTime():HH:mm}: "
-                + $"{ApplicationCurrency.Code} {item.Amount.ToDecimal():N2}"));
+        else
+        {
+            WorkerAccountBalance balance = DailyChargeCalculator.CalculateAccount(
+                worker,
+                data.DailyCharges.Where(item => item.PersonId == workerId),
+                data.WeeklyCharges.Where(item => item.PersonId == workerId),
+                data.LocalUsePayments.Where(item => item.PersonId == workerId),
+                data.DailyRates,
+                data.ChairAssignmentPeriods,
+                today);
+            ProfileDebt = FormatMoney(ApplicationCurrency.Code, balance.Debt);
+            ProfileCredit = FormatMoney(ApplicationCurrency.Code, balance.Credit);
+            ProfileNextCharge = FormatDate(balance.NextChargeDate, worker.ExitDate.HasValue ? "No aplica (retirado)" : "Sin cobro proyectado");
+            ProfileNextChargeAmount = FormatMoney(ApplicationCurrency.Code, balance.CurrentDailyRate);
+            ProfileNextRequiredPayment = FormatDate(
+                balance.NextRequiredPaymentDate,
+                worker.ExitDate.HasValue ? "No aplica (retirado)" : "Cubierto con saldo a favor");
+            if (balance.NextRequiredPaymentDate.HasValue && balance.NextRequiredPaymentAmount.HasValue)
+            {
+                ProfileNextRequiredPayment = $"{ProfileNextRequiredPayment} · {FormatMoney(ApplicationCurrency.Code, balance.NextRequiredPaymentAmount)}";
+            }
+            ProfileCoveredThrough = FormatDate(balance.CoveredThroughDate, "Sin cobertura completa registrada");
+            ProfileWeeklyRates = string.Join(" · ", data.DailyRates
+                .OrderBy(item => item.EffectiveDate)
+                .ThenBy(item => item.EffectiveFromUtc)
+                .Select(item => $"Desde {item.EffectiveDate:yyyy-MM-dd} {item.EffectiveFromUtc.ToLocalTime():HH:mm}: "
+                    + $"{ApplicationCurrency.Code} {item.Amount.ToDecimal():N2}"));
+        }
 
         Guid? preservedChairId = WorkerProfileSelectedChair?.Id;
         WorkerProfileChairOptions.Clear();
@@ -550,7 +575,7 @@ public sealed partial class LocalUseViewModel(
             : null;
 
         var history = new List<(DateOnly Date, DateTime Order, OperationRow Row)>();
-        if (range.Contains(worker.EntryDate))
+        if (RangeContains(range, worker.EntryDate))
         {
             history.Add((worker.EntryDate, worker.CreatedUtc, History(
                 worker.EntryDate, "Ingreso al local", worker.Description, string.Empty, "Registrado", worker)));
@@ -558,14 +583,15 @@ public sealed partial class LocalUseViewModel(
 
         foreach (var activity in data.ActivityRecords.Where(item => item.EntityId == workerId
             && item.Action is not ("Alta" or "Creación")
-            && range.Contains(item.ActivityDate)))
+            && RangeContains(range, item.ActivityDate)))
         {
             history.Add((activity.ActivityDate, activity.OccurredUtc, History(
                 activity.ActivityDate, activity.Action, activity.Summary, string.Empty,
                 activity.Description ?? string.Empty, activity)));
         }
 
-        foreach (WeeklyCharge charge in data.WeeklyCharges.Where(item => item.PersonId == workerId && range.Contains(item.DueDate)))
+        foreach (WeeklyCharge charge in data.WeeklyCharges.Where(item =>
+            item.PersonId == workerId && RangeContains(range, item.DueDate)))
         {
             history.Add((charge.DueDate, charge.CreatedUtc, History(
                 charge.DueDate,
@@ -577,7 +603,7 @@ public sealed partial class LocalUseViewModel(
         }
 
         foreach (DailyCharge charge in data.DailyCharges.Where(
-            item => item.PersonId == workerId && range.Contains(item.ChargeDate)))
+            item => item.PersonId == workerId && RangeContains(range, item.ChargeDate)))
         {
             history.Add((charge.ChargeDate, charge.CreatedUtc, History(
                 charge.ChargeDate,
@@ -588,7 +614,8 @@ public sealed partial class LocalUseViewModel(
                 charge)));
         }
 
-        foreach (LocalUsePayment payment in data.LocalUsePayments.Where(item => item.PersonId == workerId && range.Contains(item.PaymentDate)))
+        foreach (LocalUsePayment payment in data.LocalUsePayments.Where(item =>
+            item.PersonId == workerId && RangeContains(range, item.PaymentDate)))
         {
             history.Add((payment.PaymentDate, payment.CreatedUtc, History(
                 payment.PaymentDate,
@@ -599,7 +626,7 @@ public sealed partial class LocalUseViewModel(
                 payment)));
         }
 
-        if (worker.ExitDate.HasValue && range.Contains(worker.ExitDate.Value))
+        if (worker.ExitDate.HasValue && RangeContains(range, worker.ExitDate.Value))
         {
             history.Add((worker.ExitDate.Value, worker.UpdatedUtc, History(
                 worker.ExitDate.Value, "Retiro del local", worker.Description, string.Empty, "Retirado", worker)));
@@ -654,7 +681,7 @@ public sealed partial class LocalUseViewModel(
         return charge.DueDate < today ? "Vencido" : "Pendiente";
     }
 
-    private void LoadChairProfile(AdministrationData data, ActivityDateRange range)
+    private void LoadChairProfile(AdministrationData data, ActivityDateRange? range)
     {
         if (SelectedChairRow is null)
         {
@@ -669,14 +696,16 @@ public sealed partial class LocalUseViewModel(
             ? data.LocalUsePeople.SingleOrDefault(item => item.Id == chair.AssignedPersonId.Value)
             : null;
         ChairAssignedWorkerSummary = $"Trabajador asignado: {assignedWorker?.Name ?? "Vacía"}";
-        if (range.Contains(chair.CreationDate))
+        if (RangeContains(range, chair.CreationDate))
         {
             ChairHistoryRows.Add(History(
                 chair.CreationDate, "Creación de silla", chair.Description, string.Empty, "Registrada", chair));
         }
 
         ActivityRecord[] directActivities = data.ActivityRecords
-            .Where(item => item.EntityId == chairId && item.Action != "Alta" && range.Contains(item.ActivityDate))
+            .Where(item => item.EntityId == chairId
+                && item.Action != "Alta"
+                && RangeContains(range, item.ActivityDate))
             .OrderBy(item => item.ActivityDate)
             .ThenBy(item => item.OccurredUtc)
             .ToArray();
@@ -709,38 +738,48 @@ public sealed partial class LocalUseViewModel(
         }
     }
 
-    private ActivityDateRange CurrentRange(DateOnly today) => ActivityPeriodCalculator.Calculate(
+    private ActivityDateRange? CurrentRange(DateOnly today) =>
+        string.IsNullOrWhiteSpace(SelectedPeriod)
+        ? null
+        : ActivityPeriodCalculator.Calculate(
         SelectedPeriod switch
         {
+            "Hoy" => ActivityPeriod.Today,
             "Esta semana" => ActivityPeriod.ThisWeek,
             "Este mes" => ActivityPeriod.ThisMonth,
             "Últimos 3 meses" => ActivityPeriod.LastThreeMonths,
             "Últimos 6 meses" => ActivityPeriod.LastSixMonths,
             "Este año" => ActivityPeriod.ThisYear,
             "Rango personalizado" => ActivityPeriod.Custom,
-            _ => ActivityPeriod.Today,
+            _ => throw new ArgumentException("Selecciona el periodo que deseas consultar."),
         },
         today,
         CustomPeriodFrom.HasValue ? DateOnly.FromDateTime(CustomPeriodFrom.Value) : null,
         CustomPeriodThrough.HasValue ? DateOnly.FromDateTime(CustomPeriodThrough.Value) : null);
 
-    private ActivityDateRange CurrentWorkerHistoryRange(DateOnly today) =>
-        SelectedWorkerHistoryPeriod == "Todo el historial"
+    private ActivityDateRange? CurrentWorkerHistoryRange(DateOnly today) =>
+        string.IsNullOrWhiteSpace(SelectedWorkerHistoryPeriod)
+            ? null
+            : SelectedWorkerHistoryPeriod == "Todo el historial"
             ? new ActivityDateRange(DateOnly.MinValue, DateOnly.MaxValue)
             : ActivityPeriodCalculator.Calculate(
                 SelectedWorkerHistoryPeriod switch
                 {
+                    "Hoy" => ActivityPeriod.Today,
                     "Esta semana" => ActivityPeriod.ThisWeek,
                     "Este mes" => ActivityPeriod.ThisMonth,
                     "Últimos 3 meses" => ActivityPeriod.LastThreeMonths,
                     "Últimos 6 meses" => ActivityPeriod.LastSixMonths,
                     "Este año" => ActivityPeriod.ThisYear,
                     "Rango personalizado" => ActivityPeriod.Custom,
-                    _ => ActivityPeriod.Today,
+                    _ => throw new ArgumentException("Selecciona el periodo del historial."),
                 },
                 today,
                 CustomPeriodFrom.HasValue ? DateOnly.FromDateTime(CustomPeriodFrom.Value) : null,
                 CustomPeriodThrough.HasValue ? DateOnly.FromDateTime(CustomPeriodThrough.Value) : null);
+
+    private static bool RangeContains(ActivityDateRange? range, DateOnly date) =>
+        range.HasValue && range.Value.Contains(date);
 
     private static OperationRow History(
         DateOnly date,
@@ -761,7 +800,7 @@ public sealed partial class LocalUseViewModel(
     {
         suppressChanges = true;
         NameText = string.Empty;
-        ActionDate = LocalTodayDateTime();
+        ActionDate = null;
         DescriptionText = string.Empty;
         SelectedNewWorkerChair = null;
         HasRecoveredActionDraft = false;
@@ -776,7 +815,7 @@ public sealed partial class LocalUseViewModel(
         ActionDraftPayload? payload = JsonSerializer.Deserialize<ActionDraftPayload>(draft.PayloadJson);
         if (payload is null) return;
         suppressChanges = true;
-        SelectedAction = ActionOptions.Contains(payload.Action) ? payload.Action : ActionOptions[0];
+        SelectedAction = ActionOptions.Contains(payload.Action) ? payload.Action : string.Empty;
         IsWorkerAction = SelectedAction == "Añadir trabajador";
         NameText = payload.Name;
         ActionDate = payload.Date;
@@ -955,11 +994,7 @@ public sealed partial class LocalUseViewModel(
     partial void OnSelectedActionChanged(string value)
     {
         IsWorkerAction = value == "Añadir trabajador";
-        if (!suppressChanges)
-        {
-            ActionDate = LocalTodayDateTime();
-            HasRecoveredActionDraft = false;
-        }
+        if (!suppressChanges) HasRecoveredActionDraft = false;
         ScheduleDraft();
     }
 
@@ -1007,7 +1042,6 @@ public sealed partial class LocalUseViewModel(
 
     private DateOnly Today() => DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
 
-    private DateTime LocalTodayDateTime() => Today().ToDateTime(TimeOnly.MinValue);
 
     private static DateOnly RequiredDate(DateTime? value, string field) => value.HasValue
         ? DateOnly.FromDateTime(value.Value)
@@ -1052,6 +1086,24 @@ public sealed partial class LocalUseViewModel(
             : NewWorkerChairOptions.Count == 1 && NewWorkerChairOptions[0].Id == Guid.Empty
                 ? NewWorkerChairOptions[0]
                 : null;
+    }
+
+    private static (Money Debt, Money Credit) AccountTotals(
+        AdministrationData data,
+        Guid workerId,
+        DateOnly throughDate)
+    {
+        long charged = checked(
+            data.DailyCharges.Where(item => item.PersonId == workerId && item.ChargeDate <= throughDate)
+                .Sum(item => item.Amount.MinorUnits)
+            + data.WeeklyCharges.Where(item => item.PersonId == workerId && item.DueDate <= throughDate)
+                .Sum(item => item.Amount.MinorUnits));
+        long paid = data.LocalUsePayments
+            .Where(item => item.PersonId == workerId && item.PaymentDate <= throughDate)
+            .Sum(item => item.Amount.MinorUnits);
+        return (
+            Money.FromMinorUnits(Math.Max(charged - paid, 0)),
+            Money.FromMinorUnits(Math.Max(paid - charged, 0)));
     }
 
     private static string FormatMoney(string currencyCode, Money? amount) => amount.HasValue

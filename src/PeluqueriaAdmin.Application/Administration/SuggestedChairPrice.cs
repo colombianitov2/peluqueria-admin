@@ -23,7 +23,7 @@ public sealed record SuggestedChairPrice(
     long CurrentDailyMinorUnits = 0,
     long ProjectedChairIncomeMinorUnits = 0)
 {
-    public bool CanCalculate => OccupiedChairs > 0;
+    public bool CanCalculate => OccupiedChairs > 0 && ChargeableChairDays > 0;
 }
 
 public static class SuggestedChairPriceCalculator
@@ -31,13 +31,14 @@ public static class SuggestedChairPriceCalculator
     public static SuggestedChairPrice Calculate(
         AdministrationData data,
         Money currentDailyRate,
+        Percentage collaboratorPercentage,
         YearMonth month,
         DateOnly today)
     {
         bool InMonth(DateOnly date) => YearMonth.From(date) == month;
         long officialGoal = FinancialMonthCalculator.Calculate(
             data,
-            Percentage.FromBasisPoints(0),
+            collaboratorPercentage,
             month).BreakEvenMinorUnits;
         long unofficial = data.UnofficialExpenses
             .Where(item => item.AppliesOn(today))
@@ -86,11 +87,15 @@ public static class SuggestedChairPriceCalculator
                 }
             }
         }
-        int chargeableDays = chargeablePersonDays.Count;
-        long projectedChairIncome = data.DailyRates.Count == 0
-            ? checked(chargeableDays * currentDailyRate.MinorUnits)
-            : chargeablePersonDays.Sum(item =>
-                DailyChargeCalculator.RateFor(data.DailyRates, item.Date).Amount.MinorUnits);
+        var ratedPersonDays = chargeablePersonDays
+            .Select(item => (
+                item.PersonId,
+                item.Date,
+                Rate: DailyChargeCalculator.TryRateFor(data.DailyRates, item.Date)))
+            .Where(item => item.Rate is not null)
+            .ToArray();
+        int chargeableDays = ratedPersonDays.Length;
+        long projectedChairIncome = ratedPersonDays.Sum(item => item.Rate!.Amount.MinorUnits);
         long suggestedDaily = chargeableDays == 0
             ? 0
             : checked((long)decimal.Round(
@@ -105,6 +110,8 @@ public static class SuggestedChairPriceCalculator
 
         string explanation = occupied == 0
             ? "No se puede calcular: no hay sillas ocupadas"
+            : chargeableDays == 0
+                ? "Sin calcular: no existe una tarifa diaria vigente para los días-silla del mes."
             : "Divide el faltante entre los días-silla cobrables de lunes a sábado; excluye domingos y respeta asignaciones.";
 
         return new SuggestedChairPrice(

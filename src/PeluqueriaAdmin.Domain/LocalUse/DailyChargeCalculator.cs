@@ -40,7 +40,11 @@ public static class DailyChargeCalculator
                     continue;
                 }
 
-                DailyRate rate = RateFor(orderedRates, date);
+                DailyRate? rate = TryRateFor(orderedRates, date);
+                if (rate is null)
+                {
+                    continue;
+                }
                 result.Add(DailyCharge.Create(
                     person.Id,
                     assignment.ChairId,
@@ -147,8 +151,12 @@ public static class DailyChargeCalculator
     public static bool IsChargeableDay(DateOnly date) => date.DayOfWeek != DayOfWeek.Sunday;
 
     public static DailyRate RateFor(IReadOnlyCollection<DailyRate> rates, DateOnly date) =>
-        ActiveRates(rates).LastOrDefault(item => item.EffectiveDate <= date)
-        ?? ActiveRates(rates)[0];
+        TryRateFor(rates, date)
+        ?? throw new InvalidOperationException(
+            $"Sin configurar: no existe una tarifa diaria vigente para {date:yyyy-MM-dd}.");
+
+    public static DailyRate? TryRateFor(IReadOnlyCollection<DailyRate> rates, DateOnly date) =>
+        ActiveRates(rates).LastOrDefault(item => item.AppliesOn(date));
 
     private static Projection ProjectCredit(
         LocalUsePerson person,
@@ -170,7 +178,12 @@ public static class DailyChargeCalculator
             {
                 if (IsEligible(person, assignments, candidate))
                 {
-                    weeklyAmount = checked(weeklyAmount + RateFor(rates, candidate).Amount.MinorUnits);
+                    DailyRate? rate = TryRateFor(rates, candidate);
+                    if (rate is null)
+                    {
+                        continue;
+                    }
+                    weeklyAmount = checked(weeklyAmount + rate.Amount.MinorUnits);
                     lastChargeable = candidate;
                 }
             }

@@ -261,7 +261,7 @@ public sealed class ExcelExportTests
             var july = new YearMonth(2026, 7);
             MonthlyCashBreakdown expectedMonth = AdministrationReports.MonthlyCash(
                 data,
-                generalSettings.CollaboratorProfit,
+                generalSettings.RequireCollaboratorProfit(),
                 july);
             IXLRow monthlyRow = workbook.Worksheet("Resúmenes mensuales").RowsUsed()
                 .Single(row => row.Cell(1).DataType == XLDataType.DateTime && row.Cell(1).GetDateTime().Date == july.FirstDay.ToDateTime(TimeOnly.MinValue));
@@ -275,7 +275,7 @@ public sealed class ExcelExportTests
             MonthlyCashBreakdown[] expectedAnnual = Enumerable.Range(1, 7)
                 .Select(month => AdministrationReports.MonthlyCash(
                     data,
-                    generalSettings.CollaboratorProfit,
+                    generalSettings.RequireCollaboratorProfit(),
                     new YearMonth(2026, month)))
                 .ToArray();
             Assert.Contains(expectedAnnual, month => month.IsClosed);
@@ -347,7 +347,7 @@ public sealed class ExcelExportTests
         paths.EnsureDirectories();
         var factory = new TestDbContextFactory(paths.DatabaseFilePath);
         var clock = new FixedTimeProvider(Now);
-        await new DatabaseInitializer(factory, paths, clock).InitializeAsync(cancellationToken);
+        await new ConfiguredDatabaseInitializer(factory, paths, clock).InitializeAsync(cancellationToken);
         var repository = new EfAdministrationRepository(factory);
         var service = new AdministrationService(repository, new EfSettingsRepository(factory), clock);
         DateTime utc = Now.UtcDateTime;

@@ -77,7 +77,7 @@ public sealed class CsvDataManagementService(
         {
             var month = new YearMonth(year, monthNumber);
             MonthlySummaryResult result = AdministrationReports.MonthlySummary(
-                data, settings.CollaboratorProfit, month);
+                data, settings.RequireCollaboratorProfit(), month);
             csv.Add(
                 month.ToString(),
                 ApplicationCurrency.Code,
@@ -95,7 +95,7 @@ public sealed class CsvDataManagementService(
     private string BuildAnnualBalance(AdministrationData data, GeneralSettings settings, int year)
     {
         AnnualAdministrationReport report = AdministrationReports.Annual(
-            data, settings.CollaboratorProfit, year);
+            data, settings.RequireCollaboratorProfit(), year);
         AnnualBalanceResult result = report.Balance;
         MonthlyExpenseBreakdown expenses = report.Expenses;
         var csv = new CsvBuilder(

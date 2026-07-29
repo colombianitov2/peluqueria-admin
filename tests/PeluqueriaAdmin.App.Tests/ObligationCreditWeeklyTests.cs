@@ -17,7 +17,7 @@ public sealed class ObligationCreditWeeklyTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new RecordingRepository();
-        var settings = new FixedSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settings = new FixedSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var service = new AdministrationService(repository, settings, timeProvider);
         var viewModel = new ObligationsViewModel(service, timeProvider);

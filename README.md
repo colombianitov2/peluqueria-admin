@@ -1,6 +1,6 @@
 # Peluquería Admin
 
-> Estado: candidato `0.2.0-alpha.2` de Fase 5.2, pendiente de revisión, CI y publicación deliberada.
+> Estado: candidato `0.2.0-alpha.3` de Fase 5.2.1, pendiente de revisión, CI y publicación deliberada.
 
 Peluquería Admin será una aplicación local para administrar el funcionamiento interno de una peluquería. Su propósito es registrar ingresos propios del local, gastos, obligaciones, inventario y el punto de equilibrio mensual.
 
@@ -66,9 +66,9 @@ dotnet ef migrations add NombreDescriptivo --project src/PeluqueriaAdmin.Infrast
 Para publicar una compilación autocontenida x64 y crear un paquete local de desarrollo:
 
 ```powershell
-dotnet publish src/PeluqueriaAdmin.App/PeluqueriaAdmin.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/publish -p:Version=0.2.0-alpha.2
+dotnet publish src/PeluqueriaAdmin.App/PeluqueriaAdmin.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/publish -p:Version=0.2.0-alpha.3
 dotnet tool install --tool-path artifacts/tools vpk --version 1.2.0
-artifacts/tools/vpk pack --packId Colombianito.PeluqueriaAdmin --packVersion 0.2.0-alpha.2 --packDir artifacts/publish --mainExe PeluqueriaAdmin.App.exe --packTitle "Peluquería Admin" --icon src/PeluqueriaAdmin.App/Assets/kv-logo.ico --runtime win-x64 --outputDir Releases
+artifacts/tools/vpk pack --packId Colombianito.PeluqueriaAdmin --packVersion 0.2.0-alpha.3 --packDir artifacts/publish --mainExe PeluqueriaAdmin.App.exe --packTitle "Peluquería Admin" --icon src/PeluqueriaAdmin.App/Assets/kv-logo.ico --runtime win-x64 --outputDir Releases
 ```
 
 `artifacts/` y `Releases/` están ignorados. El workflow `release.yml` publica únicamente al empujar deliberadamente una etiqueta SemVer `v*`.
@@ -89,7 +89,7 @@ No se deben subir datos reales de la peluquería, bases de datos, copias de segu
 - [Arquitectura propuesta y adoptada](docs/ARQUITECTURA_PROPUESTA.md)
 - [Decisiones pendientes](docs/DECISIONES_PENDIENTES.md)
 - [Dependencias](docs/DEPENDENCIAS.md)
-- [Notas de la versión 0.2.0-alpha.2](docs/NOTAS_VERSION_0.2.0-alpha.2.md)
+- [Notas de la versión 0.2.0-alpha.3](docs/NOTAS_VERSION_0.2.0-alpha.3.md)
 - [Modelo de datos](docs/MODELO_DATOS.md)
 - [Fórmulas financieras](docs/FORMULAS_FINANCIERAS.md)
 - [Copias y restauración](docs/COPIAS_Y_RESTAURACION.md)

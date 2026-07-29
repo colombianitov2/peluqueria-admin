@@ -26,7 +26,7 @@ public sealed class DatabaseInitializer(
         int existingSettings = await context.Settings.CountAsync(cancellationToken);
         if (existingSettings == 0)
         {
-            context.Settings.Add(GeneralSettings.CreateDefault(timeProvider.GetUtcNow().UtcDateTime));
+            context.Settings.Add(GeneralSettings.CreateUnconfigured(timeProvider.GetUtcNow().UtcDateTime));
             await context.SaveChangesAsync(cancellationToken);
             existingSettings = 1;
         }

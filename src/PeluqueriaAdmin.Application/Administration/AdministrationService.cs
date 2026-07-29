@@ -35,59 +35,53 @@ public sealed class AdministrationService(
         var additions = new List<AuditableEntity>();
         var updates = new List<AuditableEntity>();
         IReadOnlyCollection<DailyRate> rates = data.DailyRates;
+        GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
 
-        if (rates.Count == 0)
+        if (settings.DailyUsageFee.HasValue && rates.Count > 0)
         {
-            GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
-            DailyRate initialRate = DailyRate.Create(
-                localToday,
-                utcNow,
-                settings.DailyUsageFee,
-                utcNow);
-            additions.Add(initialRate);
-            rates = [initialRate];
-        }
-
-        foreach (LocalUsePerson person in data.LocalUsePeople)
-        {
-            DailyCharge[] generated = DailyChargeCalculator.Generate(
-                person,
-                data.DailyCharges,
-                rates,
-                data.ChairAssignmentPeriods,
-                dailyThroughDate,
-                utcNow).ToArray();
-            additions.AddRange(generated);
-            long availableCredit = Math.Max(
-                data.LocalUsePayments.Where(item => item.PersonId == person.Id)
-                    .Sum(item => item.Amount.MinorUnits)
-                - data.WeeklyCharges.Where(item => item.PersonId == person.Id)
-                    .Sum(item => item.Amount.MinorUnits)
-                - data.DailyCharges.Where(item => item.PersonId == person.Id)
-                    .Sum(item => item.Amount.MinorUnits),
-                0);
-            foreach (DailyCharge charge in generated.OrderBy(item => item.ChargeDate))
+            foreach (LocalUsePerson person in data.LocalUsePeople)
             {
-                additions.Add(FinancialEvent.Create(
-                    charge.Id,
-                    utcNow,
-                    "Trabajador",
-                    person.Id,
-                    "Cargo diario generado",
-                    null,
-                    charge.Amount,
-                    charge.Amount.MinorUnits,
-                    $"{charge.ChargeDate:yyyy-MM-dd}; vence {charge.DueDate:yyyy-MM-dd}."));
-                additions.Add(ActivityRecord.Create(
-                    charge.ChargeDate,
-                    "Uso del local",
-                    "Cargo diario generado",
-                    person.Name,
-                    person.Id,
-                    $"Tarifa diaria USD {charge.Amount.ToDecimal():N2}; vence el sábado {charge.DueDate:yyyy-MM-dd}.",
-                    utcNow));
-                if (availableCredit >= charge.Amount.MinorUnits && charge.Amount.MinorUnits > 0)
+                DailyCharge[] generated = DailyChargeCalculator.Generate(
+                    person,
+                    data.DailyCharges,
+                    rates,
+                    data.ChairAssignmentPeriods,
+                    dailyThroughDate,
+                    utcNow).ToArray();
+                additions.AddRange(generated);
+                long availableCredit = Math.Max(
+                    data.LocalUsePayments.Where(item => item.PersonId == person.Id)
+                        .Sum(item => item.Amount.MinorUnits)
+                    - data.WeeklyCharges.Where(item => item.PersonId == person.Id)
+                        .Sum(item => item.Amount.MinorUnits)
+                    - data.DailyCharges.Where(item => item.PersonId == person.Id)
+                        .Sum(item => item.Amount.MinorUnits),
+                    0);
+                foreach (DailyCharge charge in generated.OrderBy(item => item.ChargeDate))
                 {
+                    additions.Add(FinancialEvent.Create(
+                        charge.Id,
+                        utcNow,
+                        "Trabajador",
+                        person.Id,
+                        "Cargo diario generado",
+                        null,
+                        charge.Amount,
+                        charge.Amount.MinorUnits,
+                        $"{charge.ChargeDate:yyyy-MM-dd}; vence {charge.DueDate:yyyy-MM-dd}."));
+                    additions.Add(ActivityRecord.Create(
+                        charge.ChargeDate,
+                        "Uso del local",
+                        "Cargo diario generado",
+                        person.Name,
+                        person.Id,
+                        $"Tarifa diaria USD {charge.Amount.ToDecimal():N2}; vence el sábado {charge.DueDate:yyyy-MM-dd}.",
+                        utcNow));
+                    if (availableCredit < charge.Amount.MinorUnits || charge.Amount.MinorUnits <= 0)
+                    {
+                        continue;
+                    }
+
                     availableCredit -= charge.Amount.MinorUnits;
                     additions.Add(FinancialEvent.Create(
                         charge.Id,
@@ -201,8 +195,10 @@ public sealed class AdministrationService(
             utcNow);
         DateOnly localToday = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         DateOnly dailyThroughDate = throughDate < localToday ? throughDate : localToday;
-        IReadOnlyList<DailyCharge> charges = DailyChargeCalculator.Generate(
-            person, [], rates, [assignment], dailyThroughDate, utcNow);
+        IReadOnlyList<DailyCharge> charges = rates.Count == 0
+            ? []
+            : DailyChargeCalculator.Generate(
+                person, [], rates, [assignment], dailyThroughDate, utcNow);
         ActivityRecord workerAssignment = ActivityRecord.Create(
             person.EntryDate,
             "Uso del local",
@@ -386,13 +382,15 @@ public sealed class AdministrationService(
             {
                 activities.Add(newRate);
             }
-            DailyCharge[] charges = DailyChargeCalculator.Generate(
-                person,
-                data.DailyCharges,
-                rates,
-                [newAssignment],
-                today,
-                utcNow).ToArray();
+            DailyCharge[] charges = rates.Count == 0
+                ? []
+                : DailyChargeCalculator.Generate(
+                    person,
+                    data.DailyCharges,
+                    rates,
+                    [newAssignment],
+                    today,
+                    utcNow).ToArray();
             activities.AddRange(charges);
             long availableCredit = Math.Max(
                 data.LocalUsePayments.Where(item => item.PersonId == person.Id)
@@ -603,8 +601,8 @@ public sealed class AdministrationService(
         GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
         int totalBasisPoints = data.Collaborators
             .Where(item => item.Id != collaboratorId)
-            .Sum(item => item.ProfitShareBasisPoints) + share.BasisPoints;
-        if (totalBasisPoints > settings.CollaboratorProfit.BasisPoints)
+            .Sum(item => item.ProfitShareBasisPoints ?? 0) + share.BasisPoints;
+        if (totalBasisPoints > settings.RequireCollaboratorProfit().BasisPoints)
         {
             throw new InvalidOperationException(
                 "La suma de porcentajes individuales no puede superar el porcentaje global configurado.");
@@ -625,7 +623,7 @@ public sealed class AdministrationService(
         DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         int totalBasisPoints = data.Collaborators
             .Where(item => item.Id != collaboratorId && item.IsCurrentOn(today))
-            .Sum(item => item.FundParticipationBasisPoints)
+            .Sum(item => item.FundParticipationBasisPoints ?? 0)
             + (collaborator.IsCurrentOn(today) ? participation.BasisPoints : 0);
         if (totalBasisPoints > 10_000)
         {
@@ -1710,7 +1708,7 @@ public sealed class AdministrationService(
                 close,
                 data.Collaborators
                     .Where(item => participantIds.Contains(item.Id))
-                    .Select(item => (item.Id, item.FundParticipationBasisPoints)),
+                    .Select(item => (item.Id, item.RequireFundParticipationBasisPoints())),
                 utcNow);
         await SaveAsync(
             new AuditableEntity[] { close }.Concat(participants).ToArray(),
@@ -1728,7 +1726,7 @@ public sealed class AdministrationService(
         MonthlyClose? close = data.MonthlyCloses.Where(item => item.Month == month && item.IsConfirmed)
             .OrderByDescending(item => item.ClosedUtc).FirstOrDefault();
         return close?.ToFinancialSnapshot()
-            ?? FinancialMonthCalculator.Calculate(data, settings.CollaboratorProfit, month);
+            ?? FinancialMonthCalculator.Calculate(data, settings.RequireCollaboratorProfit(), month);
     }
 
     public async Task<(MonthlyClose Close, IReadOnlyList<MonthlyCloseParticipant> Participants)> CloseFinancialMonthAsync(
@@ -1741,7 +1739,10 @@ public sealed class AdministrationService(
             throw new InvalidOperationException("El mes ya tiene un cierre confirmado.");
 
         GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
-        FinancialMonthSnapshot snapshot = FinancialMonthCalculator.Calculate(data, settings.CollaboratorProfit, month);
+        FinancialMonthSnapshot snapshot = FinancialMonthCalculator.Calculate(
+            data,
+            settings.RequireCollaboratorProfit(),
+            month);
         FinancialCommitmentCandidate? invalid = snapshot.Candidates.FirstOrDefault(item =>
             !item.IsExcluded && item.ExpectedMinorUnits <= 0);
         if (invalid is not null)
@@ -1752,7 +1753,7 @@ public sealed class AdministrationService(
         IReadOnlyList<MonthlyCloseParticipant> participants = CollaboratorDistributionCalculator.Distribute(
             close,
             data.Collaborators.Where(item => item.IsCurrentOn(month.LastDay))
-                .Select(item => (item.Id, item.FundParticipationBasisPoints)),
+                .Select(item => (item.Id, item.RequireFundParticipationBasisPoints())),
             utcNow);
         FinancialReserve[] reserves = snapshot.Candidates.Where(item => !item.IsExcluded
                 && item.ExpectedMinorUnits > 0
@@ -2052,7 +2053,7 @@ public sealed class AdministrationService(
         GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
         DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         AnnualFinancialReport report = AnnualFinancialCalculator.Calculate(
-            data, settings.CollaboratorProfit, year, today);
+            data, settings.RequireCollaboratorProfit(), year, today);
         var annual = AnnualClose.Create(
             year,
             report.IncomeMinorUnits,
@@ -2188,17 +2189,13 @@ public sealed class AdministrationService(
     {
         if (data.DailyRates.Count > 0)
         {
-            return (data.DailyRates, null);
+            GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
+            return settings.DailyUsageFee.HasValue
+                ? (data.DailyRates, null)
+                : ([], null);
         }
 
-        GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
-        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
-        DailyRate rate = DailyRate.Create(
-            DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
-            utcNow,
-            settings.DailyUsageFee,
-            utcNow);
-        return ([rate], rate);
+        return ([], null);
     }
 
     private static void EnsureUniqueProductName(AdministrationData data, string name, Guid? exceptId)

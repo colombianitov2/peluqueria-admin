@@ -43,9 +43,9 @@ public sealed partial class InventoryViewModel(
     public ObservableCollection<string> PeriodOptions { get; } =
         ["Hoy", "Esta semana", "Este mes", "Últimos 3 meses", "Últimos 6 meses", "Este año", "Todos", "Rango personalizado"];
 
-    [ObservableProperty] private string selectedPeriod = "Todos";
-    [ObservableProperty] private DateTime? customPeriodFrom = DateTime.Today;
-    [ObservableProperty] private DateTime? customPeriodThrough = DateTime.Today;
+    [ObservableProperty] private string selectedPeriod = string.Empty;
+    [ObservableProperty] private DateTime? customPeriodFrom;
+    [ObservableProperty] private DateTime? customPeriodThrough;
     [ObservableProperty] private bool showCustomPeriod;
     [ObservableProperty] private InventoryCurrentRow? selectedCurrentRow;
     [ObservableProperty] private MonthlyPurchaseRow? selectedMonthlyPurchaseRow;
@@ -56,7 +56,7 @@ public sealed partial class InventoryViewModel(
     [ObservableProperty] private string selectedMonthlyPurchaseSummaryText = "Selecciona un producto de la lista de compra.";
 
     [ObservableProperty] private string monthlyPurchaseName = string.Empty;
-    [ObservableProperty] private string selectedMonthlyPurchaseCategory = "Otro producto del local";
+    [ObservableProperty] private string selectedMonthlyPurchaseCategory = string.Empty;
     [ObservableProperty] private string monthlyPurchaseQuantity = string.Empty;
     [ObservableProperty] private string monthlyPurchaseUnitCost = string.Empty;
     [ObservableProperty] private string monthlyPurchaseDescription = string.Empty;
@@ -64,9 +64,9 @@ public sealed partial class InventoryViewModel(
     [ObservableProperty] private bool confirmMonthlyPurchaseDelete;
 
     [ObservableProperty] private bool isEditingInventorySelection;
-    [ObservableProperty] private DateTime? inventoryEditDate = timeProvider.GetLocalNow().DateTime.Date;
+    [ObservableProperty] private DateTime? inventoryEditDate;
     [ObservableProperty] private string inventoryEditName = string.Empty;
-    [ObservableProperty] private string inventoryEditCategory = "Otro producto del local";
+    [ObservableProperty] private string inventoryEditCategory = string.Empty;
     [ObservableProperty] private string inventoryEditExpectedQuantity = string.Empty;
     [ObservableProperty] private string inventoryEditExpectedUnitCost = string.Empty;
     [ObservableProperty] private string inventoryEditListDescription = string.Empty;
@@ -101,8 +101,8 @@ public sealed partial class InventoryViewModel(
     public async Task LoadAsync()
     {
         await Editor.SelectModuleAsync(AdministrationViewModel.InventoryModule);
-        Editor.SelectedAction = "Registrar compra";
-        Editor.FormDate ??= timeProvider.GetLocalNow().DateTime.Date;
+        Editor.SelectedAction = string.Empty;
+        Editor.FormDate = null;
         await RefreshAsync();
         await RestoreMonthlyListDraftAsync();
     }
@@ -233,7 +233,8 @@ public sealed partial class InventoryViewModel(
             ActivityDateRange? range = CurrentRange();
             MovementHistory.Clear();
             foreach (InventoryMovement movement in data.InventoryMovements
-                         .Where(item => !range.HasValue || range.Value.Contains(item.Date))
+                         .Where(item => SelectedPeriod == "Todos"
+                             || range.HasValue && range.Value.Contains(item.Date))
                          .OrderByDescending(item => item.Date)
                          .ThenByDescending(item => item.CreatedUtc))
             {
@@ -278,8 +279,11 @@ public sealed partial class InventoryViewModel(
                 throw new InvalidOperationException("Selecciona un producto pendiente de la lista de compra.");
             }
 
-            DateOnly entryDate = DateOnly.FromDateTime(
-                Editor.FormDate ?? timeProvider.GetLocalNow().DateTime.Date);
+            if (!Editor.FormDate.HasValue)
+            {
+                throw new InvalidOperationException("La fecha agregada es obligatoria.");
+            }
+            DateOnly entryDate = DateOnly.FromDateTime(Editor.FormDate.Value);
             decimal quantity = ParsePositiveDecimal(Editor.QuantityText, "cantidad comprada");
             Money? salePrice = null;
             if (SelectedPendingMonthlyPurchaseRow.RequiresSalePrice)
@@ -296,7 +300,7 @@ public sealed partial class InventoryViewModel(
                 completedDraftKey: "Inventario:Registrar compra:new");
 
             Editor.SelectedMonthlyPlanId = null;
-            Editor.FormDate = timeProvider.GetLocalNow().DateTime.Date;
+            Editor.FormDate = null;
             Editor.QuantityText = string.Empty;
             Editor.AmountText = string.Empty;
             Editor.OptionalDescriptionText = string.Empty;
@@ -620,9 +624,9 @@ public sealed partial class InventoryViewModel(
         }
         if (!preserveRecoveredPurchaseFields)
         {
-            Editor.FormDate ??= timeProvider.GetLocalNow().DateTime.Date;
-            Editor.QuantityText = value.Item.Quantity.ToString("0.###", CultureInfo.CurrentCulture);
-            Editor.AmountText = value.RequiresSalePrice ? value.DefaultSalePrice : string.Empty;
+            Editor.FormDate = null;
+            Editor.QuantityText = string.Empty;
+            Editor.AmountText = string.Empty;
             Editor.OptionalDescriptionText = string.Empty;
         }
 
@@ -731,6 +735,7 @@ public sealed partial class InventoryViewModel(
         {
             return null;
         }
+        if (string.IsNullOrWhiteSpace(SelectedPeriod)) return null;
 
         DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         ActivityPeriod period = SelectedPeriod switch
@@ -741,7 +746,8 @@ public sealed partial class InventoryViewModel(
             "Últimos 6 meses" => ActivityPeriod.LastSixMonths,
             "Este año" => ActivityPeriod.ThisYear,
             "Rango personalizado" => ActivityPeriod.Custom,
-            _ => ActivityPeriod.Today,
+            "Hoy" => ActivityPeriod.Today,
+            _ => throw new ArgumentException("Selecciona el periodo que deseas consultar."),
         };
         return ActivityPeriodCalculator.Calculate(
             period,
@@ -804,11 +810,13 @@ public sealed partial class InventoryViewModel(
         "Cortesía para clientes" => ProductCategory.CustomerCourtesy,
         "Aseo" => ProductCategory.Cleaning,
         "Insumo del local" => ProductCategory.LocalSupply,
-        _ => ProductCategory.OtherLocalProduct,
+        "Otro producto del local" => ProductCategory.OtherLocalProduct,
+        _ => throw new ArgumentException("Selecciona una categoría de inventario."),
     };
 
     private static bool CategoryRequiresSalePrice(string value) =>
-        CategoryRequiresSalePrice(ParseProductCategory(value));
+        !string.IsNullOrWhiteSpace(value)
+        && CategoryRequiresSalePrice(ParseProductCategory(value));
 
     private static bool CategoryRequiresSalePrice(ProductCategory category) =>
         category is ProductCategory.FoodOrDrinkForSale or ProductCategory.OtherProductForSale;
@@ -969,7 +977,7 @@ public sealed partial class InventoryViewModel(
     {
         suppressMonthlyListDraft = true;
         MonthlyPurchaseName = string.Empty;
-        SelectedMonthlyPurchaseCategory = "Otro producto del local";
+        SelectedMonthlyPurchaseCategory = string.Empty;
         MonthlyPurchaseQuantity = string.Empty;
         MonthlyPurchaseUnitCost = string.Empty;
         MonthlyPurchaseDescription = string.Empty;
@@ -982,9 +990,9 @@ public sealed partial class InventoryViewModel(
 
     private void ClearInventoryEditForm()
     {
-        InventoryEditDate = timeProvider.GetLocalNow().DateTime.Date;
+        InventoryEditDate = null;
         InventoryEditName = string.Empty;
-        InventoryEditCategory = "Otro producto del local";
+        InventoryEditCategory = string.Empty;
         InventoryEditExpectedQuantity = string.Empty;
         InventoryEditExpectedUnitCost = string.Empty;
         InventoryEditListDescription = string.Empty;

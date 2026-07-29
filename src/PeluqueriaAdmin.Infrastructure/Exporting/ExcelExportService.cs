@@ -88,6 +88,8 @@ public sealed class ExcelExportService(
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         GeneralSettings settings = await db.Settings.AsNoTracking().SingleAsync(cancellationToken);
+        settings.RequireDailyUsageFee();
+        settings.RequireCollaboratorProfit();
         AdministrationData active = new(
             await db.LocalUsePeople.AsNoTracking().ToListAsync(cancellationToken),
             await db.WeeklyRates.AsNoTracking().ToListAsync(cancellationToken),
@@ -225,8 +227,8 @@ public sealed class ExcelExportService(
         AddSummary(workbook, snapshot, cutoff, today, version, currency, from, to);
         AddTable(workbook, "Ajustes", ["Ajuste", "Valor", "Unidad"],
         [
-            ["Tarifa diaria general por uso del local", snapshot.Settings.DailyUsageFee.ToDecimal(), currency],
-            ["Ganancia de colaboradores", snapshot.Settings.CollaboratorProfit.BasisPoints / 10000m, "Porcentaje"],
+            ["Tarifa diaria general por uso del local", snapshot.Settings.RequireDailyUsageFee().ToDecimal(), currency],
+            ["Ganancia de colaboradores", snapshot.Settings.RequireCollaboratorProfit().BasisPoints / 10000m, "Porcentaje"],
             ["Moneda única", SafeText(currency), "Código ISO"],
             ["Carpeta de exportación", SafeText(snapshot.Settings.ExportDirectory), "Ruta local"],
             ["Última actualización", snapshot.Settings.UpdatedUtc.ToLocalTime(), "Fecha y hora local"],
@@ -246,7 +248,8 @@ public sealed class ExcelExportService(
                 : [(object?[])[SafeText(snapshot.NoteContent), snapshot.NoteUpdatedUtc?.ToLocalTime()]]);
 
         SuggestedChairPrice suggested = SuggestedChairPriceCalculator.Calculate(
-            data, snapshot.Settings.DailyUsageFee,
+            data, snapshot.Settings.RequireDailyUsageFee(),
+            snapshot.Settings.RequireCollaboratorProfit(),
             YearMonth.From(today), today);
         AddTable(workbook, "Precio sugerido por silla", ["Concepto", "Valor", "Moneda", "Explicación"],
         [
@@ -361,7 +364,8 @@ public sealed class ExcelExportService(
 
         AddTable(workbook, "Colaboradores", ["Nombre", "Fecha de inicio", "Fecha de retiro", "Porcentaje de ganancia", "Total aportado vigente", "Moneda", "Descripción", "Estado"],
             data.Collaborators.OrderBy(x => x.Name).Select(x => (object?[])
-            [SafeText(x.Name), Date(x.StartDate), Date(x.ExitDate), x.FundParticipationBasisPoints / 10_000m,
+            [SafeText(x.Name), Date(x.StartDate), Date(x.ExitDate),
+             x.FundParticipationBasisPoints.HasValue ? x.FundParticipationBasisPoints.Value / 10_000m : null,
              data.CollaboratorContributions.Where(item => item.CollaboratorId == x.Id).Sum(item => item.Amount.ToDecimal()),
              currency, SafeText(x.Description ?? ""), x.IsCurrentOn(today) ? "Activo" : "Retirado"]),
             moneyColumns: [5],
@@ -747,7 +751,7 @@ public sealed class ExcelExportService(
         {
             MonthlyClose? close = data.MonthlyCloses.Where(x => x.Month == month && x.IsConfirmed).OrderByDescending(x => x.ClosedUtc).FirstOrDefault();
             MonthlyCashBreakdown result = AdministrationReports.MonthlyCash(
-                data, settings.CollaboratorProfit, month);
+                data, settings.RequireCollaboratorProfit(), month);
             return (object?[])
             [
                 Date(month.FirstDay), Minor(result.CarryInMinorUnits),
@@ -785,14 +789,17 @@ public sealed class ExcelExportService(
         {
             AnnualFinancialReport report = AnnualFinancialCalculator.Calculate(
                 data,
-                settings.CollaboratorProfit,
+                settings.RequireCollaboratorProfit(),
                 year,
                 today);
             MonthlyCashBreakdown[] monthly = Enumerable.Range(1, 12)
                 .Select(month => new YearMonth(year, month))
                 .Where(month => month.FirstDay <= today || data.MonthlyCloses.Any(item =>
                     item.Month == month && item.IsConfirmed))
-                .Select(month => AdministrationReports.MonthlyCash(data, settings.CollaboratorProfit, month))
+                .Select(month => AdministrationReports.MonthlyCash(
+                    data,
+                    settings.RequireCollaboratorProfit(),
+                    month))
                 .ToArray();
             long Sum(Func<MonthlyCashBreakdown, long> selector) => monthly.Sum(selector);
             long opening = monthly.FirstOrDefault()?.CarryInMinorUnits ?? 0;

@@ -45,7 +45,7 @@
       </StackPanel>
 
       <StackPanel Grid.Row="1">
-        <TextBlock Style="{StaticResource FieldLabel}" Text="Tarifa diaria general por uso del local (USD)" />
+        <TextBlock Style="{StaticResource FieldLabel}" Text="Tarifa diaria por uso del local (USD)" />
         <TextBox MaxLength="18"
                  Text="{Binding WeeklyUsageFee, UpdateSourceTrigger=PropertyChanged}"
                  ToolTip="Importe no negativo con máximo dos decimales." />
@@ -121,9 +121,13 @@
               <TextBlock FontWeight="SemiBold" Text="Carpeta de exportación" />
               <DockPanel Margin="0,5,0,10" LastChildFill="True">
                 <Button DockPanel.Dock="Right" Margin="8,0,0,0" Padding="12,7" Click="SelectExportFolder_Click" Content="Cambiar carpeta…" />
-                <Button DockPanel.Dock="Right" Margin="8,0,0,0" Padding="12,7" Command="{Binding ResetExportDirectoryCommand}" Content="Restablecer al Escritorio" />
+                <Button DockPanel.Dock="Right" Margin="8,0,0,0" Padding="12,7" Command="{Binding ResetExportDirectoryCommand}" Content="Usar Escritorio" />
                 <TextBox Margin="0" MinWidth="300" IsReadOnly="True" Text="{Binding ExportDirectory}" />
               </DockPanel>
+              <TextBlock Margin="0,0,0,8"
+                         Foreground="#B45309"
+                         Text="{Binding ExportConfigurationStatus}"
+                         TextWrapping="Wrap" />
               <WrapPanel>
                 <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding ExportAllToExcelCommand}" Content="Exportar toda la información a Excel" />
                 <Button Margin="0,0,8,8" Padding="12,8" Command="{Binding OpenExcelFileCommand}" Content="Abrir archivo" />

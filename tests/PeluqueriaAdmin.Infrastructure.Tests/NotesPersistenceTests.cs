@@ -20,7 +20,7 @@ public sealed class NotesPersistenceTests
             ApplicationPaths paths = ApplicationPaths.FromRoot(root);
             paths.EnsureDirectories();
             var firstFactory = new Factory(paths.DatabaseFilePath);
-            await new DatabaseInitializer(firstFactory, paths, new FixedTimeProvider(new DateTimeOffset(utc)))
+            await new ConfiguredDatabaseInitializer(firstFactory, paths, new FixedTimeProvider(new DateTimeOffset(utc)))
                 .InitializeAsync(cancellationToken);
             await new EfNoteRepository(firstFactory).SaveAsync(
                 AppNote.Create("Nota exacta\r\ncon dos líneas", utc), cancellationToken);

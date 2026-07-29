@@ -32,9 +32,9 @@ public sealed class Collaborator : AuditableEntity
 
     public string? Description { get; private set; }
 
-    public int ProfitShareBasisPoints { get; private set; }
+    public int? ProfitShareBasisPoints { get; private set; }
 
-    public int FundParticipationBasisPoints { get; private set; }
+    public int? FundParticipationBasisPoints { get; private set; }
 
     public static Collaborator Create(
         string name,
@@ -72,6 +72,11 @@ public sealed class Collaborator : AuditableEntity
         FundParticipationBasisPoints = participation.BasisPoints;
         MarkUpdated(utcNow);
     }
+
+    public int RequireFundParticipationBasisPoints() =>
+        FundParticipationBasisPoints
+        ?? throw new InvalidOperationException(
+            $"Sin configurar: asigna el porcentaje individual de '{Name}' antes de calcular la distribución.");
 
     private static void ValidateExit(DateOnly startDate, DateOnly? exitDate)
     {

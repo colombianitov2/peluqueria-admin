@@ -53,7 +53,7 @@ public sealed partial class SettingsViewModel(
     private string unofficialExpenseAmount = string.Empty;
 
     [ObservableProperty]
-    private string unofficialExpenseEffectiveFrom = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    private string unofficialExpenseEffectiveFrom = string.Empty;
 
     [ObservableProperty]
     private string unofficialExpenseDescription = string.Empty;
@@ -85,6 +85,15 @@ public sealed partial class SettingsViewModel(
 
     public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
 
+    public string ExportConfigurationStatus =>
+        string.IsNullOrWhiteSpace(WeeklyUsageFee)
+            ? "Sin configurar: guarda la tarifa diaria antes de exportar."
+            : string.IsNullOrWhiteSpace(CollaboratorProfitPercent)
+                ? "Sin configurar: guarda el porcentaje global de colaboradores antes de exportar."
+                : string.IsNullOrWhiteSpace(ExportDirectory)
+                    ? "Sin configurar: elige la carpeta de exportación."
+                    : string.Empty;
+
     public ObservableCollection<OperationRow> UnofficialExpenses { get; } = [];
 
     public ObservableCollection<OperationRow> UnofficialExpenseActivity { get; } = [];
@@ -107,10 +116,6 @@ public sealed partial class SettingsViewModel(
                 }
             }
             trackingEnabled = true;
-            if (string.IsNullOrWhiteSpace(UnofficialExpenseEffectiveFrom))
-            {
-                UnofficialExpenseEffectiveFrom = LocalTodayText();
-            }
             await LoadUnofficialExpensesAsync(cancellationToken);
             IsError = false;
         }
@@ -206,7 +211,7 @@ public sealed partial class SettingsViewModel(
             "No fue posible restaurar la copia. La base de datos anterior se conservó.");
     }
 
-    [RelayCommand(CanExecute = nameof(CanSave))]
+    [RelayCommand(CanExecute = nameof(CanExport))]
     private async Task ExportAllToExcelAsync()
     {
         IsBusy = true;
@@ -290,6 +295,8 @@ public sealed partial class SettingsViewModel(
 
     private bool CanSave() => !IsBusy;
 
+    private bool CanExport() => !IsBusy && string.IsNullOrEmpty(ExportConfigurationStatus);
+
     private bool CanOpenExcel() => !IsBusy && !string.IsNullOrWhiteSpace(lastExcelPath) && File.Exists(lastExcelPath);
 
     private bool CanRestore() => !IsBusy && !string.IsNullOrWhiteSpace(RestorePath);
@@ -367,9 +374,26 @@ public sealed partial class SettingsViewModel(
         }
     }
 
-    partial void OnWeeklyUsageFeeChanged(string value) => TrackSettingsChange();
-    partial void OnCollaboratorProfitPercentChanged(string value) => TrackSettingsChange();
-    partial void OnExportDirectoryChanged(string value) => TrackSettingsChange();
+    partial void OnWeeklyUsageFeeChanged(string value)
+    {
+        OnPropertyChanged(nameof(ExportConfigurationStatus));
+        ExportAllToExcelCommand.NotifyCanExecuteChanged();
+        TrackSettingsChange();
+    }
+
+    partial void OnCollaboratorProfitPercentChanged(string value)
+    {
+        OnPropertyChanged(nameof(ExportConfigurationStatus));
+        ExportAllToExcelCommand.NotifyCanExecuteChanged();
+        TrackSettingsChange();
+    }
+
+    partial void OnExportDirectoryChanged(string value)
+    {
+        OnPropertyChanged(nameof(ExportConfigurationStatus));
+        ExportAllToExcelCommand.NotifyCanExecuteChanged();
+        TrackSettingsChange();
+    }
 
     partial void OnIsBusyChanged(bool value)
     {
@@ -528,7 +552,7 @@ public sealed partial class SettingsViewModel(
         SelectedUnofficialExpense = null;
         UnofficialExpenseName = string.Empty;
         UnofficialExpenseAmount = string.Empty;
-        UnofficialExpenseEffectiveFrom = LocalTodayText();
+        UnofficialExpenseEffectiveFrom = string.Empty;
         UnofficialExpenseDescription = string.Empty;
         ConfirmUnofficialExpenseDelete = false;
         IsEditingUnofficialExpense = false;
@@ -666,24 +690,32 @@ public sealed partial class SettingsViewModel(
     {
         var errors = new List<string>();
 
-        bool weeklyFeeIsValid = TryParseDecimal(WeeklyUsageFee, out decimal weeklyFee);
-        if (!weeklyFeeIsValid)
+        decimal? weeklyFee = null;
+        decimal parsedWeeklyFee = 0;
+        if (!string.IsNullOrWhiteSpace(WeeklyUsageFee)
+            && !TryParseDecimal(WeeklyUsageFee, out parsedWeeklyFee))
         {
             errors.Add("La tarifa diaria debe ser un número válido.");
         }
+        else if (!string.IsNullOrWhiteSpace(WeeklyUsageFee))
+        {
+            weeklyFee = parsedWeeklyFee;
+        }
 
-        bool profitIsValid = TryParseDecimal(CollaboratorProfitPercent, out decimal profit);
-        if (!profitIsValid)
+        decimal? profit = null;
+        decimal parsedProfit = 0;
+        if (!string.IsNullOrWhiteSpace(CollaboratorProfitPercent)
+            && !TryParseDecimal(CollaboratorProfitPercent, out parsedProfit))
         {
             errors.Add("La ganancia de colaboradores debe ser un número válido.");
         }
+        else if (!string.IsNullOrWhiteSpace(CollaboratorProfitPercent))
+        {
+            profit = parsedProfit;
+        }
 
         string exportPath = ExportDirectory.Trim();
-        if (string.IsNullOrWhiteSpace(exportPath))
-        {
-            errors.Add("Selecciona una carpeta de exportación.");
-        }
-        else
+        if (!string.IsNullOrWhiteSpace(exportPath))
         {
             try
             {
@@ -720,15 +752,14 @@ public sealed partial class SettingsViewModel(
 
     private void Apply(SettingsDto settings)
     {
-        WeeklyUsageFee = settings.WeeklyUsageFee.ToString("0.00", CultureInfo.CurrentCulture);
-        CollaboratorProfitPercent = settings.CollaboratorProfitPercent.ToString("0.00", CultureInfo.CurrentCulture);
-        ExportDirectory = string.IsNullOrWhiteSpace(settings.ExportDirectory)
-            ? userDesktopPath.GetDesktopPath()
-            : settings.ExportDirectory;
+        WeeklyUsageFee = settings.WeeklyUsageFee?.ToString("0.00", CultureInfo.CurrentCulture)
+            ?? string.Empty;
+        CollaboratorProfitPercent = settings.CollaboratorProfitPercent?.ToString(
+            "0.00",
+            CultureInfo.CurrentCulture) ?? string.Empty;
+        ExportDirectory = settings.ExportDirectory;
     }
 
-    private string LocalTodayText() => DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime)
-        .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 }
 
 public sealed record FinancialSummaryRow(string Concept, string Amount)

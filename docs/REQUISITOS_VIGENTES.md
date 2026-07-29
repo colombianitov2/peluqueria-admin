@@ -2,9 +2,9 @@
 
 ## Carácter canónico y precedencia
 
-Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 5.2 del 29 de julio de 2026.
+Este documento es la fuente canónica actual de requisitos e incorpora las decisiones aprobadas hasta la Fase 5.2.1 del 29 de julio de 2026.
 
-La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 a 5.0A concretan las reglas posteriores de perfiles, inventario, cierres y aportes. La Fase 5.2 reemplaza por completo la tarifa semanal y todo prorrateo de Uso del local: rige una tarifa diaria exacta de lunes a sábado, condicionada a una asignación de silla activa, con vencimiento acumulado el sábado. También establece trazabilidad financiera separada para aportes y tarifas, saldo disponible visible, logotipo K&V y actualización real desde GitHub.
+La Fase 4.2 sustituye expresamente, cuando exista contradicción, las reglas anteriores sobre terminología del personal, pantallas genéricas de Uso del local y Colaboradores, inventario heredado, aportes de capital, número abstracto de sillas, módulo visible Flujo de caja y lista exclusiva anterior de Inicio. Las Fases 4.4 a 5.0A concretan las reglas posteriores de perfiles, inventario, cierres y aportes. La Fase 5.2 reemplaza por completo la tarifa semanal y todo prorrateo de Uso del local: rige una tarifa diaria exacta de lunes a sábado, condicionada a una asignación de silla activa, con vencimiento acumulado el sábado. También establece trazabilidad financiera separada para aportes y tarifas, saldo disponible visible, logotipo K&V y actualización real desde GitHub. La Fase 5.2.1 reemplaza cualquier regla anterior de valores predeterminados: todo dato editable por el administrador comienza vacío y solo adquiere valor cuando se guarda expresamente.
 
 Los trabajadores son quienes usan y alquilan las sillas. Los colaboradores son exclusivamente inversionistas y nunca ocupan sillas. La interfaz, los mensajes, Excel y la documentación usan esta distinción.
 
@@ -104,7 +104,7 @@ Los servicios prestados directamente por las personas a sus clientes no se regis
 
 El inventario usa exclusivamente estas categorías: Alimento o bebida para venta, Otro producto para venta, Cortesía para clientes, Aseo, Insumo del local y Otro producto del local. No se expone el antiguo atributo técnico de unidades en interfaz, Excel ni formularios.
 
-Los productos destinados a venta aparecen inmediatamente en Ventas, pueden buscarse por nombre sin distinguir mayúsculas y muestran existencia y precio predeterminado. Cambiar a una categoría no vendible los retira del selector; cambiar a una categoría vendible los incorpora tras guardar, sin reiniciar.
+Los productos destinados a venta aparecen inmediatamente en Ventas, pueden buscarse por nombre sin distinguir mayúsculas y muestran existencia y último precio guardado como referencia. Ese precio no se copia automáticamente al importe de una venta nueva. Cambiar a una categoría no vendible los retira del selector; cambiar a una categoría vendible los incorpora tras guardar, sin reiniciar.
 
 La pestaña **Lista mensual de compra** permite agregar, editar, guardar y eliminar lógicamente productos que se desean comprar. Cada fila contiene nombre, una de las seis categorías autorizadas, cantidad esperada, precio unitario o por paquete y descripción opcional. No muestra fecha ni mes y tampoco presenta controles **Activa**, **Reservar cuando el inventario llegue a cero** o **Activar o desactivar**.
 
@@ -274,7 +274,7 @@ Balance anual contiene únicamente el selector de año, el cierre anual, el resu
 
 Los colaboradores forman un grupo distinto de las personas que pagan por utilizar el local. Reciben conjuntamente un porcentaje de la ganancia mensual positiva.
 
-- Porcentaje inicial: 20 %.
+- El porcentaje global comienza sin configurar.
 - El porcentaje es configurable en Ajustes con el nombre **Ganancia colaboradores**.
 - La distribución se integra dentro de **Colaboradores**; no existe una opción lateral independiente de nómina.
 - Cada colaborador guarda una **participación dentro del fondo** entre 0 % y 100 %. La suma de participaciones activas no puede superar 100 %, puede ser inferior y nunca se completa automáticamente.
@@ -315,12 +315,14 @@ El porcentaje de colaboradores no modifica el punto exacto donde el resultado es
 
 Configurar, como mínimo:
 
-- tarifa diaria general por uso del local, inicialmente USD 12;
-- porcentaje de ganancia de colaboradores, inicialmente 20 %;
-- carpeta de exportación, con el Escritorio como valor predeterminado.
+- tarifa diaria general por uso del local, inicialmente sin configurar;
+- porcentaje de ganancia de colaboradores, inicialmente sin configurar;
+- carpeta de exportación, inicialmente sin configurar;
 - gastos recurrentes mensuales que intervienen una sola vez en punto de equilibrio, resultado, colaboradores, Balance anual, gráficos, Excel y precio sugerido por silla.
 
 No se crean ajustes individuales que contradigan la tarifa diaria general.
+
+Vacío significa **sin configurar** y es distinto de cero, que sí es un valor guardado expresamente. Ningún formulario, selector, fecha, cantidad, costo, precio, porcentaje, frecuencia o categoría editable se completa automáticamente. Si falta un dato requerido, la interfaz informa `Sin configurar` o `Sin calcular`, identifica el ajuste pendiente y bloquea la operación dependiente sin utilizar valores alternativos. Una instalación nueva no crea vigencias ni historial de configuración hasta el primer guardado explícito. Una actualización conserva íntegramente los valores y el historial existentes, aunque coincidan con valores usados antiguamente como predeterminados.
 
 La moneda única e invariable del programa es USD. Las bases antiguas configuradas en COP se normalizan a USD sin multiplicar, dividir ni convertir ningún valor numérico. El antiguo presupuesto mensual opcional queda obsoleto, se normaliza a cero y no interviene en cálculos.
 
@@ -448,10 +450,10 @@ La versión `0.2.0-alpha.2` incorpora el logotipo K&V original en ejecutable, ve
 
 ## 18. Correcciones de aceptación de la Fase 4.1
 
-- Todas las páginas operativas muestran actividad no editable con periodo Hoy por defecto, semana, mes, 3 meses, 6 meses, año y rango personalizado. El cambio de día se detecta al actualizar por navegación, periodo u operación; no existe sondeo constante.
+- Todas las páginas operativas muestran actividad no editable con periodos disponibles de hoy, semana, mes, 3 meses, 6 meses, año y rango personalizado. El periodo comienza sin seleccionar. El cambio de día se detecta al actualizar por navegación, periodo u operación; no existe sondeo constante.
 - Las operaciones confirmadas crean su actividad en la misma transacción. Los estados actuales y selectores no dependen del filtro de actividad.
 - La recuperación de formularios es silenciosa y no existe ningún botón visible `Limpiar formulario`; una operación válida limpia solo sus campos, mientras un error conserva la entrada y los borradores inválidos siguen protegidos.
-- Ventas selecciona por identificador un producto de venta, usa su precio predeterminado y rechaza inventario negativo. Las compras reutilizan productos existentes y calculan su total.
+- Ventas selecciona por identificador un producto de venta, muestra como referencia el último precio expresamente guardado sin copiarlo al formulario y rechaza inventario negativo. Las compras reutilizan productos existentes y calculan su total únicamente con cantidades y valores capturados.
 - Ingresos, gastos, imprevistos, obligaciones y mantenimiento usan acciones directas; no existe un desplegable genérico Acción.
 - Los colaboradores no ocupan sillas y su historial financiero se deriva únicamente de cierres, participaciones y pagos reales.
 - Resumen mensual añade gráficos 2D de barras, composición y evolución con los mismos cálculos que las cifras.

@@ -17,11 +17,38 @@ public sealed class AdministrationServiceTests
     private static readonly DateTime UtcNow = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
+    public async Task UnconfiguredDailyRate_DoesNotCreateRatesOrCharges()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        var repository = new FakeAdministrationRepository(withConfiguredDailyRate: false);
+        var settingsRepository = new FakeSettingsRepository(
+            GeneralSettings.CreateUnconfigured(UtcNow));
+        AdministrationService service = CreateService(repository, settingsRepository);
+        DateOnly date = new(2026, 7, 18);
+        Chair chair = Chair.Create("Silla 1", date, null, UtcNow);
+        LocalUsePerson worker = LocalUsePerson.Create("Ana", date, null, UtcNow);
+
+        await service.AddChairAsync(chair, cancellationToken);
+        await service.AddLocalUsePersonWithChairAsync(
+            worker,
+            chair.Id,
+            date,
+            cancellationToken);
+        await service.GenerateScheduledRecordsAsync(date, cancellationToken);
+
+        AdministrationData data = await service.LoadAsync(cancellationToken);
+        Assert.Empty(data.DailyRates);
+        Assert.Empty(data.DailyCharges);
+        Assert.Contains(data.LocalUsePeople, item => item.Id == worker.Id);
+        Assert.Contains(data.Chairs, item => item.Id == chair.Id);
+    }
+
+    [Fact]
     public async Task ObligationPayment_CanBeEditedAndDeletedWithImmediateSettlementRecalculation()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         AdministrationService service = CreateService(repository, settingsRepository);
         Obligation obligation = Obligation.Create(
             "Internet",
@@ -80,7 +107,7 @@ public sealed class AdministrationServiceTests
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
         var settingsRepository = new FakeSettingsRepository(
-            GeneralSettings.CreateDefault(UtcNow));
+            GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var service = CreateService(repository, settingsRepository);
         LocalUsePerson person = LocalUsePerson.Create(
             "Ana",
@@ -125,7 +152,7 @@ public sealed class AdministrationServiceTests
             TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
         var settingsRepository = new FakeSettingsRepository(
-            GeneralSettings.CreateDefault(UtcNow));
+            GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var service = CreateService(repository, settingsRepository);
         LocalUsePerson person = LocalUsePerson.Create(
             "Luis",
@@ -174,7 +201,7 @@ public sealed class AdministrationServiceTests
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
         var settingsRepository = new FakeSettingsRepository(
-            GeneralSettings.CreateDefault(UtcNow));
+            GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var service = CreateService(repository, settingsRepository);
         DateOnly today = new(2026, 7, 20);
         LocalUsePerson person = LocalUsePerson.Create(
@@ -223,7 +250,7 @@ public sealed class AdministrationServiceTests
         var service = CreateService(
             repository,
             new FakeSettingsRepository(
-                GeneralSettings.CreateDefault(UtcNow)));
+                GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         LocalUsePerson person = LocalUsePerson.Create(
             "Ana",
             new DateOnly(2026, 7, 1),
@@ -257,7 +284,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         LocalUsePerson person = LocalUsePerson.Create("Ana", new DateOnly(2026, 7, 1), null, UtcNow);
         Chair chair = Chair.Create("Silla", person.EntryDate, null, UtcNow);
         await service.AddChairAsync(chair, cancellationToken);
@@ -279,7 +306,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         Obligation obligation = Obligation.Create(
             "Internet", ObligationType.Service, new DateOnly(2026, 5, 31),
             Money.FromDecimal(50m), RecurrenceFrequency.Monthly, UtcNow);
@@ -299,7 +326,7 @@ public sealed class AdministrationServiceTests
         var repository = new FakeAdministrationRepository();
         var service = CreateService(
             repository,
-            new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+            new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         Collaborator collaborator = Collaborator.Create("Ana", new DateOnly(2026, 1, 1), null, UtcNow);
         await service.AddAsync(collaborator, cancellationToken);
         await service.UpdateCollaboratorFundParticipationAsync(
@@ -321,7 +348,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         Collaborator firstCollaborator = Collaborator.Create("Ana", new DateOnly(2026, 1, 1), null, UtcNow);
         Collaborator secondCollaborator = Collaborator.Create("Beto", new DateOnly(2026, 1, 1), null, UtcNow);
         await service.AddAsync(firstCollaborator, cancellationToken);
@@ -357,7 +384,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         Collaborator collaborator = Collaborator.Create("Ana", new DateOnly(2026, 1, 1), null, UtcNow);
         await service.AddAsync(collaborator, cancellationToken);
         await service.UpdateCollaboratorFundParticipationAsync(collaborator.Id, Percentage.FromPercent(100m), cancellationToken);
@@ -379,7 +406,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         await service.AddProductAsync(
             Product.Create("Agua", ProductCategory.ProductForSale, "unidad", UtcNow), cancellationToken);
 
@@ -395,7 +422,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         Obligation obligation = Obligation.Create(
             "Impuesto", ObligationType.Tax, new DateOnly(2026, 7, 1),
             Money.FromDecimal(20m), RecurrenceFrequency.None, UtcNow);
@@ -418,7 +445,7 @@ public sealed class AdministrationServiceTests
         var service = CreateService(
             repository,
             new FakeSettingsRepository(
-                GeneralSettings.CreateDefault(UtcNow)));
+                GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
 
         LocalUsePerson person = LocalUsePerson.Create(
             "Ana",
@@ -497,7 +524,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         Product product = Product.Create("Agua", ProductCategory.ProductForSale, "unidad", UtcNow);
         InventoryMovement initial = InventoryMovement.Initial(
             product.Id, new DateOnly(2026, 7, 1), Quantity.Positive(10m), Money.FromDecimal(50m), UtcNow);
@@ -524,7 +551,7 @@ public sealed class AdministrationServiceTests
         var service = CreateService(
             repository,
             new FakeSettingsRepository(
-                GeneralSettings.CreateDefault(UtcNow)));
+                GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         var month = new YearMonth(2026, 7);
         var input =
             new MonthlySummaryInput(10_000, 0, 0, 5_000, 0, 0, 0, 0);
@@ -557,7 +584,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         LocalUsePerson person = LocalUsePerson.Create("Ana", new DateOnly(2026, 7, 1), null, UtcNow);
         await service.AddLocalUsePersonAsync(person, new DateOnly(2026, 7, 18), cancellationToken);
         await service.AddAsync(Obligation.Create(
@@ -589,7 +616,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         DateOnly today = new(2026, 7, 18);
         Chair firstChair = Chair.Create("Silla 1", today, null, UtcNow);
         LocalUsePerson firstPerson = LocalUsePerson.Create("Ana", today, null, UtcNow);
@@ -618,7 +645,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         DateOnly today = new(2026, 7, 18);
         Chair first = Chair.Create("Silla 1", today, null, UtcNow);
         Chair second = Chair.Create("Silla 2", today, null, UtcNow);
@@ -656,7 +683,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         Chair chair = Chair.Create("Silla 1", new DateOnly(2026, 7, 1), null, UtcNow);
         LocalUsePerson person = LocalUsePerson.Create(
             "Ana", new DateOnly(2026, 7, 1), new DateOnly(2026, 7, 17), UtcNow);
@@ -678,7 +705,7 @@ public sealed class AdministrationServiceTests
         var service = CreateService(
             repository,
             new FakeSettingsRepository(
-                GeneralSettings.CreateDefault(UtcNow)));
+                GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         DateOnly date = new(2026, 7, 1);
         Chair chair = Chair.Create("Silla 1", date, null, UtcNow);
         LocalUsePerson worker = LocalUsePerson.Create(
@@ -722,7 +749,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         DateOnly date = new(2026, 7, 1);
         Chair chair = Chair.Create("Silla", date, null, UtcNow);
         await service.AddChairAsync(chair, cancellationToken);
@@ -748,7 +775,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         DateOnly date = new(2026, 7, 1);
         Collaborator collaborator = Collaborator.Create("Inversionista", date, null, UtcNow);
         await service.AddAsync(collaborator, cancellationToken);
@@ -775,7 +802,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         MaintenanceRecord first = MaintenanceRecord.Schedule(
             "Silla", "Preventivo", new DateOnly(2026, 1, 31), Money.FromDecimal(10m),
             MaintenanceFrequency.Monthly, null, null, UtcNow);
@@ -797,7 +824,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         MaintenanceRecord first = MaintenanceRecord.Schedule(
             "Silla", "Preventivo", new DateOnly(2026, 1, 1), null,
             MaintenanceFrequency.Weekly, null, null, UtcNow);
@@ -818,7 +845,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         DateOnly date = new(2026, 7, 18);
         Product product = Product.Create(
             "Cera", ProductCategory.OtherProductForSale, "unidad", UtcNow,
@@ -846,7 +873,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         DateOnly today = new(2026, 7, 18);
         Chair chair = Chair.Create("Silla 1", today, null, UtcNow);
         LocalUsePerson person = LocalUsePerson.Create("Ana", today, null, UtcNow);
@@ -860,6 +887,7 @@ public sealed class AdministrationServiceTests
 
         SuggestedChairPrice result = SuggestedChairPriceCalculator.Calculate(
             await service.LoadAsync(cancellationToken), Money.FromDecimal(12m),
+            Percentage.FromPercent(20m),
             new YearMonth(2026, 7), today);
 
         Assert.Equal(1, result.OccupiedChairs);
@@ -877,7 +905,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         DateOnly date = new(2026, 7, 18);
         Collaborator collaborator = Collaborator.Create("Inversionista", date, null, UtcNow);
         await service.AddAsync(collaborator, cancellationToken);
@@ -906,7 +934,7 @@ public sealed class AdministrationServiceTests
         var repository = new FakeAdministrationRepository();
         var service = CreateService(
             repository,
-            new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+            new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         DateOnly date = new(2026, 7, 18);
         Collaborator collaborator = Collaborator.Create("Inversionista", date, null, UtcNow);
         await service.AddAsync(collaborator, cancellationToken);
@@ -957,8 +985,8 @@ public sealed class AdministrationServiceTests
     public async Task SaveSettings_RecordsNewRateOnlyWhenFeeChanges()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
-        var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var repository = new FakeAdministrationRepository(withConfiguredDailyRate: false);
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var useCase = new SaveSettingsUseCase(
             settingsRepository,
             repository,
@@ -969,7 +997,7 @@ public sealed class AdministrationServiceTests
 
         Assert.Single(repository.Entities.OfType<DailyRate>());
         Assert.Equal(1_500, repository.Entities.OfType<DailyRate>().Single().Amount.MinorUnits);
-        Assert.Equal(2_500, settingsRepository.Settings.CollaboratorProfit.BasisPoints);
+        Assert.Equal(2_500, settingsRepository.Settings.CollaboratorProfit!.Value.BasisPoints);
     }
 
     [Fact]
@@ -977,7 +1005,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         DateOnly today = new(2026, 7, 18);
         Chair first = Chair.Create("Silla Uno", today, null, UtcNow);
         Chair second = Chair.Create("Silla Dos", today, null, UtcNow);
@@ -1004,7 +1032,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         DateOnly today = new(2026, 7, 18);
         Product product = Product.Create(
             "Tratamiento", ProductCategory.ProductForSale, "unidad", UtcNow, Money.FromDecimal(30m));
@@ -1025,7 +1053,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         DateOnly start = new(2026, 7, 1);
         DateOnly date = new(2026, 7, 8);
         LocalUsePerson person = LocalUsePerson.Create("Ana", start, null, UtcNow);
@@ -1068,7 +1096,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         Collaborator first = Collaborator.Create("A", new DateOnly(2026, 1, 1), null, UtcNow);
         Collaborator second = Collaborator.Create("B", new DateOnly(2026, 1, 1), null, UtcNow);
         await service.AddAsync(first, cancellationToken);
@@ -1079,7 +1107,7 @@ public sealed class AdministrationServiceTests
             service.UpdateCollaboratorFundParticipationAsync(second.Id, Percentage.FromPercent(41m), cancellationToken));
 
         Assert.Contains("100 %", error.Message, StringComparison.Ordinal);
-        Assert.Equal(0, second.FundParticipationBasisPoints);
+        Assert.Null(second.FundParticipationBasisPoints);
     }
 
     [Fact]
@@ -1087,7 +1115,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         Obligation definition = Obligation.Create("Internet", ObligationType.Service,
             new DateOnly(2026, 1, 31), Money.FromDecimal(50m), RecurrenceFrequency.Monthly, UtcNow);
         await service.AddObligationAsync(definition, definition.DueDate, cancellationToken);
@@ -1109,7 +1137,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
+        var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow)));
         Obligation definition = Obligation.Create("Internet", ObligationType.Service,
             new DateOnly(2026, 1, 31), Money.FromDecimal(50m), RecurrenceFrequency.Monthly, UtcNow);
         await service.AddObligationAsync(definition, new DateOnly(2026, 7, 18), cancellationToken);
@@ -1136,7 +1164,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settings = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settings = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var julyService = CreateService(repository, settings);
         Collaborator collaborator = Collaborator.Create("A", new DateOnly(2026, 7, 1), null, UtcNow);
         await julyService.AddAsync(collaborator, cancellationToken);
@@ -1175,6 +1203,18 @@ public sealed class AdministrationServiceTests
     private sealed class FakeAdministrationRepository : IAdministrationRepository
     {
         public List<AuditableEntity> Entities { get; } = [];
+
+        public FakeAdministrationRepository(bool withConfiguredDailyRate = true)
+        {
+            if (withConfiguredDailyRate)
+            {
+                Entities.Add(DailyRate.Create(
+                    new DateOnly(2026, 7, 1),
+                    UtcNow,
+                    Money.FromDecimal(12m),
+                    UtcNow));
+            }
+        }
 
         public bool LastSaveWasSingleTransaction { get; private set; }
 

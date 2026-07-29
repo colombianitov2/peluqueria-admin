@@ -124,6 +124,7 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
         {
             DailyRate? previousRate = await CloseCurrentDailyRateAsync(
                 context,
+                newRate.EffectiveDate,
                 newRate.EffectiveFromUtc,
                 cancellationToken);
             context.DailyRates.Add(newRate);
@@ -145,6 +146,13 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
                 newRate.Id,
                 "El cambio afecta únicamente cargos diarios nuevos; el historial permanece inmutable.",
                 newRate.EffectiveFromUtc));
+        }
+        else if (!settings.DailyUsageFee.HasValue)
+        {
+            await CloseDailyRateWhenUnconfiguredAsync(
+                context,
+                settings.UpdatedUtc,
+                cancellationToken);
         }
 
         await context.SaveChangesAsync(cancellationToken);
@@ -184,6 +192,7 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
         {
             DailyRate? previousRate = await CloseCurrentDailyRateAsync(
                 context,
+                newRate.EffectiveDate,
                 newRate.EffectiveFromUtc,
                 cancellationToken);
             context.DailyRates.Add(newRate);
@@ -206,6 +215,13 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
                 "El cambio afecta únicamente cargos diarios nuevos; el historial permanece inmutable.",
                 newRate.EffectiveFromUtc));
         }
+        else if (!settings.DailyUsageFee.HasValue)
+        {
+            await CloseDailyRateWhenUnconfiguredAsync(
+                context,
+                settings.UpdatedUtc,
+                cancellationToken);
+        }
         await context.FormDrafts.Where(item => item.Key == completedDraftKey).ExecuteDeleteAsync(cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -213,6 +229,7 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
 
     private static async Task<DailyRate?> CloseCurrentDailyRateAsync(
         PeluqueriaDbContext context,
+        DateOnly effectiveToDateExclusive,
         DateTime effectiveToUtc,
         CancellationToken cancellationToken)
     {
@@ -220,8 +237,32 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
             .Where(item => item.EffectiveToUtc == null)
             .OrderByDescending(item => item.EffectiveFromUtc)
             .FirstOrDefaultAsync(cancellationToken);
-        current?.Close(effectiveToUtc);
+        current?.Close(effectiveToDateExclusive, effectiveToUtc);
         return current;
+    }
+
+    private static async Task CloseDailyRateWhenUnconfiguredAsync(
+        PeluqueriaDbContext context,
+        DateTime effectiveToUtc,
+        CancellationToken cancellationToken)
+    {
+        DailyRate? previousRate = await CloseCurrentDailyRateAsync(
+            context,
+            DateOnly.FromDateTime(effectiveToUtc.ToLocalTime()),
+            effectiveToUtc,
+            cancellationToken);
+        if (previousRate is null) return;
+
+        context.FinancialEvents.Add(FinancialEvent.Create(
+            previousRate.Id,
+            effectiveToUtc,
+            "Tarifa diaria",
+            previousRate.Id,
+            "Tarifa diaria desconfigurada",
+            previousRate.Amount,
+            null,
+            -previousRate.Amount.MinorUnits,
+            "La tarifa diaria quedó sin configurar; no se generan cargos hasta guardar un nuevo valor."));
     }
 
     private static async Task AddSettingsActivityIfChangedAsync(

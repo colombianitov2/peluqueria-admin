@@ -22,10 +22,10 @@ public sealed class AdministrationViewModelTests
     private static readonly DateTime UtcNow = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public async Task AnnualBalance_InitializesTheVisibleQueryAndDataToTheCurrentYear()
+    public async Task AnnualBalance_RemainsUnconfiguredUntilTheAdministratorSelectsAYear()
     {
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
         await service.AddAsync(FinancialEntry.CreateIncome(
@@ -42,13 +42,19 @@ public sealed class AdministrationViewModelTests
 
         await viewModel.SelectModuleAsync(AdministrationViewModel.AnnualBalanceModule);
 
-        Assert.Equal("2026", viewModel.SpecificYearText);
-        Assert.Equal("2026-01-01", viewModel.DateText);
+        Assert.Equal(string.Empty, viewModel.SpecificYearText);
+        Assert.Equal(string.Empty, viewModel.DateText);
         Assert.False(viewModel.HasRecoveredDraft);
         Assert.False(viewModel.ShowPeriodSelector);
         Assert.False(viewModel.ShowFinancialClose);
         Assert.True(viewModel.ShowAnnualClose);
         Assert.Contains("2026", viewModel.AvailableYearOptions);
+        Assert.Empty(viewModel.AnnualMonthRows);
+
+        viewModel.SpecificYearText = "2026";
+        viewModel.DateText = "2026-01-01";
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
         Assert.Equal(12, viewModel.AnnualMonthRows.Count);
         Assert.All(viewModel.AnnualMonthRows.Skip(7), row =>
         {
@@ -72,7 +78,7 @@ public sealed class AdministrationViewModelTests
     public async Task SwitchingFromMonthlySummaryToAnnualBalance_NotifiesEveryVisibilityConsumedByWpf()
     {
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
         var viewModel = new AdministrationViewModel(
@@ -105,12 +111,13 @@ public sealed class AdministrationViewModelTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var drafts = new FakeFormDraftStore();
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
         var first = new AdministrationViewModel(service, new GetSettingsUseCase(settingsRepository), drafts, timeProvider);
         await first.SelectModuleAsync(AdministrationViewModel.OtherIncomeModule);
+        first.SelectedAction = "Registrar ingreso";
 
         first.PrimaryText = "+Concepto aún incompleto";
         await first.FlushPendingAsync();
@@ -126,7 +133,7 @@ public sealed class AdministrationViewModelTests
     public async Task InventoryPurchaseDraft_RestoresTheExactSelectedMonthlyPlan()
     {
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var drafts = new FakeFormDraftStore();
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
@@ -143,6 +150,7 @@ public sealed class AdministrationViewModelTests
         var first = new AdministrationViewModel(
             service, new GetSettingsUseCase(settingsRepository), drafts, timeProvider);
         await first.SelectModuleAsync(AdministrationViewModel.InventoryModule);
+        first.SelectedAction = "Registrar compra";
 
         first.SelectedMonthlyPlanId = plan.Id;
         first.QuantityText = "4";
@@ -166,7 +174,7 @@ public sealed class AdministrationViewModelTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
         var viewModel = new AdministrationViewModel(service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
@@ -189,7 +197,7 @@ public sealed class AdministrationViewModelTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
         var viewModel = new AdministrationViewModel(
@@ -228,7 +236,7 @@ public sealed class AdministrationViewModelTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
         var viewModel = new AdministrationViewModel(
@@ -264,7 +272,7 @@ public sealed class AdministrationViewModelTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
         var viewModel = new AdministrationViewModel(
@@ -296,7 +304,7 @@ public sealed class AdministrationViewModelTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
         Chair chair = Chair.Create("Silla 1", new DateOnly(2026, 7, 18), null, UtcNow);
@@ -317,7 +325,7 @@ public sealed class AdministrationViewModelTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
         await service.AddAsync(FinancialEntry.CreateIncome(
@@ -329,6 +337,7 @@ public sealed class AdministrationViewModelTests
             service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
 
         await viewModel.SelectModuleAsync(AdministrationViewModel.MonthlySummaryModule);
+        viewModel.DateText = "2026-07-18";
         viewModel.SelectedPeriod = "Este mes";
         viewModel.DateText = "2026-07-01";
         await viewModel.RefreshCommand.ExecuteAsync(null);
@@ -351,7 +360,7 @@ public sealed class AdministrationViewModelTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
         Obligation obligation = Obligation.Create("Energía", ObligationType.Service,
@@ -385,6 +394,7 @@ public sealed class AdministrationViewModelTests
             service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
 
         await viewModel.SelectModuleAsync(AdministrationViewModel.MonthlySummaryModule);
+        viewModel.DateText = "2026-07-18";
         viewModel.SelectedPeriod = "Este mes";
         await viewModel.RefreshCommand.ExecuteAsync(null);
 
@@ -411,15 +421,16 @@ public sealed class AdministrationViewModelTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
         var viewModel = new AdministrationViewModel(
             service, new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
         await viewModel.SelectModuleAsync(AdministrationViewModel.MonthlySummaryModule);
-        viewModel.SpecificDate = new DateTime(2026, 7, 2);
-        viewModel.SpecificYearText = "2025";
         viewModel.SelectedPeriod = period;
+        viewModel.SpecificDate = new DateTime(2026, 7, 2);
+        viewModel.SpecificYearText = "2026";
+        viewModel.DateText = "2026-07-02";
 
         await viewModel.RefreshCommand.ExecuteAsync(null);
 
@@ -431,11 +442,11 @@ public sealed class AdministrationViewModelTests
     }
 
     [Fact]
-    public async Task ActivityDefaultsToTodayAndChangesDayWithoutDeletingPreviousHistory()
+    public async Task ActivityRequiresExplicitPeriodAndChangesDayWithoutDeletingPreviousHistory()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new MutableTimeProvider(new DateTimeOffset(UtcNow));
         await repository.SaveAsync(
             [
@@ -447,6 +458,11 @@ public sealed class AdministrationViewModelTests
             new GetSettingsUseCase(settingsRepository), new FakeFormDraftStore(), timeProvider);
 
         await viewModel.SelectModuleAsync(AdministrationViewModel.LocalUseModule);
+        Assert.Equal(string.Empty, viewModel.SelectedPeriod);
+        Assert.Empty(viewModel.ActivityRows);
+
+        viewModel.SelectedPeriod = "Hoy";
+        await viewModel.RefreshCommand.ExecuteAsync(null);
         Assert.Equal("Hoy", viewModel.SelectedPeriod);
         Assert.Equal("Hoy", Assert.Single(viewModel.ActivityRows).Principal);
 
@@ -465,7 +481,7 @@ public sealed class AdministrationViewModelTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
         DateOnly today = DateOnly.FromDateTime(UtcNow);
@@ -520,7 +536,7 @@ public sealed class AdministrationViewModelTests
             TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
         var settingsRepository = new FakeSettingsRepository(
-            GeneralSettings.CreateDefault(UtcNow));
+            GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider =
             new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var service = new AdministrationService(
@@ -547,6 +563,8 @@ public sealed class AdministrationViewModelTests
         viewModel.SelectedWorkerRow = viewModel.Workers.Single(
             item => item.Worker.Id == worker.Id);
         await viewModel.OpenSelectedWorkerProfileCommand.ExecuteAsync(null);
+        viewModel.SelectedWorkerHistoryPeriod = "Todo el historial";
+        await viewModel.RefreshAsync();
         await viewModel.RefreshCommand.ExecuteAsync(null);
         viewModel.PaymentDate = UtcNow;
         viewModel.PaymentAmount = "1000";
@@ -564,7 +582,7 @@ public sealed class AdministrationViewModelTests
         Assert.Matches(creditPattern, viewModel.ProfileCredit);
         Assert.Equal(string.Empty, viewModel.PaymentAmount);
         Assert.Equal(string.Empty, viewModel.PaymentDescription);
-        Assert.Equal(UtcNow.Date, viewModel.PaymentDate?.Date);
+        Assert.Null(viewModel.PaymentDate);
         Assert.Single(
             viewModel.WorkerHistoryRows,
             item => item.Principal == "Pago registrado");
@@ -589,7 +607,7 @@ public sealed class AdministrationViewModelTests
         DateOnly today = new(2026, 7, 20);
         var repository = new FakeAdministrationRepository();
         var settingsRepository = new FakeSettingsRepository(
-            GeneralSettings.CreateDefault(reviewUtc));
+            GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), reviewUtc));
         var timeProvider =
             new FixedTimeProvider(new DateTimeOffset(reviewUtc));
         var service = new AdministrationService(
@@ -603,10 +621,10 @@ public sealed class AdministrationViewModelTests
             timeProvider);
         await viewModel.LoadAsync();
 
-        viewModel.ActionDate = new DateTime(2026, 6, 16);
         viewModel.SelectedAction = "Añadir trabajador";
+        viewModel.ActionDate = new DateTime(2026, 6, 16);
         Assert.Equal(
-            today.ToDateTime(TimeOnly.MinValue),
+            new DateTime(2026, 6, 16),
             viewModel.ActionDate);
         viewModel.NameText = "Ingreso actual";
         await viewModel.SaveActionCommand.ExecuteAsync(null);
@@ -614,7 +632,8 @@ public sealed class AdministrationViewModelTests
         LocalUsePerson current =
             (await service.LoadAsync(cancellationToken))
             .LocalUsePeople.Single();
-        Assert.Equal(today, current.EntryDate);
+        Assert.Equal(new DateOnly(2026, 6, 16), current.EntryDate);
+        Assert.Null(viewModel.ActionDate);
         Assert.Equal(
             0,
             WeeklyChargeCalculator.CalculateDebt(
@@ -623,9 +642,7 @@ public sealed class AdministrationViewModelTests
                     .Where(item => item.PersonId == current.Id),
                 [],
                 today).MinorUnits);
-        Assert.Equal(
-            today.ToDateTime(TimeOnly.MinValue),
-            viewModel.ActionDate);
+        Assert.Null(viewModel.ActionDate);
 
         viewModel.NameText = "Ingreso histórico";
         viewModel.ActionDate = new DateTime(2026, 6, 16);
@@ -648,9 +665,7 @@ public sealed class AdministrationViewModelTests
                 data.DailyRates,
                 data.ChairAssignmentPeriods,
                 today).Debt.MinorUnits);
-        Assert.Equal(
-            today.ToDateTime(TimeOnly.MinValue),
-            viewModel.ActionDate);
+        Assert.Null(viewModel.ActionDate);
     }
 
     [Fact]
@@ -659,7 +674,7 @@ public sealed class AdministrationViewModelTests
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         DateTime reviewUtc = new(2026, 7, 20, 12, 0, 0, DateTimeKind.Utc);
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(reviewUtc));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), reviewUtc));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(reviewUtc));
         var drafts = new FakeFormDraftStore();
         string payload = JsonSerializer.Serialize(new
@@ -694,7 +709,7 @@ public sealed class AdministrationViewModelTests
         DateOnly today = new(2026, 7, 20);
         var repository = new FakeAdministrationRepository();
         var settingsRepository = new FakeSettingsRepository(
-            GeneralSettings.CreateDefault(reviewUtc));
+            GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), reviewUtc));
         var timeProvider =
             new FixedTimeProvider(new DateTimeOffset(reviewUtc));
         var service = new AdministrationService(
@@ -727,9 +742,12 @@ public sealed class AdministrationViewModelTests
             item => item.Worker.Id == worker.Id);
         await viewModel.OpenSelectedWorkerProfileCommand.ExecuteAsync(null);
         Assert.Equal(
-            "Todo el historial",
+            string.Empty,
             viewModel.SelectedWorkerHistoryPeriod);
-        Assert.Matches(@"360[,.]00", viewModel.ProfileDebt);
+        Assert.Empty(viewModel.WorkerHistoryRows);
+        viewModel.SelectedWorkerHistoryPeriod = "Todo el historial";
+        await viewModel.RefreshAsync();
+        Assert.Matches(@"204[,.]00", viewModel.ProfileDebt);
         viewModel.SelectedWorkerHistoryPeriod = "Esta semana";
         await viewModel.RefreshCommand.ExecuteAsync(null);
         Assert.DoesNotContain(
@@ -745,14 +763,19 @@ public sealed class AdministrationViewModelTests
         await viewModel.RegisterWorkerPaymentCommand.ExecuteAsync(null);
 
         Assert.Equal(
-            "Todo el historial",
+            "Esta semana",
             viewModel.SelectedWorkerHistoryPeriod);
-        Assert.Matches(@"348[,.]00", viewModel.ProfileDebt);
+        Assert.Matches(@"192[,.]00", viewModel.ProfileDebt);
+        Assert.DoesNotContain(
+            viewModel.WorkerHistoryRows,
+            item => item.Principal == "Pago registrado");
+        viewModel.SelectedWorkerHistoryPeriod = "Todo el historial";
+        await viewModel.RefreshAsync();
         Assert.Contains(
-            "2026-06-20",
+            "2026-07-04",
             viewModel.ProfileNextRequiredPayment,
             StringComparison.Ordinal);
-        Assert.Matches(@"348[,.]00", viewModel.ProfileNextRequiredPayment);
+        Assert.Matches(@"192[,.]00", viewModel.ProfileNextRequiredPayment);
         OperationRow payment = Assert.Single(
             viewModel.WorkerHistoryRows,
             item => item.Principal == "Pago registrado");
@@ -772,6 +795,13 @@ public sealed class AdministrationViewModelTests
         string expectedLabel)
     {
         await viewModel.SelectModuleAsync(module);
+        viewModel.SelectedAction = module switch
+        {
+            AdministrationViewModel.InventoryModule => "Registrar compra",
+            AdministrationViewModel.ExpensesModule => "Registrar gasto",
+            AdministrationViewModel.ObligationsModule => "Agregar obligación",
+            _ => throw new InvalidOperationException("Módulo de prueba no configurado."),
+        };
         viewModel.SelectedRow = viewModel.Rows.Single(item => item.Entity?.Id == entity.Id);
         viewModel.LoadSelectedCommand.Execute(null);
         Assert.Equal(expectedLabel, viewModel.SecondaryText);
@@ -786,7 +816,7 @@ public sealed class AdministrationViewModelTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
-        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow));
+        var settingsRepository = new FakeSettingsRepository(GeneralSettings.CreateConfigured(Money.FromDecimal(12m), Percentage.FromPercent(20m), UtcNow));
         var timeProvider = new FixedTimeProvider(new DateTimeOffset(UtcNow));
         var service = new AdministrationService(repository, settingsRepository, timeProvider);
         MaintenanceRecord pending = MaintenanceRecord.Schedule("Aire", "Limpieza", new DateOnly(2026, 7, 18),
@@ -797,6 +827,8 @@ public sealed class AdministrationViewModelTests
         await service.AddAsync(completed, cancellationToken);
         var viewModel = new MaintenanceViewModel(service, new GetSettingsUseCase(settingsRepository),
             new FakeFormDraftStore(), timeProvider);
+        viewModel.SelectedPeriod = "Todos";
+        viewModel.SelectedHistoryAsset = "Historial de todos los equipos";
 
         await Task.WhenAll(Enumerable.Range(0, 10).Select(_ => viewModel.RefreshAsync()));
 
@@ -827,6 +859,18 @@ public sealed class AdministrationViewModelTests
     private sealed class FakeAdministrationRepository : IAdministrationRepository
     {
         private readonly List<AuditableEntity> entities = [];
+
+        public FakeAdministrationRepository(bool withConfiguredDailyRate = true)
+        {
+            if (withConfiguredDailyRate)
+            {
+                entities.Add(DailyRate.Create(
+                    new DateOnly(2026, 7, 1),
+                    UtcNow,
+                    Money.FromDecimal(12m),
+                    UtcNow));
+            }
+        }
 
         public Task<AdministrationData> LoadAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new AdministrationData(
