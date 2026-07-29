@@ -277,16 +277,17 @@ public sealed partial class CollaboratorsViewModel(
         await RefreshAsync();
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSaveContribution))]
     private async Task SaveContributionAsync()
     {
-        if (SelectedCollaboratorRow is null) return;
+        if (!CanSaveContribution()) return;
+        CollaboratorRow selectedCollaborator = SelectedCollaboratorRow!;
         IsBusy = true;
         try
         {
             DateOnly date = RequiredDate(ContributionDate, "fecha del aporte");
             Money amount = ParseMoney(ContributionAmount);
-            string draftKey = ContributionDraftKey(SelectedCollaboratorRow.Collaborator.Id);
+            string draftKey = ContributionDraftKey(selectedCollaborator.Collaborator.Id);
             if (IsEditingContribution && SelectedContributionRow is not null)
             {
                 await service.UpdateCollaboratorContributionAsync(
@@ -300,7 +301,7 @@ public sealed partial class CollaboratorsViewModel(
             {
                 await service.AddCollaboratorContributionAsync(
                     CollaboratorContribution.Create(
-                        SelectedCollaboratorRow.Collaborator.Id,
+                        selectedCollaborator.Collaborator.Id,
                         date,
                         amount,
                         ContributionDescription,
@@ -325,6 +326,8 @@ public sealed partial class CollaboratorsViewModel(
             IsBusy = false;
         }
     }
+
+    private bool CanSaveContribution() => SelectedCollaboratorRow is not null && !IsBusy;
 
     [RelayCommand]
     private async Task RegisterDistributionPaymentAsync()
@@ -761,6 +764,11 @@ public sealed partial class CollaboratorsViewModel(
         EditSelectedContributionCommand.NotifyCanExecuteChanged();
         DeleteSelectedContributionCommand.NotifyCanExecuteChanged();
     }
+    partial void OnIsBusyChanged(bool value)
+    {
+        SaveContributionCommand.NotifyCanExecuteChanged();
+        DeleteSelectedContributionCommand.NotifyCanExecuteChanged();
+    }
     partial void OnConfirmContributionDeleteChanged(bool value) =>
         DeleteSelectedContributionCommand.NotifyCanExecuteChanged();
     partial void OnProfileNameChanged(string value) => ScheduleProfileEdit();
@@ -769,6 +777,7 @@ public sealed partial class CollaboratorsViewModel(
     partial void OnProfileDescriptionChanged(string value) => ScheduleProfileEdit();
     partial void OnSelectedCollaboratorRowChanged(CollaboratorRow? value)
     {
+        SaveContributionCommand.NotifyCanExecuteChanged();
         if (suppressDistributionChanges) return;
         suppressDistributionChanges = true;
         SelectedProfitShareText = value is null

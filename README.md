@@ -1,6 +1,6 @@
 # Peluquería Admin
 
-> Estado: primera versión alfa administrativa completa, pendiente de revisión del PR y publicación deliberada.
+> Estado: candidato `0.2.0-alpha.2` de Fase 5.2, pendiente de revisión, CI y publicación deliberada.
 
 Peluquería Admin será una aplicación local para administrar el funcionamiento interno de una peluquería. Su propósito es registrar ingresos propios del local, gastos, obligaciones, inventario y el punto de equilibrio mensual.
 
@@ -21,11 +21,16 @@ Las personas que trabajan en el local utilizan sus propios implementos y cobran 
 
 La aplicación implementa Inicio, Uso del local, Colaboradores, Ventas, Inventario, Otros ingresos, Gastos, Imprevistos, Obligaciones, Mantenimiento, Resumen mensual, Balance anual, Ajustes, un bloc único de Notas y un Manual integrado. Trabaja en USD, separa cobros, cuentas, egresos, reservas y financiación, distribuye únicamente resultados positivos mediante porcentajes congelados, permite cierres mensuales/anuales manuales, préstamos con calendario exacto y una lista mensual independiente del inventario, ofrece tablas con desplazamiento interno, copias/restauración y una exportación `.xlsx` completa.
 
-La Fase 4.9 añade consulta diaria por zona horaria local, consumo semanal real de anticipos, historial inmutable de aportes, préstamos por amortización o cantidad final acordada, balance anual vivo/snapshot y arrastres separados. La migración es aditiva y preserva bases anteriores.
+La Fase 5.2 reemplaza el cobro semanal por cargos diarios exactos de lunes a sábado, vinculados a
+periodos reales de asignación de silla. También incorpora trazabilidad financiera de tarifas y
+aportes, saldo disponible visible e identidad K&V en aplicación, instalador y portable. La migración
+es aditiva y conserva las tablas semanales anteriores como legado sin reinterpretarlas.
 
 La Fase 4.10 simplifica la compra de inventario: toda alta desde **Agregar al inventario** nace de una fila pendiente de la lista mensual y se registra como compra real. También incorpora obligaciones de tipo **Crédito**, recurrencia **Semanal**, compromisos de compra en Inicio y en el punto de equilibrio, exportación ampliada y un Manual detallado dentro de la aplicación.
 
-El instalador alpha x64 se construyó localmente sin firma y permanece ignorado por Git. La incorporación del logotipo y la prueba real de actualización entre dos versiones quedan reservadas para una actualización posterior; esta fase no publica `alpha.2` ni modifica el actualizador.
+El instalador alpha x64 se construye sin firma. La aceptación de `alpha.2` exige actualizar una
+instalación real `alpha.1` desde Ajustes, sin ejecutar manualmente el instalador nuevo, y comprobar
+después versión, datos, migración e iconos.
 
 ## Estructura de proyectos
 
@@ -61,9 +66,9 @@ dotnet ef migrations add NombreDescriptivo --project src/PeluqueriaAdmin.Infrast
 Para publicar una compilación autocontenida x64 y crear un paquete local de desarrollo:
 
 ```powershell
-dotnet publish src/PeluqueriaAdmin.App/PeluqueriaAdmin.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/publish -p:Version=0.2.0-alpha.1
+dotnet publish src/PeluqueriaAdmin.App/PeluqueriaAdmin.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/publish -p:Version=0.2.0-alpha.2
 dotnet tool install --tool-path artifacts/tools vpk --version 1.2.0
-artifacts/tools/vpk pack --packId Colombianito.PeluqueriaAdmin --packVersion 0.2.0-alpha.1 --packDir artifacts/publish --mainExe PeluqueriaAdmin.App.exe --packTitle "Peluquería Admin" --runtime win-x64 --outputDir Releases
+artifacts/tools/vpk pack --packId Colombianito.PeluqueriaAdmin --packVersion 0.2.0-alpha.2 --packDir artifacts/publish --mainExe PeluqueriaAdmin.App.exe --packTitle "Peluquería Admin" --icon src/PeluqueriaAdmin.App/Assets/kv-logo.ico --runtime win-x64 --outputDir Releases
 ```
 
 `artifacts/` y `Releases/` están ignorados. El workflow `release.yml` publica únicamente al empujar deliberadamente una etiqueta SemVer `v*`.
@@ -84,14 +89,14 @@ No se deben subir datos reales de la peluquería, bases de datos, copias de segu
 - [Arquitectura propuesta y adoptada](docs/ARQUITECTURA_PROPUESTA.md)
 - [Decisiones pendientes](docs/DECISIONES_PENDIENTES.md)
 - [Dependencias](docs/DEPENDENCIAS.md)
-- [Notas de la versión 0.2.0-alpha.1](docs/NOTAS_VERSION_0.2.0-alpha.1.md)
+- [Notas de la versión 0.2.0-alpha.2](docs/NOTAS_VERSION_0.2.0-alpha.2.md)
 - [Modelo de datos](docs/MODELO_DATOS.md)
 - [Fórmulas financieras](docs/FORMULAS_FINANCIERAS.md)
 - [Copias y restauración](docs/COPIAS_Y_RESTAURACION.md)
 - [Actualizaciones y Releases](docs/ACTUALIZACIONES_Y_RELEASES.md)
 - [Manual de usuario](docs/MANUAL_USUARIO.md)
 - [Pruebas](docs/PRUEBAS.md)
-- [Auditoría de requisitos de Fase 4.10](docs/AUDITORIA_REQUISITOS_FASE410.md)
+- [Auditoría de requisitos de Fase 5.2](docs/AUDITORIA_REQUISITOS_FASE52.md)
 
 ## Contribuciones
 

@@ -12,6 +12,8 @@ public sealed class GeneralSettings
 
     public Money WeeklyUsageFee { get; private set; }
 
+    public Money DailyUsageFee => WeeklyUsageFee;
+
     public Percentage CollaboratorProfit { get; private set; }
 
     public Money OptionalSuppliesMonthlyBudget { get; private set; }

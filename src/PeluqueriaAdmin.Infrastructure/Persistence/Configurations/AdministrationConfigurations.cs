@@ -82,6 +82,43 @@ internal sealed class WeeklyChargeConfiguration : IEntityTypeConfiguration<Weekl
     }
 }
 
+internal sealed class DailyRateConfiguration : IEntityTypeConfiguration<DailyRate>
+{
+    public void Configure(EntityTypeBuilder<DailyRate> builder)
+    {
+        builder.ToTable("DailyRates");
+        AdministrationConfiguration.ConfigureAudit(builder);
+        AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.Amount))
+            .HasColumnName("AmountMinorUnits");
+        builder.Property(item => item.EffectiveFromUtc)
+            .HasConversion(value => value.Ticks, value => new DateTime(value, DateTimeKind.Utc));
+        builder.Property(item => item.EffectiveToUtc)
+            .HasConversion(
+                value => value.HasValue ? value.Value.Ticks : (long?)null,
+                value => value.HasValue ? new DateTime(value.Value, DateTimeKind.Utc) : null);
+        builder.HasIndex(item => new { item.EffectiveDate, item.EffectiveFromUtc });
+    }
+}
+
+internal sealed class DailyChargeConfiguration : IEntityTypeConfiguration<DailyCharge>
+{
+    public void Configure(EntityTypeBuilder<DailyCharge> builder)
+    {
+        builder.ToTable("DailyCharges");
+        AdministrationConfiguration.ConfigureAudit(builder);
+        AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.Amount))
+            .HasColumnName("AmountMinorUnits");
+        builder.HasIndex(item => new { item.PersonId, item.ChargeDate }).IsUnique();
+        builder.HasIndex(item => item.DueDate);
+        builder.HasOne<LocalUsePerson>().WithMany().HasForeignKey(item => item.PersonId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Chair>().WithMany().HasForeignKey(item => item.ChairId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<DailyRate>().WithMany().HasForeignKey(item => item.RateId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
 internal sealed class LocalUsePaymentConfiguration : IEntityTypeConfiguration<LocalUsePayment>
 {
     public void Configure(EntityTypeBuilder<LocalUsePayment> builder)
@@ -346,6 +383,21 @@ internal sealed class ChairConfiguration : IEntityTypeConfiguration<Chair>
     }
 }
 
+internal sealed class ChairAssignmentPeriodConfiguration : IEntityTypeConfiguration<ChairAssignmentPeriod>
+{
+    public void Configure(EntityTypeBuilder<ChairAssignmentPeriod> builder)
+    {
+        builder.ToTable("ChairAssignmentPeriods");
+        AdministrationConfiguration.ConfigureAudit(builder);
+        builder.HasIndex(item => new { item.PersonId, item.StartDate });
+        builder.HasIndex(item => new { item.ChairId, item.StartDate });
+        builder.HasOne<LocalUsePerson>().WithMany().HasForeignKey(item => item.PersonId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Chair>().WithMany().HasForeignKey(item => item.ChairId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
 internal sealed class ActivityRecordConfiguration : IEntityTypeConfiguration<ActivityRecord>
 {
     public void Configure(EntityTypeBuilder<ActivityRecord> builder)
@@ -359,6 +411,28 @@ internal sealed class ActivityRecordConfiguration : IEntityTypeConfiguration<Act
         builder.Property(item => item.Summary).HasMaxLength(500).IsRequired();
         builder.Property(item => item.Description).HasMaxLength(1000);
         builder.HasIndex(item => new { item.Module, item.ActivityDate });
+    }
+}
+
+internal sealed class FinancialEventConfiguration : IEntityTypeConfiguration<FinancialEvent>
+{
+    public void Configure(EntityTypeBuilder<FinancialEvent> builder)
+    {
+        builder.ToTable("FinancialEvents");
+        AdministrationConfiguration.ConfigureAudit(builder);
+        builder.Property(item => item.OccurredUtc)
+            .HasConversion(value => value.Ticks, value => new DateTime(value, DateTimeKind.Utc));
+        builder.Property(item => item.EntityType).HasMaxLength(100).IsRequired();
+        builder.Property(item => item.EventType).HasMaxLength(120).IsRequired();
+        builder.Property(item => item.Description).HasMaxLength(1000);
+        builder.Property(item => item.State).HasMaxLength(80).IsRequired();
+        AdministrationConfiguration.ConfigureNullableMoney(builder.Property(item => item.PreviousValue))
+            .HasColumnName("PreviousValueMinorUnits");
+        AdministrationConfiguration.ConfigureNullableMoney(builder.Property(item => item.NewValue))
+            .HasColumnName("NewValueMinorUnits");
+        builder.Property(item => item.DifferenceMinorUnits).IsRequired();
+        builder.HasIndex(item => item.OperationId);
+        builder.HasIndex(item => new { item.EntityType, item.EntityId, item.OccurredUtc });
     }
 }
 

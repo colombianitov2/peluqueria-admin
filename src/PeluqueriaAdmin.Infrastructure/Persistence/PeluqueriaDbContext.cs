@@ -23,6 +23,12 @@ public sealed class PeluqueriaDbContext(DbContextOptions<PeluqueriaDbContext> op
 
     public DbSet<WeeklyCharge> WeeklyCharges => Set<WeeklyCharge>();
 
+    public DbSet<DailyRate> DailyRates => Set<DailyRate>();
+
+    public DbSet<DailyCharge> DailyCharges => Set<DailyCharge>();
+
+    public DbSet<ChairAssignmentPeriod> ChairAssignmentPeriods => Set<ChairAssignmentPeriod>();
+
     public DbSet<LocalUsePayment> LocalUsePayments => Set<LocalUsePayment>();
 
     public DbSet<Product> Products => Set<Product>();
@@ -32,6 +38,8 @@ public sealed class PeluqueriaDbContext(DbContextOptions<PeluqueriaDbContext> op
     public DbSet<MonthlyRestockPlan> RestockPlans => Set<MonthlyRestockPlan>();
 
     public DbSet<FinancialEntry> FinancialEntries => Set<FinancialEntry>();
+
+    public DbSet<FinancialEvent> FinancialEvents => Set<FinancialEvent>();
 
     public DbSet<Obligation> Obligations => Set<Obligation>();
 

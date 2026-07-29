@@ -8,6 +8,7 @@
         Height="760"
         MinWidth="860"
         MinHeight="520"
+        Icon="Assets/kv-logo.ico"
         Closing="OnClosing"
         WindowStartupLocation="CenterScreen">
   <Window.Resources>

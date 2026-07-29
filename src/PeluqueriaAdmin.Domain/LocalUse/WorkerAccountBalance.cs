@@ -11,4 +11,5 @@ public sealed record WorkerAccountBalance(
     Money? NextChargeAmount,
     DateOnly? NextRequiredPaymentDate,
     Money? NextRequiredPaymentAmount,
-    DateOnly? CoveredThroughDate);
+    DateOnly? CoveredThroughDate,
+    Money? CurrentDailyRate = null);

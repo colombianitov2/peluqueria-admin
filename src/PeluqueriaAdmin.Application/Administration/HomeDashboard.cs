@@ -82,7 +82,8 @@ public static class HomeDashboardCalculator
             .ToArray();
         HomeDebt[] debts = data.LocalUsePeople.Select(person => new HomeDebt(
             person.Name,
-            WeeklyChargeCalculator.CalculateDebt(
+            DailyChargeCalculator.CalculateDebt(
+                data.DailyCharges.Where(item => item.PersonId == person.Id),
                 data.WeeklyCharges.Where(item => item.PersonId == person.Id),
                 data.LocalUsePayments.Where(item => item.PersonId == person.Id),
                 today)))

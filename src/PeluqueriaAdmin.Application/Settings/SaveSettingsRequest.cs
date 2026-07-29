@@ -5,6 +5,8 @@ public sealed record SaveSettingsRequest(
     decimal CollaboratorProfitPercent,
     string ExportDirectory)
 {
+    public decimal DailyUsageFee => WeeklyUsageFee;
+
     public SaveSettingsRequest(
         decimal weeklyUsageFee,
         decimal collaboratorProfitPercent,

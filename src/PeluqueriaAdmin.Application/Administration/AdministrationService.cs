@@ -19,6 +19,8 @@ public sealed class AdministrationService(
 {
     public event EventHandler? DataChanged;
 
+    public void NotifyDataChanged() => DataChanged?.Invoke(this, EventArgs.Empty);
+
     public Task<AdministrationData> LoadAsync(CancellationToken cancellationToken = default) =>
         repository.LoadAsync(cancellationToken);
 
@@ -29,17 +31,18 @@ public sealed class AdministrationService(
         AdministrationData data = await repository.LoadAsync(cancellationToken);
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
         DateOnly localToday = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
-        DateOnly weeklyThroughDate = throughDate < localToday ? throughDate : localToday;
+        DateOnly dailyThroughDate = throughDate < localToday ? throughDate : localToday;
         var additions = new List<AuditableEntity>();
         var updates = new List<AuditableEntity>();
-        IReadOnlyCollection<WeeklyRate> rates = data.WeeklyRates;
+        IReadOnlyCollection<DailyRate> rates = data.DailyRates;
 
         if (rates.Count == 0)
         {
             GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
-            WeeklyRate initialRate = WeeklyRate.Create(
-                DateOnly.FromDateTime(settings.CreatedUtc),
-                settings.WeeklyUsageFee,
+            DailyRate initialRate = DailyRate.Create(
+                localToday,
+                utcNow,
+                settings.DailyUsageFee,
                 utcNow);
             additions.Add(initialRate);
             rates = [initialRate];
@@ -47,12 +50,65 @@ public sealed class AdministrationService(
 
         foreach (LocalUsePerson person in data.LocalUsePeople)
         {
-            additions.AddRange(WeeklyChargeCalculator.Generate(
+            DailyCharge[] generated = DailyChargeCalculator.Generate(
                 person,
-                data.WeeklyCharges,
+                data.DailyCharges,
                 rates,
-                weeklyThroughDate,
-                utcNow));
+                data.ChairAssignmentPeriods,
+                dailyThroughDate,
+                utcNow).ToArray();
+            additions.AddRange(generated);
+            long availableCredit = Math.Max(
+                data.LocalUsePayments.Where(item => item.PersonId == person.Id)
+                    .Sum(item => item.Amount.MinorUnits)
+                - data.WeeklyCharges.Where(item => item.PersonId == person.Id)
+                    .Sum(item => item.Amount.MinorUnits)
+                - data.DailyCharges.Where(item => item.PersonId == person.Id)
+                    .Sum(item => item.Amount.MinorUnits),
+                0);
+            foreach (DailyCharge charge in generated.OrderBy(item => item.ChargeDate))
+            {
+                additions.Add(FinancialEvent.Create(
+                    charge.Id,
+                    utcNow,
+                    "Trabajador",
+                    person.Id,
+                    "Cargo diario generado",
+                    null,
+                    charge.Amount,
+                    charge.Amount.MinorUnits,
+                    $"{charge.ChargeDate:yyyy-MM-dd}; vence {charge.DueDate:yyyy-MM-dd}."));
+                additions.Add(ActivityRecord.Create(
+                    charge.ChargeDate,
+                    "Uso del local",
+                    "Cargo diario generado",
+                    person.Name,
+                    person.Id,
+                    $"Tarifa diaria USD {charge.Amount.ToDecimal():N2}; vence el sábado {charge.DueDate:yyyy-MM-dd}.",
+                    utcNow));
+                if (availableCredit >= charge.Amount.MinorUnits && charge.Amount.MinorUnits > 0)
+                {
+                    availableCredit -= charge.Amount.MinorUnits;
+                    additions.Add(FinancialEvent.Create(
+                        charge.Id,
+                        utcNow,
+                        "Trabajador",
+                        person.Id,
+                        "Cargo cubierto con saldo",
+                        charge.Amount,
+                        Money.FromMinorUnits(0),
+                        -charge.Amount.MinorUnits,
+                        $"El saldo a favor cubrió el cargo de {charge.ChargeDate:yyyy-MM-dd}."));
+                    additions.Add(ActivityRecord.Create(
+                        charge.ChargeDate,
+                        "Uso del local",
+                        "Cargo cubierto con saldo",
+                        person.Name,
+                        person.Id,
+                        $"Saldo consumido: USD {charge.Amount.ToDecimal():N2}.",
+                        utcNow));
+                }
+            }
         }
 
         foreach (Chair chair in data.Chairs)
@@ -102,15 +158,10 @@ public sealed class AdministrationService(
     {
         ArgumentNullException.ThrowIfNull(person);
         AdministrationData data = await repository.LoadAsync(cancellationToken);
-        (IReadOnlyCollection<WeeklyRate> rates, WeeklyRate? newRate) =
-            await EnsureRatesAsync(data, cancellationToken);
-        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
-        IReadOnlyList<WeeklyCharge> charges = WeeklyChargeCalculator.Generate(
-            person, [], rates, throughDate, utcNow);
+        (_, DailyRate? newRate) = await EnsureDailyRatesAsync(data, cancellationToken);
         await SaveAsync(
             new AuditableEntity[] { person }
                 .Concat(newRate is null ? [] : [newRate])
-                .Concat(charges)
                 .ToArray(),
             [],
             completedDraftKey,
@@ -141,10 +192,17 @@ public sealed class AdministrationService(
 
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
         chair.Assign(person.Id, utcNow);
-        (IReadOnlyCollection<WeeklyRate> rates, WeeklyRate? newRate) =
-            await EnsureRatesAsync(data, cancellationToken);
-        IReadOnlyList<WeeklyCharge> charges = WeeklyChargeCalculator.Generate(
-            person, [], rates, throughDate, utcNow);
+        (IReadOnlyCollection<DailyRate> rates, DailyRate? newRate) =
+            await EnsureDailyRatesAsync(data, cancellationToken);
+        ChairAssignmentPeriod assignment = ChairAssignmentPeriod.Create(
+            chair.Id,
+            person.Id,
+            person.EntryDate,
+            utcNow);
+        DateOnly localToday = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+        DateOnly dailyThroughDate = throughDate < localToday ? throughDate : localToday;
+        IReadOnlyList<DailyCharge> charges = DailyChargeCalculator.Generate(
+            person, [], rates, [assignment], dailyThroughDate, utcNow);
         ActivityRecord workerAssignment = ActivityRecord.Create(
             person.EntryDate,
             "Uso del local",
@@ -161,10 +219,32 @@ public sealed class AdministrationService(
             chair.Id,
             $"Trabajador: {person.Name}. Silla: {chair.Name}.",
             utcNow);
+        AuditableEntity[] chargeEvents = charges.SelectMany(charge => new AuditableEntity[]
+        {
+            FinancialEvent.Create(
+                charge.Id,
+                utcNow,
+                "Trabajador",
+                person.Id,
+                "Cargo diario generado",
+                null,
+                charge.Amount,
+                charge.Amount.MinorUnits,
+                $"{charge.ChargeDate:yyyy-MM-dd}; vence {charge.DueDate:yyyy-MM-dd}."),
+            ActivityRecord.Create(
+                charge.ChargeDate,
+                "Uso del local",
+                "Cargo diario generado",
+                person.Name,
+                person.Id,
+                $"Tarifa diaria USD {charge.Amount.ToDecimal():N2}; vence el sábado {charge.DueDate:yyyy-MM-dd}.",
+                utcNow),
+        }).ToArray();
         await SaveAsync(
-            new AuditableEntity[] { person, workerAssignment, chairAssignment }
+            new AuditableEntity[] { person, assignment, workerAssignment, chairAssignment }
                 .Concat(newRate is null ? [] : [newRate])
                 .Concat(charges)
+                .Concat(chargeEvents)
                 .ToArray(),
             [chair],
             completedDraftKey,
@@ -234,10 +314,20 @@ public sealed class AdministrationService(
 
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
         var updates = new List<AuditableEntity>();
+        ChairAssignmentPeriod? currentPeriod = data.ChairAssignmentPeriods
+            .Where(item => item.PersonId == personId && !item.EndDateExclusive.HasValue)
+            .OrderByDescending(item => item.StartDate)
+            .ThenByDescending(item => item.CreatedUtc)
+            .FirstOrDefault();
         if (current is not null && current.Id != target?.Id)
         {
             current.Unassign(utcNow);
             updates.Add(current);
+            currentPeriod?.Close(today, utcNow);
+            if (currentPeriod is not null)
+            {
+                updates.Add(currentPeriod);
+            }
         }
 
         if (target is not null && target.AssignedPersonId != personId)
@@ -260,6 +350,12 @@ public sealed class AdministrationService(
                 today, "Uso del local", action, summary, person.Id,
                 $"Trabajador: {person.Name}.", utcNow),
         };
+        ChairAssignmentPeriod? newAssignment = null;
+        if (target is not null)
+        {
+            newAssignment = ChairAssignmentPeriod.Create(target.Id, personId, today, utcNow);
+            activities.Add(newAssignment);
+        }
         if (current is not null)
         {
             activities.Add(ActivityRecord.Create(
@@ -282,6 +378,66 @@ public sealed class AdministrationService(
                 $"Trabajador: {person.Name}. Silla: {target.Name}.",
                 utcNow));
         }
+        if (newAssignment is not null)
+        {
+            (IReadOnlyCollection<DailyRate> rates, DailyRate? newRate) =
+                await EnsureDailyRatesAsync(data, cancellationToken);
+            if (newRate is not null)
+            {
+                activities.Add(newRate);
+            }
+            DailyCharge[] charges = DailyChargeCalculator.Generate(
+                person,
+                data.DailyCharges,
+                rates,
+                [newAssignment],
+                today,
+                utcNow).ToArray();
+            activities.AddRange(charges);
+            long availableCredit = Math.Max(
+                data.LocalUsePayments.Where(item => item.PersonId == person.Id)
+                    .Sum(item => item.Amount.MinorUnits)
+                - data.WeeklyCharges.Where(item => item.PersonId == person.Id)
+                    .Sum(item => item.Amount.MinorUnits)
+                - data.DailyCharges.Where(item => item.PersonId == person.Id)
+                    .Sum(item => item.Amount.MinorUnits),
+                0);
+            foreach (DailyCharge charge in charges)
+            {
+                activities.Add(FinancialEvent.Create(
+                    charge.Id,
+                    utcNow,
+                    "Trabajador",
+                    person.Id,
+                    "Cargo diario generado",
+                    null,
+                    charge.Amount,
+                    charge.Amount.MinorUnits,
+                    $"{charge.ChargeDate:yyyy-MM-dd}; vence {charge.DueDate:yyyy-MM-dd}."));
+                if (availableCredit >= charge.Amount.MinorUnits && charge.Amount.MinorUnits > 0)
+                {
+                    availableCredit -= charge.Amount.MinorUnits;
+                    activities.Add(FinancialEvent.Create(
+                        charge.Id,
+                        utcNow,
+                        "Trabajador",
+                        person.Id,
+                        "Cargo cubierto con saldo",
+                        charge.Amount,
+                        Money.FromMinorUnits(0),
+                        -charge.Amount.MinorUnits,
+                        $"El saldo a favor cubrió el cargo de {charge.ChargeDate:yyyy-MM-dd}."));
+                    activities.Add(ActivityRecord.Create(
+                        charge.ChargeDate,
+                        "Uso del local",
+                        "Cargo cubierto con saldo",
+                        person.Name,
+                        person.Id,
+                        $"Saldo consumido: USD {charge.Amount.ToDecimal():N2}.",
+                        utcNow));
+                }
+            }
+        }
         await SaveAsync(activities, updates, null, cancellationToken);
     }
 
@@ -298,33 +454,20 @@ public sealed class AdministrationService(
         AdministrationData data = await repository.LoadAsync(cancellationToken);
         LocalUsePerson person = data.LocalUsePeople.SingleOrDefault(item => item.Id == personId)
             ?? throw new InvalidOperationException("La persona seleccionada ya no está disponible.");
-        HashSet<DateOnly> expected = WeeklyChargeCalculator.ExpectedPeriodStarts(entryDate, exitDate, throughDate).ToHashSet();
-        WeeklyCharge[] existing = data.WeeklyCharges.Where(item => item.PersonId == personId).ToArray();
-        WeeklyCharge[] invalid = existing.Where(item => !expected.Contains(item.PeriodStart)).ToArray();
-        if (invalid.Length > 0 && data.LocalUsePayments.Any(item => item.PersonId == personId))
+        DailyCharge[] invalid = data.DailyCharges
+            .Where(item => item.PersonId == personId
+                && (item.ChargeDate < entryDate
+                    || exitDate.HasValue && item.ChargeDate >= exitDate.Value))
+            .ToArray();
+        if (invalid.Length > 0)
         {
             throw new InvalidOperationException(
-                "No se pueden cambiar ingreso o retiro porque invalidarían cuotas de una persona que ya tiene pagos.");
+                "No se pueden cambiar esas fechas porque reinterpretarían cargos diarios históricos.");
         }
 
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
         person.Update(name, entryDate, exitDate, utcNow, description);
-        foreach (WeeklyCharge charge in invalid)
-        {
-            charge.MarkDeleted(utcNow);
-        }
-
-        (IReadOnlyCollection<WeeklyRate> rates, WeeklyRate? newRate) =
-            await EnsureRatesAsync(data, cancellationToken);
-        IReadOnlyList<WeeklyCharge> additions = WeeklyChargeCalculator.Generate(
-            person, existing, rates, throughDate, utcNow);
-        await SaveAsync(
-            (newRate is null ? Array.Empty<AuditableEntity>() : [newRate])
-                .Concat(additions)
-                .ToArray(),
-            new AuditableEntity[] { person }.Concat(invalid).ToArray(),
-            completedDraftKey,
-            cancellationToken);
+        await SaveAsync([], [person], completedDraftKey, cancellationToken);
     }
 
     public async Task RetireLocalUsePersonAsync(
@@ -340,34 +483,19 @@ public sealed class AdministrationService(
             throw new ArgumentException("La fecha de retiro no puede ser anterior a la fecha de ingreso.", nameof(exitDate));
         }
 
-        HashSet<DateOnly> expected = WeeklyChargeCalculator
-            .ExpectedPeriodStarts(person.EntryDate, exitDate, exitDate)
-            .ToHashSet();
-        WeeklyCharge[] existing = data.WeeklyCharges.Where(item => item.PersonId == personId).ToArray();
-        WeeklyCharge[] invalid = existing.Where(item => !expected.Contains(item.PeriodStart)).ToArray();
-        if (invalid.Length > 0 && data.LocalUsePayments.Any(item => item.PersonId == personId))
-        {
-            throw new InvalidOperationException(
-                "No se puede retirar al trabajador en esa fecha porque invalidaría cuotas que ya tienen pagos.");
-        }
-
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
         person.Update(person.Name, person.EntryDate, exitDate, utcNow, person.Description);
-        foreach (WeeklyCharge charge in invalid)
-        {
-            charge.MarkDeleted(utcNow);
-        }
 
         Chair? chair = data.Chairs.SingleOrDefault(item => item.AssignedPersonId == personId);
+        ChairAssignmentPeriod? assignment = data.ChairAssignmentPeriods
+            .Where(item => item.PersonId == personId && !item.EndDateExclusive.HasValue)
+            .OrderByDescending(item => item.StartDate)
+            .FirstOrDefault();
         if (chair is not null)
         {
             chair.Unassign(utcNow);
         }
-
-        (IReadOnlyCollection<WeeklyRate> rates, WeeklyRate? newRate) =
-            await EnsureRatesAsync(data, cancellationToken);
-        IReadOnlyList<WeeklyCharge> additions = WeeklyChargeCalculator.Generate(
-            person, existing, rates, exitDate, utcNow);
+        assignment?.Close(exitDate, utcNow);
         ActivityRecord activity = ActivityRecord.Create(
             exitDate,
             "Uso del local",
@@ -376,9 +504,7 @@ public sealed class AdministrationService(
             person.Id,
             person.Description,
             utcNow);
-        AuditableEntity[] added = (newRate is null ? Array.Empty<AuditableEntity>() : [newRate])
-            .Concat(additions)
-            .Append(activity)
+        AuditableEntity[] added = new AuditableEntity[] { activity }
             .Concat(chair is null
                 ? []
                 : [ActivityRecord.Create(
@@ -391,8 +517,8 @@ public sealed class AdministrationService(
                     utcNow)])
             .ToArray();
         AuditableEntity[] updated = new AuditableEntity[] { person }
-            .Concat(invalid)
             .Concat(chair is null ? [] : [chair])
+            .Concat(assignment is null ? [] : [assignment])
             .ToArray();
         await SaveAsync(added, updated, null, cancellationToken);
     }
@@ -405,15 +531,21 @@ public sealed class AdministrationService(
         LocalUsePerson person = data.LocalUsePeople.SingleOrDefault(item => item.Id == personId)
             ?? throw new InvalidOperationException("El trabajador seleccionado ya no está disponible.");
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         Chair? chair = data.Chairs.SingleOrDefault(item => item.AssignedPersonId == personId);
+        ChairAssignmentPeriod? assignment = data.ChairAssignmentPeriods
+            .Where(item => item.PersonId == personId && !item.EndDateExclusive.HasValue)
+            .OrderByDescending(item => item.StartDate)
+            .FirstOrDefault();
         if (chair is not null)
         {
             chair.Unassign(utcNow);
         }
+        assignment?.Close(today, utcNow);
 
         person.MarkDeleted(utcNow);
         ActivityRecord activity = ActivityRecord.Create(
-            DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+            today,
             "Uso del local",
             "Eliminación lógica de trabajador",
             person.Name,
@@ -423,7 +555,7 @@ public sealed class AdministrationService(
         AuditableEntity[] activities = chair is null
             ? [activity]
             : [activity, ActivityRecord.Create(
-                DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+                today,
                 "Uso del local",
                 "Retiro de silla",
                 $"{chair.Name} quedó vacía; {person.Name} fue eliminado",
@@ -432,7 +564,10 @@ public sealed class AdministrationService(
                 utcNow)];
         await SaveAsync(
             activities,
-            new AuditableEntity[] { person }.Concat(chair is null ? [] : [chair]).ToArray(),
+            new AuditableEntity[] { person }
+                .Concat(chair is null ? [] : [chair])
+                .Concat(assignment is null ? [] : [assignment])
+                .ToArray(),
             null,
             cancellationToken);
     }
@@ -510,6 +645,7 @@ public sealed class AdministrationService(
         Chair chair = data.Chairs.SingleOrDefault(item => item.Id == chairId)
             ?? throw new InvalidOperationException("La silla seleccionada ya no está disponible.");
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         Guid? formerPersonId = chair.AssignedPersonId;
         string? formerPersonName = formerPersonId.HasValue
             ? data.LocalUsePeople.SingleOrDefault(item => item.Id == formerPersonId.Value)?.Name
@@ -518,10 +654,15 @@ public sealed class AdministrationService(
         {
             chair.Unassign(utcNow);
         }
+        ChairAssignmentPeriod? assignment = data.ChairAssignmentPeriods
+            .Where(item => item.ChairId == chairId && !item.EndDateExclusive.HasValue)
+            .OrderByDescending(item => item.StartDate)
+            .FirstOrDefault();
+        assignment?.Close(today, utcNow);
 
         chair.MarkDeleted(utcNow);
         ActivityRecord activity = ActivityRecord.Create(
-            DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+            today,
             "Uso del local",
             "Eliminación lógica de silla",
             formerPersonName is null
@@ -532,7 +673,13 @@ public sealed class AdministrationService(
                 ? $"La silla ocupada fue desasignada antes de eliminarse; {formerPersonName ?? "el trabajador"} permanece sin silla."
                 : "La silla vacía fue eliminada lógicamente.",
             utcNow);
-        await SaveAsync([activity], [chair], null, cancellationToken);
+        await SaveAsync(
+            [activity],
+            new AuditableEntity[] { chair }
+                .Concat(assignment is null ? [] : [assignment])
+                .ToArray(),
+            null,
+            cancellationToken);
     }
 
     public async Task AddCollaboratorContributionAsync(
@@ -553,12 +700,26 @@ public sealed class AdministrationService(
         ActivityRecord activity = ActivityRecord.Create(
             DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
             "Colaboradores",
-            "Creación",
-            "Aporte creado",
-            contribution.CollaboratorId,
+            "Aporte agregado",
+            "Aporte agregado",
+            contribution.Id,
             $"Valor: USD {contribution.Amount.ToDecimal():N2}. {contribution.Description}",
             utcNow);
-        await SaveAsync([contribution, contributionEvent, activity], [], completedDraftKey, cancellationToken);
+        FinancialEvent financialEvent = FinancialEvent.Create(
+            Guid.NewGuid(),
+            utcNow,
+            "Aporte de colaborador",
+            contribution.Id,
+            "Aporte agregado",
+            null,
+            contribution.Amount,
+            contribution.Amount.MinorUnits,
+            contribution.Description);
+        await SaveAsync(
+            [contribution, contributionEvent, financialEvent, activity],
+            [],
+            completedDraftKey,
+            cancellationToken);
     }
 
     public async Task UpdateCollaboratorContributionAsync(
@@ -583,12 +744,26 @@ public sealed class AdministrationService(
         ActivityRecord activity = ActivityRecord.Create(
             DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
             "Colaboradores",
-            "Edición",
             "Aporte editado",
-            contribution.CollaboratorId,
+            "Aporte editado",
+            contribution.Id,
             $"Valor anterior: USD {previousAmount.ToDecimal():N2}. Valor nuevo: USD {amount.ToDecimal():N2}.",
             utcNow);
-        await SaveAsync([contributionEvent, activity], [contribution], completedDraftKey, cancellationToken);
+        FinancialEvent financialEvent = FinancialEvent.Create(
+            Guid.NewGuid(),
+            utcNow,
+            "Aporte de colaborador",
+            contribution.Id,
+            "Aporte editado",
+            previousAmount,
+            amount,
+            amount.MinorUnits - previousAmount.MinorUnits,
+            description);
+        await SaveAsync(
+            [contributionEvent, financialEvent, activity],
+            [contribution],
+            completedDraftKey,
+            cancellationToken);
     }
 
     public async Task DeleteCollaboratorContributionAsync(
@@ -605,13 +780,28 @@ public sealed class AdministrationService(
         ActivityRecord activity = ActivityRecord.Create(
             DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
             "Colaboradores",
-            "Eliminación",
             "Aporte eliminado",
-            contribution.CollaboratorId,
+            "Aporte eliminado",
+            contribution.Id,
             $"Valor eliminado: USD {contribution.Amount.ToDecimal():N2}. {contribution.Description}",
             utcNow);
+        FinancialEvent financialEvent = FinancialEvent.Create(
+            Guid.NewGuid(),
+            utcNow,
+            "Aporte de colaborador",
+            contribution.Id,
+            "Aporte eliminado",
+            contribution.Amount,
+            Money.FromMinorUnits(0),
+            -contribution.Amount.MinorUnits,
+            contribution.Description,
+            "Eliminado lógicamente");
         contribution.MarkDeleted(utcNow);
-        await SaveAsync([contributionEvent, activity], [contribution], null, cancellationToken);
+        await SaveAsync(
+            [contributionEvent, financialEvent, activity],
+            [contribution],
+            null,
+            cancellationToken);
     }
 
     public async Task AddObligationAsync(
@@ -996,6 +1186,7 @@ public sealed class AdministrationService(
         string? blockedReason = entity switch
         {
             LocalUsePerson person when data.WeeklyCharges.Any(item => item.PersonId == person.Id)
+                || data.DailyCharges.Any(item => item.PersonId == person.Id)
                 || data.LocalUsePayments.Any(item => item.PersonId == person.Id) =>
                 "No se puede eliminar la persona porque tiene cuotas o pagos históricos.",
             Chair chair when chair.AssignedPersonId.HasValue =>
@@ -1035,13 +1226,24 @@ public sealed class AdministrationService(
             throw new InvalidOperationException("El trabajador seleccionado ya no está disponible.");
         }
 
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
         LocalUsePayment payment = LocalUsePayment.Create(
             personId,
             date,
             amount,
-            timeProvider.GetUtcNow().UtcDateTime,
+            utcNow,
             description);
-        await SaveAsync([payment], [], completedDraftKey, cancellationToken);
+        FinancialEvent financialEvent = FinancialEvent.Create(
+            payment.Id,
+            utcNow,
+            "Trabajador",
+            personId,
+            "Pago de trabajador registrado",
+            null,
+            amount,
+            amount.MinorUnits,
+            description);
+        await SaveAsync([payment, financialEvent], [], completedDraftKey, cancellationToken);
         return payment;
     }
 
@@ -1980,20 +2182,22 @@ public sealed class AdministrationService(
         DataChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private async Task<(IReadOnlyCollection<WeeklyRate> Rates, WeeklyRate? NewRate)> EnsureRatesAsync(
+    private async Task<(IReadOnlyCollection<DailyRate> Rates, DailyRate? NewRate)> EnsureDailyRatesAsync(
         AdministrationData data,
         CancellationToken cancellationToken)
     {
-        if (data.WeeklyRates.Count > 0)
+        if (data.DailyRates.Count > 0)
         {
-            return (data.WeeklyRates, null);
+            return (data.DailyRates, null);
         }
 
         GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
-        WeeklyRate rate = WeeklyRate.Create(
-            DateOnly.FromDateTime(settings.CreatedUtc),
-            settings.WeeklyUsageFee,
-            timeProvider.GetUtcNow().UtcDateTime);
+        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        DailyRate rate = DailyRate.Create(
+            DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+            utcNow,
+            settings.DailyUsageFee,
+            utcNow);
         return ([rate], rate);
     }
 

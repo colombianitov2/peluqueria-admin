@@ -129,6 +129,9 @@ public sealed partial class MainViewModel : ObservableObject
     private string estadoPuntoDeEquilibrio = "Sin faltante calculado";
 
     [ObservableProperty]
+    private string saldoDisponibleDelLocal = $"{ApplicationCurrency.Code} 0.00";
+
+    [ObservableProperty]
     private string precioSugeridoPorSilla = "No se puede calcular: no hay sillas ocupadas";
 
     [ObservableProperty] private int maintenanceNotificationCount;
@@ -314,6 +317,12 @@ public sealed partial class MainViewModel : ObservableObject
         FinancialMonthSnapshot financial = FinancialMonthCalculator.Calculate(
             data, Percentage.FromPercent(settings.CollaboratorProfitPercent), month);
         EstadoPuntoDeEquilibrio = $"{ApplicationCurrency.Code} {financial.ShortfallMinorUnits / 100m:N2}";
+        MonthlyCashBreakdown cash = AdministrationReports.MonthlyCash(
+            data,
+            Percentage.FromPercent(settings.CollaboratorProfitPercent),
+            month);
+        SaldoDisponibleDelLocal =
+            $"{ApplicationCurrency.Code} {cash.CarryOutMinorUnits / 100m:N2}";
         PopulateDailyMovements(data);
 
         SuggestedChairPrice suggested = SuggestedChairPriceCalculator.Calculate(
@@ -322,9 +331,10 @@ public sealed partial class MainViewModel : ObservableObject
             month,
             today);
         PrecioSugeridoPorSilla = suggested.CanCalculate
-            ? $"Precio semanal actual: {ApplicationCurrency.Code} {suggested.CurrentWeeklyMinorUnits / 100m:N2}{Environment.NewLine}"
-                + $"Precio semanal sugerido por silla ocupada: {ApplicationCurrency.Code} {suggested.SuggestedWeeklyPerChairMinorUnits / 100m:N2}{Environment.NewLine}"
-                + $"Equivalente mensual sugerido: {ApplicationCurrency.Code} {suggested.SuggestedMonthlyPerChairMinorUnits / 100m:N2}{Environment.NewLine}"
+            ? $"Tarifa diaria actual: {ApplicationCurrency.Code} {suggested.CurrentDailyMinorUnits / 100m:N2}{Environment.NewLine}"
+                + $"Tarifa diaria sugerida por día-silla: {ApplicationCurrency.Code} {suggested.SuggestedDailyPerChairMinorUnits / 100m:N2}{Environment.NewLine}"
+                + $"Días-silla cobrables del mes: {suggested.ChargeableChairDays}{Environment.NewLine}"
+                + $"Ingreso proyectado por sillas: {ApplicationCurrency.Code} {suggested.ProjectedChairIncomeMinorUnits / 100m:N2}{Environment.NewLine}"
                 + suggested.Explanation
             : suggested.Explanation;
     }
@@ -341,7 +351,7 @@ public sealed partial class MainViewModel : ObservableObject
                 TimeZoneInfo.Local);
             DailyMovements.Add(new DailyMovementRow(localOccurrence.ToString("HH:mm:ss", CultureInfo.InvariantCulture),
                 item.Module, item.Action, item.Summary, item.Description ?? string.Empty,
-                amount.HasValue ? $"{ApplicationCurrency.Code} {Money.FromMinorUnits(amount.Value).ToDecimal():N2}" : string.Empty,
+                amount.HasValue ? $"{ApplicationCurrency.Code} {amount.Value / 100m:N2}" : string.Empty,
                 item.Action == "Eliminación" ? "Eliminado lógicamente" : "Registrado"));
         }
         DailyMovementsStatus = DailyMovements.Count == 0
@@ -362,6 +372,11 @@ public sealed partial class MainViewModel : ObservableObject
         if (data.LoanPayments.SingleOrDefault(x => x.Id == id) is { } loanPayment) return loanPayment.Amount.MinorUnits;
         if (data.Loans.SingleOrDefault(x => x.Id == id) is { } loan) return loan.InitialBalance.MinorUnits;
         if (data.FinancialReserves.SingleOrDefault(x => x.Id == id) is { } reserve) return reserve.ReservedAmount.MinorUnits;
+        if (data.CollaboratorContributions.SingleOrDefault(x => x.Id == id) is { } contribution)
+            return contribution.Amount.MinorUnits;
+        if (data.FinancialEvents.Where(x => x.EntityId == id)
+            .OrderByDescending(x => x.OccurredUtc).FirstOrDefault() is { } financialEvent)
+            return financialEvent.DifferenceMinorUnits;
         return null;
     }
 

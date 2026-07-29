@@ -20,6 +20,8 @@
             <RowDefinition Height="16" />
             <RowDefinition Height="*" />
             <RowDefinition Height="16" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="16" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="16" />
             <RowDefinition Height="*" />
@@ -80,25 +82,35 @@
 
         <GroupBox Grid.Row="6"
                   Padding="16"
+                  Header="Saldo disponible del local">
+            <TextBlock VerticalAlignment="Center"
+                       FontSize="20"
+                       FontWeight="SemiBold"
+                       Text="{Binding SaldoDisponibleDelLocal}"
+                       TextWrapping="Wrap" />
+        </GroupBox>
+
+        <GroupBox Grid.Row="8"
+                  Padding="16"
                   Header="Cantidad faltante para alcanzar el punto de equilibrio mensual">
             <TextBlock VerticalAlignment="Center"
                        Text="{Binding EstadoPuntoDeEquilibrio}"
                        TextWrapping="Wrap" />
         </GroupBox>
 
-        <GroupBox Grid.Row="8"
+        <GroupBox Grid.Row="10"
                   Padding="16"
                   Header="Precio sugerido por silla para equilibrio mensual">
             <TextBlock Text="{Binding PrecioSugeridoPorSilla}"
                        TextWrapping="Wrap" />
         </GroupBox>
-        <GroupBox Grid.Row="10" Padding="12" Header="Movimientos del día">
+        <GroupBox Grid.Row="12" Padding="12" Header="Movimientos del día">
           <Grid>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <WrapPanel Margin="0,0,0,8" HorizontalAlignment="Right"><DatePicker Width="155" Margin="0,0,8,0" SelectedDate="{Binding MovementQueryDate}" /><Button Padding="12,6" Command="{Binding ConsultDailyMovementsCommand}" Content="Consultar" /></WrapPanel>
             <StackPanel Grid.Row="1">
               <TextBlock Margin="0,0,0,6" Foreground="#5B6575" Text="{Binding DailyMovementsStatus}" />
-              <DataGrid MinHeight="180" MaxHeight="320" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding DailyMovements}"><DataGrid.Columns><DataGridTextColumn Width="80" Header="Hora" Binding="{Binding Time}" /><DataGridTextColumn Width="140" Header="Módulo" Binding="{Binding Module}" /><DataGridTextColumn Width="130" Header="Operación" Binding="{Binding Operation}" /><DataGridTextColumn Width="190" Header="Entidad" Binding="{Binding Entity}" /><DataGridTextColumn Width="300" Header="Detalle" Binding="{Binding Detail}" /><DataGridTextColumn Width="120" Header="Valor" Binding="{Binding Amount}" /><DataGridTextColumn Width="100" Header="Estado" Binding="{Binding State}" /></DataGrid.Columns></DataGrid>
+              <DataGrid x:Name="DailyMovementsGrid" MinHeight="180" MaxHeight="320" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding DailyMovements}"><DataGrid.Columns><DataGridTextColumn Width="80" Header="Hora" Binding="{Binding Time}" /><DataGridTextColumn Width="140" Header="Módulo" Binding="{Binding Module}" /><DataGridTextColumn Width="130" Header="Operación" Binding="{Binding Operation}" /><DataGridTextColumn Width="190" Header="Entidad" Binding="{Binding Entity}" /><DataGridTextColumn Width="300" ElementStyle="{StaticResource WrappingCellText}" Header="Detalle" Binding="{Binding Detail}" /><DataGridTextColumn Width="120" Header="Valor" Binding="{Binding Amount}" /><DataGridTextColumn Width="100" Header="Estado" Binding="{Binding State}" /></DataGrid.Columns></DataGrid>
             </StackPanel>
           </Grid>
         </GroupBox>

@@ -1336,7 +1336,8 @@ public sealed partial class AdministrationViewModel(
                 break;
             case LocalUsePayment payment:
                 AdministrationData localData = await service.LoadAsync();
-                Money available = WeeklyChargeCalculator.CalculateDebt(
+                Money available = DailyChargeCalculator.CalculateDebt(
+                    localData.DailyCharges.Where(item => item.PersonId == payment.PersonId),
                     localData.WeeklyCharges.Where(item => item.PersonId == payment.PersonId),
                     localData.LocalUsePayments.Where(item => item.PersonId == payment.PersonId && item.Id != payment.Id),
                     date);
@@ -1498,7 +1499,8 @@ public sealed partial class AdministrationViewModel(
 
         foreach (LocalUsePerson person in data.LocalUsePeople)
         {
-            Money debt = WeeklyChargeCalculator.CalculateDebt(
+            Money debt = DailyChargeCalculator.CalculateDebt(
+                data.DailyCharges.Where(item => item.PersonId == person.Id),
                 data.WeeklyCharges.Where(item => item.PersonId == person.Id),
                 data.LocalUsePayments.Where(item => item.PersonId == person.Id),
                 today);
@@ -2431,6 +2433,7 @@ public sealed partial class AdministrationViewModel(
     private void PopulateAvailableYears(AdministrationData data, int currentYear)
     {
         int[] years = data.WeeklyCharges.Select(item => item.PeriodStart.Year)
+            .Concat(data.DailyCharges.Select(item => item.ChargeDate.Year))
             .Concat(data.LocalUsePayments.Select(item => item.PaymentDate.Year))
             .Concat(data.InventoryMovements.Select(item => item.Date.Year))
             .Concat(data.MonthlyPurchaseItems.Select(item => item.Month.Year))
@@ -2466,15 +2469,26 @@ public sealed partial class AdministrationViewModel(
                 .Where(item => item.PersonId == person.Id && item.DueDate <= month.LastDay)
                 .OrderBy(item => item.PeriodStart)
                 .ToArray();
-            long charged = charges.Sum(item => item.Amount.MinorUnits);
+            DailyCharge[] dailyCharges = data.DailyCharges
+                .Where(item => item.PersonId == person.Id && item.ChargeDate <= month.LastDay)
+                .OrderBy(item => item.ChargeDate)
+                .ToArray();
+            long charged = charges.Sum(item => item.Amount.MinorUnits)
+                + dailyCharges.Sum(item => item.Amount.MinorUnits);
             long paid = data.LocalUsePayments
                 .Where(item => item.PersonId == person.Id && item.PaymentDate <= month.LastDay)
                 .Sum(item => item.Amount.MinorUnits);
             long debt = Math.Max(0, charged - paid);
-            if (debt == 0 || charges.Length == 0) continue;
+            if (debt == 0 || charges.Length == 0 && dailyCharges.Length == 0) continue;
+            DateOnly rangeStart = charges.Select(item => item.PeriodStart)
+                .Concat(dailyCharges.Select(item => item.ChargeDate))
+                .Min();
+            DateOnly rangeEnd = charges.Select(item => item.PeriodEnd)
+                .Concat(dailyCharges.Select(item => item.ChargeDate))
+                .Max();
             SeatRentalDebtRows.Add(new SeatRentalDebtRow(
                 person.Name,
-                $"{charges[0].PeriodStart:yyyy-MM-dd} a {charges[^1].PeriodEnd:yyyy-MM-dd}",
+                $"{rangeStart:yyyy-MM-dd} a {rangeEnd:yyyy-MM-dd}",
                 FormatMinorUnits(debt)));
         }
     }
@@ -2576,7 +2590,7 @@ public sealed partial class AdministrationViewModel(
         IsFormVisible = true;
         (string description, string[] actions) configuration = Title switch
         {
-            LocalUseModule => ("Sillas, trabajadores, asignaciones, cuotas semanales y pagos.", ["Añadir silla", "Añadir trabajador", "Registrar pago", "Asignar o cambiar silla", "Retirar silla"]),
+            LocalUseModule => ("Sillas, trabajadores, asignaciones, cargos diarios de lunes a sábado y pagos.", ["Añadir silla", "Añadir trabajador", "Registrar pago", "Asignar o cambiar silla", "Retirar silla"]),
             CollaboratorsModule => ("Participantes de los cierres mensuales; no constituye nómina laboral.", ["Agregar colaborador"]),
             SalesModule => ("Ventas de productos del local. Selecciona el producto por nombre.", ["Registrar venta"]),
             InventoryModule => ("Compras de productos planificados en la Lista mensual.", ["Registrar compra"]),

@@ -210,14 +210,16 @@ public sealed class CsvDataManagementService(
 
     private static string BuildDebts(AdministrationData data, string currency)
     {
-        var csv = new CsvBuilder("Persona", "Moneda", "Cuotas generadas", "Pagos", "Deuda");
+        var csv = new CsvBuilder("Persona", "Moneda", "Cargos generados", "Pagos", "Deuda");
         foreach (LocalUsePerson person in data.LocalUsePeople)
         {
             WeeklyCharge[] charges = data.WeeklyCharges.Where(item => item.PersonId == person.Id).ToArray();
+            DailyCharge[] dailyCharges = data.DailyCharges.Where(item => item.PersonId == person.Id).ToArray();
             LocalUsePayment[] payments = data.LocalUsePayments.Where(item => item.PersonId == person.Id).ToArray();
-            long charged = charges.Sum(item => item.Amount.MinorUnits);
+            long charged = charges.Sum(item => item.Amount.MinorUnits)
+                + dailyCharges.Sum(item => item.Amount.MinorUnits);
             long paid = payments.Sum(item => item.Amount.MinorUnits);
-            csv.Add(person.Name, currency, Decimal(charged), Decimal(paid), Decimal(charged - paid));
+            csv.Add(person.Name, currency, Decimal(charged), Decimal(paid), Decimal(Math.Max(charged - paid, 0)));
         }
 
         return csv.ToString();

@@ -17,13 +17,17 @@ public sealed class SaveSettingsUseCase(
         ArgumentNullException.ThrowIfNull(request);
 
         GeneralSettings settings = await repository.GetAsync(cancellationToken);
-        Money weeklyUsageFee = Money.FromDecimal(request.WeeklyUsageFee);
+        Money dailyUsageFee = Money.FromDecimal(request.DailyUsageFee);
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
-        WeeklyRate? newRate = settings.WeeklyUsageFee == weeklyUsageFee
+        DailyRate? newRate = settings.DailyUsageFee == dailyUsageFee
             ? null
-            : WeeklyRate.Create(DateOnly.FromDateTime(utcNow), weeklyUsageFee, utcNow);
+            : DailyRate.Create(
+                DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+                utcNow,
+                dailyUsageFee,
+                utcNow);
         settings.Update(
-            weeklyUsageFee,
+            dailyUsageFee,
             Percentage.FromPercent(request.CollaboratorProfitPercent),
             settings.TotalChairs,
             request.ExportDirectory,
@@ -31,11 +35,11 @@ public sealed class SaveSettingsUseCase(
 
         if (string.IsNullOrWhiteSpace(completedDraftKey))
         {
-            await administrationRepository.SaveSettingsAndRateAsync(settings, newRate, cancellationToken);
+            await administrationRepository.SaveSettingsAndDailyRateAsync(settings, newRate, cancellationToken);
         }
         else
         {
-            await administrationRepository.SaveSettingsAndRateCompletingDraftAsync(
+            await administrationRepository.SaveSettingsAndDailyRateCompletingDraftAsync(
                 settings, newRate, completedDraftKey, cancellationToken);
         }
         return SettingsMapper.ToDto(settings);

@@ -17,14 +17,22 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <StartupObject>PeluqueriaAdmin.App.App</StartupObject>
-    <Version>0.2.0-alpha.1</Version>
+    <Version>0.2.0-alpha.2</Version>
     <AssemblyVersion>0.2.0.0</AssemblyVersion>
-    <FileVersion>0.2.0.0</FileVersion>
+    <FileVersion>0.2.0.2</FileVersion>
+    <InformationalVersion>0.2.0-alpha.2</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <ApplicationIcon>Assets\kv-logo.ico</ApplicationIcon>
+    <AssemblyTitle>Peluquería Admin</AssemblyTitle>
+    <Product>Peluquería Admin K&amp;V</Product>
+    <Company>K&amp;V Barber &amp; Beauty</Company>
+    <Description>Administración local de K&amp;V Barber &amp; Beauty</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <ApplicationDefinition Remove="App.xaml" />
     <Page Include="App.xaml" />
+    <Resource Include="Assets\kv-logo.ico" />
   </ItemGroup>
 
 </Project>

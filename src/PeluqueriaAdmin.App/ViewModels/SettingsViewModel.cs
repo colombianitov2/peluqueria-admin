@@ -155,6 +155,7 @@ public sealed partial class SettingsViewModel(
         try
         {
             SettingsDto settings = await saveSettings.ExecuteAsync(request, completedDraftKey: SettingsDraftKey);
+            administrationService.NotifyDataChanged();
             trackingEnabled = false;
             Apply(settings);
             trackingEnabled = true;
@@ -350,6 +351,7 @@ public sealed partial class SettingsViewModel(
             await autosaveLock.WaitAsync(cancellationToken);
             autosaveLock.Release();
             SettingsDto settings = await saveSettings.ExecuteAsync(request, cancellationToken, SettingsDraftKey);
+            administrationService.NotifyDataChanged();
             trackingEnabled = false;
             Apply(settings);
             trackingEnabled = true;
@@ -667,7 +669,7 @@ public sealed partial class SettingsViewModel(
         bool weeklyFeeIsValid = TryParseDecimal(WeeklyUsageFee, out decimal weeklyFee);
         if (!weeklyFeeIsValid)
         {
-            errors.Add("El valor semanal debe ser un número válido.");
+            errors.Add("La tarifa diaria debe ser un número válido.");
         }
 
         bool profitIsValid = TryParseDecimal(CollaboratorProfitPercent, out decimal profit);

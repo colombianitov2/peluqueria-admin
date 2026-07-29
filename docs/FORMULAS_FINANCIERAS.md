@@ -5,21 +5,28 @@ Todas las operaciones monetarias usan unidades menores enteras. Los redondeos ne
 ## Uso del local
 
 ```text
-deuda acumulada = máximo(suma de cuotas generadas - suma de pagos válidos, 0)
-saldo a favor = máximo(suma de pagos válidos - suma de cuotas generadas, 0)
+cargo de un día = tarifa diaria histórica del día, si es lunes-sábado,
+                  el trabajador está vigente y tiene silla asignada; en otro caso 0
+deuda acumulada = máximo(suma de cargos diarios y cuotas históricas legado
+                          - suma de pagos válidos, 0)
+saldo a favor = máximo(suma de pagos válidos
+                        - suma de cargos diarios y cuotas históricas legado, 0)
 ```
 
-Al ingresar la deuda es cero. La primera cuota se causa tras siete días completos y vence el primer sábado igual o posterior al final del periodo. Los periodos siguientes avanzan siete días desde la fecha de ingreso; registrar un pago nunca reinicia ese ciclo. No se cobra un periodo incompleto y cada cuota ya causada conserva su tarifa histórica. Las cuotas futuras usan la tarifa vigente al inicio de cada periodo.
+Cada cargo usa la tarifa exacta vigente en su fecha y vence el sábado de esa semana. El domingo no genera cargo, no consume saldo y no se prorratea. Cambiar la tarifa crea una vigencia nueva; nunca recalcula cargos, meses o años históricos.
 
-Se permite cualquier pago positivo, incluso con deuda cero. El pago se aplica primero a las cuotas causadas más antiguas. El excedente queda como saldo a favor y cubre automáticamente las próximas cuotas, por trabajador y sin mezclar cuentas. La proyección avanza hasta la primera cuota que el crédito no cubre completamente e informa en un solo dato la fecha y el importe del próximo pago requerido, además de la última fecha cubierta. Eliminar lógicamente al trabajador detiene las cuotas futuras, pero conserva su crédito e historial; esta fase no implementa devoluciones.
+Se permite cualquier pago positivo, incluso con deuda cero. El pago se aplica primero a los cargos causados más antiguos. El excedente queda como saldo a favor y cubre automáticamente los siguientes días cobrables con la tarifa histórica prevista para cada fecha. La proyección avanza por semanas de lunes a sábado hasta el primer sábado que el crédito no cubre completamente. Retirar la silla o eliminar lógicamente al trabajador detiene cargos futuros, pero conserva crédito e historial.
 
 ## Precio sugerido por silla
 
 ```text
 monto por cubrir = máximo(0, punto de equilibrio mensual completo
                             - ventas y otros ingresos esperados)
-precio mensual por silla = monto por cubrir ÷ sillas ocupadas vigentes
-precio semanal sugerido = precio mensual × 12 ÷ 52
+días-silla cobrables = suma de lunes-sábado con trabajador y asignación vigentes
+tarifa diaria sugerida = monto por cubrir ÷ días-silla cobrables
+ingreso proyectado por sillas = suma de la tarifa diaria prevista de cada día-silla
+precio mensual equivalente por silla = tarifa diaria sugerida ×
+                                       días cobrables de la silla en el mes
 ```
 
 Los pagos actuales por uso del local no se restan porque crearían una fórmula circular. Sin sillas ocupadas no se divide entre cero. Los gastos recurrentes configurados ya forman parte del punto de equilibrio, por lo que no se vuelven a sumar.

@@ -15,7 +15,7 @@ Las compilaciones preliminares consultan también GitHub prereleases. Las versio
 
 ## Publicación deliberada
 
-El workflow `.github/workflows/release.yml` solo se activa al empujar una etiqueta `v*` que contenga una versión SemVer válida, por ejemplo `v0.2.0-alpha.1`. El job:
+El workflow `.github/workflows/release.yml` solo se activa al empujar una etiqueta `v*` que contenga una versión SemVer válida, por ejemplo `v0.2.0-alpha.2`. El job:
 
 1. restaura paquetes;
 2. verifica formato;
@@ -34,10 +34,11 @@ La alpha no tiene firma. Windows SmartScreen puede mostrar una advertencia. El C
 
 ## Verificación y límites
 
-La versión `0.2.0-alpha.1` se publica como preliminar para instalar y verificar la migración desde
-`0.1.0-alpha.1`. La prueba posterior de actualización automática entre dos Releases se realizará con
-una versión distinta que incorpore el logotipo K&amp;V; no debe considerarse aprobada antes de ejecutar
-ese salto real. Windows 10 x64 sigue siendo compatibilidad objetivo, no comprobada físicamente.
+La versión `0.2.0-alpha.2` es preliminar y actualiza `0.2.0-alpha.1` mediante el feed público de
+Velopack. Incluye el logotipo K&amp;V y la migración aditiva Fase 5.2. La prueba solo se declara
+aprobada después de buscar, descargar, instalar y reiniciar desde Ajustes, verificar la misma ruta
+de datos y repetir integridad, claves foráneas, migraciones y conteos. Windows 10 x64 sigue siendo
+compatibilidad objetivo, no comprobada físicamente.
 
 Fuentes oficiales consultadas:
 

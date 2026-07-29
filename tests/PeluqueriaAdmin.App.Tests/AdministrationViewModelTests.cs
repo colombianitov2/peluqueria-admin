@@ -558,7 +558,7 @@ public sealed class AdministrationViewModelTests
         AdministrationData paid =
             await service.LoadAsync(cancellationToken);
         Assert.Single(paid.LocalUsePayments);
-        Assert.Matches(@"974[,.]29", viewModel.ProfileCredit);
+        Assert.Matches(@"1[.]?000[,.]00", viewModel.ProfileCredit);
         Assert.Equal(string.Empty, viewModel.PaymentAmount);
         Assert.Equal(string.Empty, viewModel.PaymentDescription);
         Assert.Equal(UtcNow.Date, viewModel.PaymentDate?.Date);
@@ -566,7 +566,7 @@ public sealed class AdministrationViewModelTests
             viewModel.WorkerHistoryRows,
             item => item.Principal == "Pago registrado");
 
-        Assert.Matches(@"974[,.]29", viewModel.ProfileCredit);
+        Assert.Matches(@"1[.]?000[,.]00", viewModel.ProfileCredit);
         Assert.Single(
             (await service.LoadAsync(cancellationToken))
             .LocalUsePayments);
@@ -636,13 +636,15 @@ public sealed class AdministrationViewModelTests
             new DateOnly(2026, 6, 16),
             historical.EntryDate);
         Assert.Equal(
-            5_657,
-            WeeklyChargeCalculator.CalculateDebt(
-                data.WeeklyCharges.Where(
-                    item => item.PersonId == historical.Id),
-                data.LocalUsePayments.Where(
-                    item => item.PersonId == historical.Id),
-                today).MinorUnits);
+            0,
+            DailyChargeCalculator.CalculateAccount(
+                historical,
+                data.DailyCharges.Where(item => item.PersonId == historical.Id),
+                data.WeeklyCharges.Where(item => item.PersonId == historical.Id),
+                data.LocalUsePayments.Where(item => item.PersonId == historical.Id),
+                data.DailyRates,
+                data.ChairAssignmentPeriods,
+                today).Debt.MinorUnits);
         Assert.Equal(
             today.ToDateTime(TimeOnly.MinValue),
             viewModel.ActionDate);
@@ -696,13 +698,20 @@ public sealed class AdministrationViewModelTests
             repository,
             settingsRepository,
             timeProvider);
-        LocalUsePerson worker = LocalUsePerson.Create(
-            "Trabajador con cuota inicial proporcional",
+        Chair chair = Chair.Create(
+            "Silla para cobro diario",
             new DateOnly(2026, 6, 16),
             null,
             reviewUtc);
-        await service.AddLocalUsePersonAsync(
+        await service.AddChairAsync(chair, cancellationToken);
+        LocalUsePerson worker = LocalUsePerson.Create(
+            "Trabajador con cargos diarios",
+            new DateOnly(2026, 6, 16),
+            null,
+            reviewUtc);
+        await service.AddLocalUsePersonWithChairAsync(
             worker,
+            chair.Id,
             today,
             cancellationToken);
         var viewModel = new LocalUseViewModel(
@@ -717,10 +726,15 @@ public sealed class AdministrationViewModelTests
         Assert.Equal(
             "Todo el historial",
             viewModel.SelectedWorkerHistoryPeriod);
-        Assert.Matches(@"56[,.]57", viewModel.ProfileDebt);
+        Assert.Matches(@"360[,.]00", viewModel.ProfileDebt);
         viewModel.SelectedWorkerHistoryPeriod = "Esta semana";
         await viewModel.RefreshCommand.ExecuteAsync(null);
-        Assert.Empty(viewModel.WorkerHistoryRows);
+        Assert.DoesNotContain(
+            viewModel.WorkerHistoryRows,
+            item => item.Principal == "Pago registrado");
+        Assert.Contains(
+            viewModel.WorkerHistoryRows,
+            item => item.Principal == "Cargo diario generado");
         viewModel.PaymentDate = new DateTime(2026, 7, 19);
         viewModel.PaymentAmount = "12";
         viewModel.PaymentDescription = "Pago del domingo";
@@ -730,12 +744,12 @@ public sealed class AdministrationViewModelTests
         Assert.Equal(
             "Todo el historial",
             viewModel.SelectedWorkerHistoryPeriod);
-        Assert.Matches(@"44[,.]57", viewModel.ProfileDebt);
+        Assert.Matches(@"348[,.]00", viewModel.ProfileDebt);
         Assert.Contains(
-            "2026-06-27",
+            "2026-06-20",
             viewModel.ProfileNextRequiredPayment,
             StringComparison.Ordinal);
-        Assert.Matches(@"8[,.]57", viewModel.ProfileNextRequiredPayment);
+        Assert.Matches(@"348[,.]00", viewModel.ProfileNextRequiredPayment);
         OperationRow payment = Assert.Single(
             viewModel.WorkerHistoryRows,
             item => item.Principal == "Pago registrado");
@@ -819,7 +833,13 @@ public sealed class AdministrationViewModelTests
                 Active<MonthlyClose>(), Active<MonthlyCloseParticipant>(), Active<DistributionPayment>(),
                 Active<Chair>(), Active<PeluqueriaAdmin.Domain.Activity.ActivityRecord>(), Active<UnofficialExpense>(),
                 Active<CollaboratorContribution>(), Active<FinancialReserve>(), Active<FinancialCloseExclusion>(),
-                Active<MonthlyPurchaseItem>(), Active<Loan>(), Active<LoanPayment>(), Active<AnnualClose>()));
+                Active<MonthlyPurchaseItem>(), Active<Loan>(), Active<LoanPayment>(), Active<AnnualClose>())
+            {
+                DailyRates = Active<DailyRate>(),
+                DailyCharges = Active<DailyCharge>(),
+                ChairAssignmentPeriods = Active<ChairAssignmentPeriod>(),
+                FinancialEvents = Active<FinancialEvent>(),
+            });
 
         public Task SaveAsync(
             IReadOnlyCollection<AuditableEntity> additions,
@@ -855,6 +875,22 @@ public sealed class AdministrationViewModelTests
             string completedDraftKey,
             CancellationToken cancellationToken = default) =>
             SaveSettingsAndRateAsync(settings, newRate, cancellationToken);
+
+        public Task SaveSettingsAndDailyRateAsync(
+            GeneralSettings settings,
+            DailyRate? newRate,
+            CancellationToken cancellationToken = default)
+        {
+            if (newRate is not null) entities.Add(newRate);
+            return Task.CompletedTask;
+        }
+
+        public Task SaveSettingsAndDailyRateCompletingDraftAsync(
+            GeneralSettings settings,
+            DailyRate? newRate,
+            string completedDraftKey,
+            CancellationToken cancellationToken = default) =>
+            SaveSettingsAndDailyRateAsync(settings, newRate, cancellationToken);
 
         private T[] Active<T>() where T : AuditableEntity => entities.OfType<T>()
             .Where(item => !item.IsDeleted)

@@ -7,4 +7,7 @@ public sealed record SettingsDto(
     string CurrencyCode,
     string ExportDirectory,
     DateTime CreatedUtc,
-    DateTime UpdatedUtc);
+    DateTime UpdatedUtc)
+{
+    public decimal DailyUsageFee => WeeklyUsageFee;
+}

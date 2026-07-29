@@ -73,22 +73,17 @@ public sealed class AdvancePaymentPersistenceTests
             Assert.Equal(
                 new DateOnly(2026, 6, 16),
                 reloadedHistorical.EntryDate);
-            Assert.Equal(
-                0,
-                WeeklyChargeCalculator.CalculateDebt(
-                    reloaded.WeeklyCharges.Where(
-                        item => item.PersonId == current.Id),
-                    reloaded.LocalUsePayments.Where(
-                        item => item.PersonId == current.Id),
-                    today).MinorUnits);
-            Assert.Equal(
-                5_657,
-                WeeklyChargeCalculator.CalculateDebt(
-                    reloaded.WeeklyCharges.Where(
-                        item => item.PersonId == historical.Id),
-                    reloaded.LocalUsePayments.Where(
-                        item => item.PersonId == historical.Id),
-                    today).MinorUnits);
+            Assert.Equal(0, DailyChargeCalculator.CalculateDebt(
+                reloaded.DailyCharges.Where(item => item.PersonId == current.Id),
+                reloaded.WeeklyCharges.Where(item => item.PersonId == current.Id),
+                reloaded.LocalUsePayments.Where(item => item.PersonId == current.Id),
+                today).MinorUnits);
+            Assert.Equal(0, DailyChargeCalculator.CalculateDebt(
+                reloaded.DailyCharges.Where(item => item.PersonId == historical.Id),
+                reloaded.WeeklyCharges.Where(item => item.PersonId == historical.Id),
+                reloaded.LocalUsePayments.Where(item => item.PersonId == historical.Id),
+                today).MinorUnits);
+            Assert.Empty(reloaded.DailyCharges);
         }
         finally
         {
@@ -130,18 +125,20 @@ public sealed class AdvancePaymentPersistenceTests
             AdministrationData reloaded = await restartedRepository.LoadAsync(cancellationToken);
             LocalUsePayment payment = Assert.Single(reloaded.LocalUsePayments);
             LocalUsePerson reloadedWorker = Assert.Single(reloaded.LocalUsePeople);
-            WorkerAccountBalance account = WeeklyChargeCalculator.CalculateAccount(
+            WorkerAccountBalance account = DailyChargeCalculator.CalculateAccount(
                 reloadedWorker,
+                reloaded.DailyCharges,
                 reloaded.WeeklyCharges,
                 reloaded.LocalUsePayments,
-                reloaded.WeeklyRates,
+                reloaded.DailyRates,
+                reloaded.ChairAssignmentPeriods,
                 today);
 
             Assert.Equal(worker.Id, payment.PersonId);
             Assert.Equal(100_000, payment.Amount.MinorUnits);
             Assert.Equal("Pago anticipado", payment.Description);
             Assert.Equal(100_000, account.Credit.MinorUnits);
-            Assert.Equal(800, account.NextRequiredPaymentAmount?.MinorUnits);
+            Assert.Null(account.NextRequiredPaymentAmount);
         }
         finally
         {
@@ -191,14 +188,21 @@ public sealed class AdvancePaymentPersistenceTests
                 entry,
                 null,
                 clock.GetUtcNow().UtcDateTime);
-            await service.AddLocalUsePersonAsync(
+            Chair chair = Chair.Create(
+                "Silla 1",
+                entry,
+                null,
+                clock.GetUtcNow().UtcDateTime);
+            await service.AddChairAsync(chair, cancellationToken);
+            await service.AddLocalUsePersonWithChairAsync(
                 worker,
+                chair.Id,
                 entry,
                 cancellationToken);
             await service.RegisterLocalUsePaymentAsync(
                 worker.Id,
                 entry,
-                Money.FromDecimal(30m),
+                Money.FromDecimal(300m),
                 cancellationToken);
 
             clock.AdvanceDays(7);
@@ -209,13 +213,15 @@ public sealed class AdvancePaymentPersistenceTests
                     afterOneWeek,
                     cancellationToken);
             WorkerAccountBalance first =
-                WeeklyChargeCalculator.CalculateAccount(
+                DailyChargeCalculator.CalculateAccount(
                     worker,
+                    weekOne.DailyCharges,
                     weekOne.WeeklyCharges,
                     weekOne.LocalUsePayments,
-                    weekOne.WeeklyRates,
+                    weekOne.DailyRates,
+                    weekOne.ChairAssignmentPeriods,
                     afterOneWeek);
-            Assert.Equal(2_314, first.Credit.MinorUnits);
+            Assert.Equal(21_600, first.Credit.MinorUnits);
             Assert.Equal(0, first.Debt.MinorUnits);
 
             clock.AdvanceDays(14);
@@ -226,16 +232,16 @@ public sealed class AdvancePaymentPersistenceTests
                     afterThreeWeeks,
                     cancellationToken);
             WorkerAccountBalance partial =
-                WeeklyChargeCalculator.CalculateAccount(
+                DailyChargeCalculator.CalculateAccount(
                     worker,
+                    weekThree.DailyCharges,
                     weekThree.WeeklyCharges,
                     weekThree.LocalUsePayments,
-                    weekThree.WeeklyRates,
+                    weekThree.DailyRates,
+                    weekThree.ChairAssignmentPeriods,
                     afterThreeWeeks);
-            Assert.Equal(0, partial.Credit.MinorUnits);
-            Assert.Equal(86, partial.Debt.MinorUnits);
-            Assert.Equal(86,
-                partial.NextRequiredPaymentAmount?.MinorUnits);
+            Assert.Equal(7_200, partial.Credit.MinorUnits);
+            Assert.Equal(0, partial.Debt.MinorUnits);
 
             SqliteConnection.ClearAllPools();
             var restarted = new AdministrationService(
@@ -249,12 +255,13 @@ public sealed class AdvancePaymentPersistenceTests
                     afterThreeWeeks,
                     cancellationToken);
             Assert.Equal(
-                3,
-                afterRestart.WeeklyCharges.Count(
+                19,
+                afterRestart.DailyCharges.Count(
                     item => item.PersonId == worker.Id));
             Assert.Equal(
-                86,
-                WeeklyChargeCalculator.CalculateDebt(
+                0,
+                DailyChargeCalculator.CalculateDebt(
+                    afterRestart.DailyCharges,
                     afterRestart.WeeklyCharges,
                     afterRestart.LocalUsePayments,
                     afterThreeWeeks).MinorUnits);

@@ -38,6 +38,14 @@ public sealed record AdministrationData(
     IReadOnlyList<AnnualClose> AnnualCloses,
     IReadOnlyList<AnnualCarryover> AnnualCarryovers)
 {
+    public IReadOnlyList<DailyRate> DailyRates { get; init; } = [];
+
+    public IReadOnlyList<DailyCharge> DailyCharges { get; init; } = [];
+
+    public IReadOnlyList<ChairAssignmentPeriod> ChairAssignmentPeriods { get; init; } = [];
+
+    public IReadOnlyList<FinancialEvent> FinancialEvents { get; init; } = [];
+
     public AdministrationData(
         IReadOnlyList<LocalUsePerson> localUsePeople,
         IReadOnlyList<WeeklyRate> weeklyRates,

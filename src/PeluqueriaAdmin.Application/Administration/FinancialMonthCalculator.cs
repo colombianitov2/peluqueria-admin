@@ -354,7 +354,10 @@ public static class FinancialMonthCalculator
         {
             long charges = data.WeeklyCharges
                 .Where(item => item.PersonId == person.Id && item.DueDate <= end)
-                .Sum(item => item.Amount.MinorUnits);
+                .Sum(item => item.Amount.MinorUnits)
+                + data.DailyCharges
+                    .Where(item => item.PersonId == person.Id && item.ChargeDate <= end)
+                    .Sum(item => item.Amount.MinorUnits);
             long payments = data.LocalUsePayments
                 .Where(item => item.PersonId == person.Id && item.PaymentDate <= end)
                 .Sum(item => item.Amount.MinorUnits);
