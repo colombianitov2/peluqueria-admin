@@ -203,7 +203,10 @@ public sealed class MigrationPreservationTests
                 Assert.True(
                     await context.LocalUsePeople.AnyAsync(
                         cancellationToken));
-                Assert.True(
+                GeneralSettings migratedSettings =
+                    await context.Settings.SingleAsync(cancellationToken);
+                Assert.True(migratedSettings.IsDailyUsageFeePendingConfirmation);
+                Assert.False(
                     await context.DailyRates.AnyAsync(
                         cancellationToken));
                 Assert.False(await context.WeeklyCharges.AnyAsync(cancellationToken));

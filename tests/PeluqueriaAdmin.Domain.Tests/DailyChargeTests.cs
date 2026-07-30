@@ -79,6 +79,49 @@ public sealed class DailyChargeTests
     }
 
     [Fact]
+    public void UnconfiguredRate_GeneratesNoHistoryOrCharges()
+    {
+        DateOnly monday = new(2026, 7, 27);
+        LocalUsePerson person = LocalUsePerson.Create("Sin tarifa", monday, null, UtcNow);
+        Chair chair = Chair.Create("Silla", monday, null, UtcNow);
+        ChairAssignmentPeriod assignment =
+            ChairAssignmentPeriod.Create(chair.Id, person.Id, monday, UtcNow);
+
+        IReadOnlyList<DailyCharge> charges = DailyChargeCalculator.Generate(
+            person, [], [], [assignment], monday.AddDays(5), UtcNow);
+        WorkerAccountBalance account = DailyChargeCalculator.CalculateAccount(
+            person, charges, [], [], [], [assignment], monday);
+
+        Assert.Empty(charges);
+        Assert.Null(account.CurrentDailyRate);
+        Assert.Null(account.NextChargeDate);
+        Assert.Null(account.NextChargeAmount);
+    }
+
+    [Fact]
+    public void FirstExplicitRate_DoesNotApplyToEarlierDates()
+    {
+        DateOnly monday = new(2026, 7, 27);
+        DateOnly wednesday = monday.AddDays(2);
+        LocalUsePerson person = LocalUsePerson.Create("Inicio explícito", monday, null, UtcNow);
+        Chair chair = Chair.Create("Silla", monday, null, UtcNow);
+        ChairAssignmentPeriod assignment =
+            ChairAssignmentPeriod.Create(chair.Id, person.Id, monday, UtcNow);
+        DailyRate rate = DailyRate.Create(
+            wednesday,
+            UtcNow.AddDays(2),
+            Money.FromDecimal(10m),
+            UtcNow.AddDays(2));
+
+        IReadOnlyList<DailyCharge> charges = DailyChargeCalculator.Generate(
+            person, [], [rate], [assignment], monday.AddDays(5), UtcNow.AddDays(5));
+
+        Assert.Equal(
+            [wednesday, wednesday.AddDays(1), wednesday.AddDays(2), wednesday.AddDays(3)],
+            charges.Select(item => item.ChargeDate).ToArray());
+    }
+
+    [Fact]
     public void MidweekRateChange_PreservesEarlierDailyAmounts()
     {
         DateOnly monday = new(2026, 7, 27);
@@ -159,7 +202,8 @@ public sealed class DailyChargeTests
             person, charges, [], [payment], [rate], [assignment], tuesday);
 
         Assert.Equal(200m, account.Credit.ToDecimal());
-        Assert.Equal(new DateOnly(2026, 8, 8), account.NextChargeDate);
+        Assert.Equal(new DateOnly(2026, 8, 1), account.NextChargeDate);
+        Assert.Equal(300m, account.NextChargeAmount?.ToDecimal());
         Assert.Equal(new DateOnly(2026, 8, 8), account.NextRequiredPaymentDate);
         Assert.Equal(300m, account.NextRequiredPaymentAmount?.ToDecimal());
         Assert.NotEqual(DayOfWeek.Sunday, account.CoveredThroughDate?.DayOfWeek);

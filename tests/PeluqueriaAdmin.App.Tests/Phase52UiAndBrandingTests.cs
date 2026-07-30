@@ -10,16 +10,11 @@ public sealed class Phase52UiAndBrandingTests
     {
         string home = RepositoryFiles.Read(
             "src", "PeluqueriaAdmin.App", "Views", "HomeView.xaml");
-        string styles = RepositoryFiles.Read(
-            "src", "PeluqueriaAdmin.App", "App.xaml");
-
+        Assert.Contains("CanUserResizeRows=\"False\"", home, StringComparison.Ordinal);
         Assert.DoesNotContain("RowHeight=", home, StringComparison.Ordinal);
-        Assert.Contains(
-            "ElementStyle=\"{StaticResource WrappingCellText}\" Header=\"Detalle\"",
-            home,
-            StringComparison.Ordinal);
-        Assert.Contains("x:Key=\"WrappingCellText\"", styles, StringComparison.Ordinal);
-        Assert.Contains("TextWrapping\" Value=\"Wrap\"", styles, StringComparison.Ordinal);
+        Assert.Contains("<DataGridTemplateColumn Width=\"300\" Header=\"Detalle\">", home, StringComparison.Ordinal);
+        Assert.Contains("TextTrimming=\"None\"", home, StringComparison.Ordinal);
+        Assert.Contains("TextWrapping=\"Wrap\"", home, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -71,9 +66,11 @@ public sealed class Phase52UiAndBrandingTests
         Assert.Contains("Próximo cobro", localUse, StringComparison.Ordinal);
         Assert.Contains("domingo no consume saldo", localUse, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(
-            "Tarifa diaria general por uso del local (USD)",
+            "Valor diario general por uso del local (USD)",
             settings,
             StringComparison.Ordinal);
+        Assert.Contains("Confirmar tarifa diaria", settings, StringComparison.Ordinal);
+        Assert.Contains("DailyUsageFeePendingNotice", settings, StringComparison.Ordinal);
         Assert.DoesNotContain("periodos completos de siete días", localUse, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("administrationService.NotifyDataChanged();", settingsViewModel);
     }

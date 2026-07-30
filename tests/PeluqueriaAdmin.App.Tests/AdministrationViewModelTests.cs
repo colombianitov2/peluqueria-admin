@@ -693,6 +693,14 @@ public sealed class AdministrationViewModelTests
             new(2026, 7, 20, 12, 0, 0, DateTimeKind.Utc);
         DateOnly today = new(2026, 7, 20);
         var repository = new FakeAdministrationRepository();
+        await repository.SaveAsync(
+            [DailyRate.Create(
+                new DateOnly(2026, 1, 1),
+                reviewUtc,
+                Money.FromDecimal(12m),
+                reviewUtc)],
+            [],
+            cancellationToken);
         var settingsRepository = new FakeSettingsRepository(
             GeneralSettings.CreateDefault(reviewUtc));
         var timeProvider =

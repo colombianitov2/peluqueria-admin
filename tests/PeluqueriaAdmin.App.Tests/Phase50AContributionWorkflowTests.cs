@@ -62,7 +62,7 @@ public sealed class Phase50AContributionWorkflowTests
                 && item.Amount.MinorUnits == 3_550
                 && item.Description == "Segundo aporte corregido");
         Assert.Contains(context.ViewModel.HistoryRows,
-            row => row.Principal == "Aporte original"
+            row => row.Principal == "Aporte agregado"
                 && row.Entity is CollaboratorContributionEvent original
                 && original.ContributionId == context.SecondContribution.Id);
         Assert.Contains(context.ViewModel.HistoryRows,

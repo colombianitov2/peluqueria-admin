@@ -7,13 +7,14 @@ public sealed class GeneralSettingsTests
     private static readonly DateTime UtcNow = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public void CreateDefault_UsesApprovedExactValues()
+    public void CreateDefault_LeavesDailyRateUnconfigured()
     {
         GeneralSettings settings = GeneralSettings.CreateDefault(UtcNow);
 
         Assert.Equal(GeneralSettings.SingletonId, settings.Id);
-        Assert.Equal(1_200, settings.WeeklyUsageFee.MinorUnits);
-        Assert.Equal(12.00m, settings.WeeklyUsageFee.ToDecimal());
+        Assert.Null(settings.WeeklyUsageFee);
+        Assert.False(settings.IsDailyUsageFeeConfirmed);
+        Assert.False(settings.IsDailyUsageFeePendingConfirmation);
         Assert.Equal(2_000, settings.CollaboratorProfit.BasisPoints);
         Assert.Equal(20.00m, settings.CollaboratorProfit.ToPercent());
         Assert.Equal(0, settings.OptionalSuppliesMonthlyBudget.MinorUnits);
@@ -21,6 +22,24 @@ public sealed class GeneralSettingsTests
         Assert.Equal("USD", settings.CurrencyCode.Value);
         Assert.Equal(UtcNow, settings.CreatedUtc);
         Assert.Equal(UtcNow, settings.UpdatedUtc);
+    }
+
+    [Fact]
+    public void ExplicitZero_IsConfiguredAndDifferentFromEmpty()
+    {
+        GeneralSettings settings = GeneralSettings.CreateDefault(UtcNow);
+
+        settings.Update(
+            Money.FromDecimal(0m),
+            isDailyUsageFeeConfirmed: true,
+            Percentage.FromPercent(20m),
+            0,
+            string.Empty,
+            UtcNow.AddMinutes(1));
+
+        Assert.Equal(0, settings.DailyUsageFee?.MinorUnits);
+        Assert.True(settings.IsDailyUsageFeeConfirmed);
+        Assert.False(settings.IsDailyUsageFeePendingConfirmation);
     }
 
     [Fact]
@@ -82,7 +101,7 @@ public sealed class GeneralSettingsTests
             CurrencyCode.From("COP"),
             UtcNow.AddMinutes(1));
 
-        Assert.Equal(12_345, settings.WeeklyUsageFee.MinorUnits);
+        Assert.Equal(12_345, settings.WeeklyUsageFee?.MinorUnits);
         Assert.Equal(1_725, settings.CollaboratorProfit.BasisPoints);
         Assert.Equal(0, settings.OptionalSuppliesMonthlyBudget.MinorUnits);
         Assert.Equal("USD", settings.CurrencyCode.Value);
