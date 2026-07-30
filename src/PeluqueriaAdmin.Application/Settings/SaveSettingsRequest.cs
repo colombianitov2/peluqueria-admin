@@ -1,11 +1,12 @@
 namespace PeluqueriaAdmin.Application.Settings;
 
 public sealed record SaveSettingsRequest(
-    decimal WeeklyUsageFee,
+    decimal? WeeklyUsageFee,
     decimal CollaboratorProfitPercent,
-    string ExportDirectory)
+    string ExportDirectory,
+    bool ConfirmDailyUsageFee = false)
 {
-    public decimal DailyUsageFee => WeeklyUsageFee;
+    public decimal? DailyUsageFee => WeeklyUsageFee;
 
     public SaveSettingsRequest(
         decimal weeklyUsageFee,

@@ -38,6 +38,11 @@ La aplicación:
 - El dinero que estas personas cobran a sus clientes por sus servicios no pertenece al local y no se registra como ingreso del local.
 - Cada persona paga la tarifa diaria general configurada por utilizar el local durante un día cobrable.
 - La tarifa diaria constituye un valor general configurable en Ajustes, no una tarifa individual.
+- Vacío significa `Sin configurar` y no genera historial ni cargos. Cero es un valor configurado
+  válido y genera cargos diarios de USD 0.
+- Una instalación nueva no contiene tarifa diaria. El antiguo USD 12 ambiguo de una instalación
+  existente se conserva pendiente e inactivo hasta que el administrador lo confirme, lo cambie o
+  lo deje vacío; un valor heredado diferente se conserva desde la actualización hacia adelante.
 - El día habitual de pago es sábado.
 - Cada lunes, martes, miércoles, jueves, viernes o sábado genera el importe diario exacto cuando el trabajador está vigente y tiene silla asignada. El domingo no genera cargo ni consume saldo. Los cargos se acumulan y vencen el sábado; no existe división ni prorrateo.
 - Los pagos registrados reducen la deuda de cada persona.

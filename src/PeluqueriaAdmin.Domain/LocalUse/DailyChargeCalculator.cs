@@ -40,13 +40,18 @@ public static class DailyChargeCalculator
                     continue;
                 }
 
-                DailyRate rate = RateFor(orderedRates, date);
+                DailyRate? rate = RateFor(orderedRates, date);
+                if (rate?.Amount is not Money amount)
+                {
+                    continue;
+                }
+
                 result.Add(DailyCharge.Create(
                     person.Id,
                     assignment.ChairId,
                     rate.Id,
                     date,
-                    rate.Amount,
+                    amount,
                     utcNow));
                 existingDates.Add(date);
             }
@@ -86,9 +91,14 @@ public static class DailyChargeCalculator
         long debt = Math.Max(charged - paid, 0);
         long credit = Math.Max(paid - charged, 0);
         DailyRate[] orderedRates = ActiveRates(rates);
-        Money currentRate = RateFor(orderedRates, throughDate).Amount;
+        Money? currentRate = RateFor(orderedRates, throughDate)?.Amount;
 
-        DateOnly? nextChargeDate = NextChargeSaturday(person, assignments, throughDate);
+        (DateOnly? nextChargeDate, Money? nextChargeAmount) = NextCharge(
+            person,
+            currentDaily,
+            orderedRates,
+            assignments,
+            throughDate);
         if (debt > 0)
         {
             DateOnly required = OldestOutstandingDueDate(currentDaily, legacy, paid)
@@ -99,8 +109,8 @@ public static class DailyChargeCalculator
                 Money.FromMinorUnits(0),
                 Money.FromMinorUnits(charged),
                 Money.FromMinorUnits(paid),
-                required,
-                currentRate,
+                nextChargeDate,
+                nextChargeAmount,
                 required,
                 Money.FromMinorUnits(debt),
                 LastFullyCoveredDate(currentDaily, legacy, paid),
@@ -118,8 +128,8 @@ public static class DailyChargeCalculator
             Money.FromMinorUnits(credit),
             Money.FromMinorUnits(charged),
             Money.FromMinorUnits(paid),
-            projection.RequiredPaymentDate,
-            currentRate,
+            nextChargeDate,
+            nextChargeAmount,
             projection.RequiredPaymentDate,
             projection.RequiredPaymentAmount.HasValue
                 ? Money.FromMinorUnits(projection.RequiredPaymentAmount.Value)
@@ -146,9 +156,8 @@ public static class DailyChargeCalculator
 
     public static bool IsChargeableDay(DateOnly date) => date.DayOfWeek != DayOfWeek.Sunday;
 
-    public static DailyRate RateFor(IReadOnlyCollection<DailyRate> rates, DateOnly date) =>
-        ActiveRates(rates).LastOrDefault(item => item.EffectiveDate <= date)
-        ?? ActiveRates(rates)[0];
+    public static DailyRate? RateFor(IReadOnlyCollection<DailyRate> rates, DateOnly date) =>
+        ActiveRates(rates).LastOrDefault(item => item.EffectiveDate <= date);
 
     private static Projection ProjectCredit(
         LocalUsePerson person,
@@ -170,8 +179,12 @@ public static class DailyChargeCalculator
             {
                 if (IsEligible(person, assignments, candidate))
                 {
-                    weeklyAmount = checked(weeklyAmount + RateFor(rates, candidate).Amount.MinorUnits);
-                    lastChargeable = candidate;
+                    Money? amount = RateFor(rates, candidate)?.Amount;
+                    if (amount.HasValue)
+                    {
+                        weeklyAmount = checked(weeklyAmount + amount.Value.MinorUnits);
+                        lastChargeable = candidate;
+                    }
                 }
             }
 
@@ -199,9 +212,65 @@ public static class DailyChargeCalculator
         return new Projection(null, null, covered);
     }
 
+    private static (DateOnly? Date, Money? Amount) NextCharge(
+        LocalUsePerson person,
+        IReadOnlyCollection<DailyCharge> currentDaily,
+        DailyRate[] rates,
+        IReadOnlyCollection<ChairAssignmentPeriod> assignments,
+        DateOnly throughDate)
+    {
+        DateOnly? existingDueDate = currentDaily
+            .Where(item => item.DueDate >= throughDate)
+            .Select(item => (DateOnly?)item.DueDate)
+            .OrderBy(item => item)
+            .FirstOrDefault();
+        DateOnly? projectedDueDate = NextChargeSaturday(person, assignments, rates, throughDate);
+        DateOnly? dueDate = existingDueDate.HasValue
+            && (!projectedDueDate.HasValue || existingDueDate.Value <= projectedDueDate.Value)
+                ? existingDueDate
+                : projectedDueDate;
+        if (!dueDate.HasValue)
+        {
+            return (null, null);
+        }
+
+        DateOnly weekStart = dueDate.Value.AddDays(-5);
+        DailyCharge[] existing = currentDaily
+            .Where(item => item.DueDate == dueDate.Value)
+            .ToArray();
+        HashSet<DateOnly> existingDates = existing.Select(item => item.ChargeDate).ToHashSet();
+        long amountMinorUnits = existing.Sum(item => item.Amount.MinorUnits);
+        DateOnly firstProjectionDate = throughDate == DateOnly.MaxValue
+            ? throughDate
+            : throughDate.AddDays(1);
+        if (firstProjectionDate < weekStart)
+        {
+            firstProjectionDate = weekStart;
+        }
+
+        for (DateOnly date = firstProjectionDate;
+             date <= dueDate.Value;
+             date = date.AddDays(1))
+        {
+            if (existingDates.Contains(date) || !IsEligible(person, assignments, date))
+            {
+                continue;
+            }
+
+            Money? rate = RateFor(rates, date)?.Amount;
+            if (rate.HasValue)
+            {
+                amountMinorUnits = checked(amountMinorUnits + rate.Value.MinorUnits);
+            }
+        }
+
+        return (dueDate, Money.FromMinorUnits(amountMinorUnits));
+    }
+
     private static DateOnly? NextChargeSaturday(
         LocalUsePerson person,
         IReadOnlyCollection<ChairAssignmentPeriod> assignments,
+        IReadOnlyCollection<DailyRate> rates,
         DateOnly throughDate)
     {
         DateOnly horizon = person.ExitDate?.AddDays(-1)
@@ -210,7 +279,8 @@ public static class DailyChargeCalculator
                 : DateOnly.MaxValue);
         for (DateOnly date = throughDate; date <= horizon; date = date.AddDays(1))
         {
-            if (IsEligible(person, assignments, date))
+            if (IsEligible(person, assignments, date)
+                && RateFor(rates, date)?.Amount.HasValue == true)
             {
                 return DailyCharge.DueSaturday(date);
             }
@@ -277,10 +347,6 @@ public static class DailyChargeCalculator
             .OrderBy(item => item.EffectiveDate)
             .ThenBy(item => item.EffectiveFromUtc)
             .ToArray();
-        if (ordered.Length == 0)
-        {
-            throw new InvalidOperationException("Debe existir al menos una tarifa diaria.");
-        }
         return ordered;
     }
 

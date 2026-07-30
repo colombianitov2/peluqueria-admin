@@ -79,6 +79,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
+        AddConfiguredDailyRate(repository);
         var settingsRepository = new FakeSettingsRepository(
             GeneralSettings.CreateDefault(UtcNow));
         var service = CreateService(repository, settingsRepository);
@@ -124,6 +125,7 @@ public sealed class AdministrationServiceTests
         CancellationToken cancellationToken =
             TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
+        AddConfiguredDailyRate(repository);
         var settingsRepository = new FakeSettingsRepository(
             GeneralSettings.CreateDefault(UtcNow));
         var service = CreateService(repository, settingsRepository);
@@ -173,6 +175,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
+        AddConfiguredDailyRate(repository);
         var settingsRepository = new FakeSettingsRepository(
             GeneralSettings.CreateDefault(UtcNow));
         var service = CreateService(repository, settingsRepository);
@@ -220,6 +223,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
+        AddConfiguredDailyRate(repository);
         var service = CreateService(
             repository,
             new FakeSettingsRepository(
@@ -257,6 +261,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
+        AddConfiguredDailyRate(repository);
         var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
         LocalUsePerson person = LocalUsePerson.Create("Ana", new DateOnly(2026, 7, 1), null, UtcNow);
         Chair chair = Chair.Create("Silla", person.EntryDate, null, UtcNow);
@@ -415,6 +420,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
+        AddConfiguredDailyRate(repository);
         var service = CreateService(
             repository,
             new FakeSettingsRepository(
@@ -675,6 +681,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
+        AddConfiguredDailyRate(repository);
         var service = CreateService(
             repository,
             new FakeSettingsRepository(
@@ -846,6 +853,7 @@ public sealed class AdministrationServiceTests
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         var repository = new FakeAdministrationRepository();
+        AddConfiguredDailyRate(repository);
         var service = CreateService(repository, new FakeSettingsRepository(GeneralSettings.CreateDefault(UtcNow)));
         DateOnly today = new(2026, 7, 18);
         Chair chair = Chair.Create("Silla 1", today, null, UtcNow);
@@ -968,7 +976,7 @@ public sealed class AdministrationServiceTests
         await useCase.ExecuteAsync(new SaveSettingsRequest(15m, 25m, 0m, 0, "USD"), cancellationToken);
 
         Assert.Single(repository.Entities.OfType<DailyRate>());
-        Assert.Equal(1_500, repository.Entities.OfType<DailyRate>().Single().Amount.MinorUnits);
+        Assert.Equal(1_500, repository.Entities.OfType<DailyRate>().Single().Amount?.MinorUnits);
         Assert.Equal(2_500, settingsRepository.Settings.CollaboratorProfit.BasisPoints);
     }
 
@@ -1160,6 +1168,15 @@ public sealed class AdministrationServiceTests
             repository,
             settingsRepository,
             new FixedTimeProvider(new DateTimeOffset(UtcNow)));
+
+    private static void AddConfiguredDailyRate(
+        FakeAdministrationRepository repository,
+        decimal amount = 12m) =>
+        repository.Entities.Add(DailyRate.Create(
+            new DateOnly(2026, 1, 1),
+            UtcNow,
+            Money.FromDecimal(amount),
+            UtcNow));
 
     private sealed class FakeSettingsRepository(GeneralSettings settings) : ISettingsRepository
     {

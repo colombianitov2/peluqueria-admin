@@ -384,19 +384,32 @@ public sealed partial class CollaboratorsViewModel(
             return;
         }
 
-        await service.DeleteCollaboratorContributionAsync(SelectedContributionRow.Contribution.Id);
-        ClearContributionForm();
-        await RefreshAsync();
-        if (!IsError)
+        IsBusy = true;
+        try
         {
-            StatusMessage = "El aporte se eliminó lógicamente y permanece en el historial eliminado.";
+            await service.DeleteCollaboratorContributionAsync(SelectedContributionRow.Contribution.Id);
+            ClearContributionForm();
+            await RefreshAsync();
+            if (!IsError)
+            {
+                StatusMessage = "El aporte se eliminó lógicamente y permanece en el historial eliminado.";
+            }
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            StatusMessage = exception.Message;
+            IsError = true;
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 
     private bool HasSelectedContribution() => SelectedContributionRow is not null;
 
     private bool CanDeleteSelectedContribution() =>
-        SelectedContributionRow is not null && ConfirmContributionDelete;
+        SelectedContributionRow is not null && ConfirmContributionDelete && !IsBusy;
 
     [RelayCommand]
     private async Task ClearFormAsync()
@@ -463,15 +476,16 @@ public sealed partial class CollaboratorsViewModel(
         {
             string operation = contributionEvent.EventType switch
             {
-                CollaboratorContributionEventType.Created => "Aporte original",
+                CollaboratorContributionEventType.Created => "Aporte agregado",
                 CollaboratorContributionEventType.Edited => "Aporte editado",
                 CollaboratorContributionEventType.Deleted => "Aporte eliminado",
                 _ => "Aporte histórico migrado",
             };
             string detail = contributionEvent.EventType == CollaboratorContributionEventType.Edited
                 ? $"Anterior: {ApplicationCurrency.Code} {contributionEvent.PreviousAmount?.ToDecimal():N2} · "
+                    + $"Descripción anterior: {contributionEvent.PreviousDescription ?? "Sin descripción"} · "
                     + $"Nuevo: {ApplicationCurrency.Code} {contributionEvent.Amount.ToDecimal():N2} · "
-                    + (contributionEvent.Description ?? string.Empty)
+                    + $"Descripción nueva: {contributionEvent.Description ?? "Sin descripción"}"
                 : contributionEvent.Description ?? string.Empty;
             rows.Add((contributionEvent.EffectiveDate, contributionEvent.OccurredUtc, History(
                 contributionEvent.EffectiveDate,

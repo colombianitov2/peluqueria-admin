@@ -32,7 +32,7 @@ public sealed class DataManagementTests
 
             var settingsRepository = new EfSettingsRepository(factory);
             GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
-            Assert.Equal(1_200, settings.WeeklyUsageFee.MinorUnits);
+            Assert.Null(settings.WeeklyUsageFee);
 
             string backupPath = await backupService.CreateManualAsync(cancellationToken);
             Assert.True(File.Exists(backupPath));
@@ -47,12 +47,12 @@ public sealed class DataManagementTests
             await settingsRepository.SaveAsync(settings, cancellationToken);
             Assert.Equal(
                 9_999,
-                (await settingsRepository.GetAsync(cancellationToken)).WeeklyUsageFee.MinorUnits);
+                (await settingsRepository.GetAsync(cancellationToken)).WeeklyUsageFee?.MinorUnits);
 
             await backupService.RestoreAsync(backupPath, cancellationToken);
 
             GeneralSettings restored = await new EfSettingsRepository(factory).GetAsync(cancellationToken);
-            Assert.Equal(1_200, restored.WeeklyUsageFee.MinorUnits);
+            Assert.Null(restored.WeeklyUsageFee);
             Assert.Single(Directory.EnumerateFiles(paths.BackupsDirectory, "pre-restore-*.db"));
         }
         finally

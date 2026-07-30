@@ -36,18 +36,6 @@ public sealed class AdministrationService(
         var updates = new List<AuditableEntity>();
         IReadOnlyCollection<DailyRate> rates = data.DailyRates;
 
-        if (rates.Count == 0)
-        {
-            GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
-            DailyRate initialRate = DailyRate.Create(
-                localToday,
-                utcNow,
-                settings.DailyUsageFee,
-                utcNow);
-            additions.Add(initialRate);
-            rates = [initialRate];
-        }
-
         foreach (LocalUsePerson person in data.LocalUsePeople)
         {
             DailyCharge[] generated = DailyChargeCalculator.Generate(
@@ -157,12 +145,8 @@ public sealed class AdministrationService(
         string? completedDraftKey = null)
     {
         ArgumentNullException.ThrowIfNull(person);
-        AdministrationData data = await repository.LoadAsync(cancellationToken);
-        (_, DailyRate? newRate) = await EnsureDailyRatesAsync(data, cancellationToken);
         await SaveAsync(
-            new AuditableEntity[] { person }
-                .Concat(newRate is null ? [] : [newRate])
-                .ToArray(),
+            [person],
             [],
             completedDraftKey,
             cancellationToken);
@@ -192,8 +176,7 @@ public sealed class AdministrationService(
 
         DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
         chair.Assign(person.Id, utcNow);
-        (IReadOnlyCollection<DailyRate> rates, DailyRate? newRate) =
-            await EnsureDailyRatesAsync(data, cancellationToken);
+        IReadOnlyCollection<DailyRate> rates = data.DailyRates;
         ChairAssignmentPeriod assignment = ChairAssignmentPeriod.Create(
             chair.Id,
             person.Id,
@@ -242,7 +225,6 @@ public sealed class AdministrationService(
         }).ToArray();
         await SaveAsync(
             new AuditableEntity[] { person, assignment, workerAssignment, chairAssignment }
-                .Concat(newRate is null ? [] : [newRate])
                 .Concat(charges)
                 .Concat(chargeEvents)
                 .ToArray(),
@@ -380,12 +362,7 @@ public sealed class AdministrationService(
         }
         if (newAssignment is not null)
         {
-            (IReadOnlyCollection<DailyRate> rates, DailyRate? newRate) =
-                await EnsureDailyRatesAsync(data, cancellationToken);
-            if (newRate is not null)
-            {
-                activities.Add(newRate);
-            }
+            IReadOnlyCollection<DailyRate> rates = data.DailyRates;
             DailyCharge[] charges = DailyChargeCalculator.Generate(
                 person,
                 data.DailyCharges,
@@ -747,7 +724,10 @@ public sealed class AdministrationService(
             "Aporte editado",
             "Aporte editado",
             contribution.Id,
-            $"Valor anterior: USD {previousAmount.ToDecimal():N2}. Valor nuevo: USD {amount.ToDecimal():N2}.",
+            $"Valor anterior: USD {previousAmount.ToDecimal():N2}. "
+                + $"Descripción anterior: {previousDescription ?? "Sin descripción"}. "
+                + $"Valor nuevo: USD {amount.ToDecimal():N2}. "
+                + $"Descripción nueva: {contribution.Description ?? "Sin descripción"}.",
             utcNow);
         FinancialEvent financialEvent = FinancialEvent.Create(
             Guid.NewGuid(),
@@ -758,7 +738,8 @@ public sealed class AdministrationService(
             previousAmount,
             amount,
             amount.MinorUnits - previousAmount.MinorUnits,
-            description);
+            $"Descripción anterior: {previousDescription ?? "Sin descripción"}. "
+                + $"Descripción nueva: {contribution.Description ?? "Sin descripción"}.");
         await SaveAsync(
             [contributionEvent, financialEvent, activity],
             [contribution],
@@ -2180,25 +2161,6 @@ public sealed class AdministrationService(
             await repository.SaveCompletingDraftAsync(additions, updates, completedDraftKey, cancellationToken);
         }
         DataChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private async Task<(IReadOnlyCollection<DailyRate> Rates, DailyRate? NewRate)> EnsureDailyRatesAsync(
-        AdministrationData data,
-        CancellationToken cancellationToken)
-    {
-        if (data.DailyRates.Count > 0)
-        {
-            return (data.DailyRates, null);
-        }
-
-        GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
-        DateTime utcNow = timeProvider.GetUtcNow().UtcDateTime;
-        DailyRate rate = DailyRate.Create(
-            DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
-            utcNow,
-            settings.DailyUsageFee,
-            utcNow);
-        return ([rate], rate);
     }
 
     private static void EnsureUniqueProductName(AdministrationData data, string name, Guid? exceptId)

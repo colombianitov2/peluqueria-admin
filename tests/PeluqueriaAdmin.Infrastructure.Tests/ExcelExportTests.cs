@@ -70,7 +70,7 @@ public sealed class ExcelExportTests
             Assert.All(workbook.Worksheets, sheet => Assert.True(sheet.SheetView.SplitRow >= 1, sheet.Name));
 
             IXLWorksheet settings = workbook.Worksheet("Ajustes");
-            Assert.Equal(XLDataType.Number, settings.Cell(2, 2).DataType);
+            Assert.Equal(XLDataType.Blank, settings.Cell(2, 2).DataType);
             Assert.Equal(XLDataType.Number, settings.Cell(3, 2).DataType);
             Assert.Contains('%', settings.Cell(3, 2).Style.NumberFormat.Format);
             Assert.Equal(XLDataType.DateTime, settings.Cell(6, 2).DataType);
@@ -85,8 +85,8 @@ public sealed class ExcelExportTests
             Assert.True(workbook.TryGetWorksheet("Flujo de caja", out _));
             IXLWorksheet dailyRates = workbook.Worksheet("Tarifas diarias");
             Assert.Equal("Vigente desde", dailyRates.Cell(1, 1).GetString());
-            Assert.Equal(XLDataType.DateTime, dailyRates.Cell(2, 1).DataType);
-            Assert.Equal(XLDataType.Number, dailyRates.Cell(2, 4).DataType);
+            Assert.Equal("Sin datos registrados", dailyRates.Cell(2, 1).GetString());
+            Assert.Equal(XLDataType.Blank, dailyRates.Cell(2, 4).DataType);
             Assert.Contains("0.00", dailyRates.Cell(2, 4).Style.NumberFormat.Format, StringComparison.Ordinal);
 
             IXLWorksheet products = workbook.Worksheet("Productos");

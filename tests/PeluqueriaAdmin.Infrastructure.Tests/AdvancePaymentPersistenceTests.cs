@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using PeluqueriaAdmin.Application.Administration;
+using PeluqueriaAdmin.Application.Settings;
 using PeluqueriaAdmin.Domain.LocalUse;
 using PeluqueriaAdmin.Domain.Settings;
 using PeluqueriaAdmin.Infrastructure.Administration;
@@ -177,9 +178,17 @@ public sealed class AdvancePaymentPersistenceTests
                 factory,
                 paths,
                 clock).InitializeAsync(cancellationToken);
+            var administrationRepository = new EfAdministrationRepository(factory);
+            var settingsRepository = new EfSettingsRepository(factory);
+            await new SaveSettingsUseCase(
+                settingsRepository,
+                administrationRepository,
+                clock).ExecuteAsync(
+                    new SaveSettingsRequest(12m, 20m, string.Empty),
+                    cancellationToken);
             var service = new AdministrationService(
-                new EfAdministrationRepository(factory),
-                new EfSettingsRepository(factory),
+                administrationRepository,
+                settingsRepository,
                 clock);
             DateOnly entry =
                 DateOnly.FromDateTime(clock.GetLocalNow().DateTime);

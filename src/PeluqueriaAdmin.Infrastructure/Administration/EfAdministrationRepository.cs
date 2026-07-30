@@ -127,21 +127,31 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
                 newRate.EffectiveFromUtc,
                 cancellationToken);
             context.DailyRates.Add(newRate);
+            string eventType = newRate.Amount.HasValue
+                ? "Tarifa diaria modificada"
+                : "Tarifa diaria eliminada";
+            long difference = checked(
+                (newRate.Amount?.MinorUnits ?? 0)
+                - (previousRate?.Amount?.MinorUnits ?? 0));
             context.FinancialEvents.Add(FinancialEvent.Create(
                 newRate.Id,
                 newRate.EffectiveFromUtc,
                 "Tarifa diaria",
                 newRate.Id,
-                "Tarifa diaria modificada",
+                eventType,
                 previousRate?.Amount,
                 newRate.Amount,
-                newRate.Amount.MinorUnits - (previousRate?.Amount.MinorUnits ?? 0),
-                $"Tarifa diaria vigente desde {newRate.EffectiveDate:yyyy-MM-dd}."));
+                difference,
+                newRate.Amount.HasValue
+                    ? $"Tarifa diaria vigente desde {newRate.EffectiveDate:yyyy-MM-dd}."
+                    : $"Tarifa diaria sin configurar desde {newRate.EffectiveDate:yyyy-MM-dd}."));
             context.ActivityRecords.Add(ActivityRecord.Create(
                 newRate.EffectiveDate,
                 "Ajustes",
-                "Tarifa diaria modificada",
-                $"Nueva tarifa diaria: USD {newRate.Amount.ToDecimal():N2}",
+                eventType,
+                newRate.Amount.HasValue
+                    ? $"Nueva tarifa diaria: USD {newRate.Amount.Value.ToDecimal():N2}"
+                    : "Tarifa diaria: Sin configurar",
                 newRate.Id,
                 "El cambio afecta únicamente cargos diarios nuevos; el historial permanece inmutable.",
                 newRate.EffectiveFromUtc));
@@ -187,21 +197,31 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
                 newRate.EffectiveFromUtc,
                 cancellationToken);
             context.DailyRates.Add(newRate);
+            string eventType = newRate.Amount.HasValue
+                ? "Tarifa diaria modificada"
+                : "Tarifa diaria eliminada";
+            long difference = checked(
+                (newRate.Amount?.MinorUnits ?? 0)
+                - (previousRate?.Amount?.MinorUnits ?? 0));
             context.FinancialEvents.Add(FinancialEvent.Create(
                 newRate.Id,
                 newRate.EffectiveFromUtc,
                 "Tarifa diaria",
                 newRate.Id,
-                "Tarifa diaria modificada",
+                eventType,
                 previousRate?.Amount,
                 newRate.Amount,
-                newRate.Amount.MinorUnits - (previousRate?.Amount.MinorUnits ?? 0),
-                $"Tarifa diaria vigente desde {newRate.EffectiveDate:yyyy-MM-dd}."));
+                difference,
+                newRate.Amount.HasValue
+                    ? $"Tarifa diaria vigente desde {newRate.EffectiveDate:yyyy-MM-dd}."
+                    : $"Tarifa diaria sin configurar desde {newRate.EffectiveDate:yyyy-MM-dd}."));
             context.ActivityRecords.Add(ActivityRecord.Create(
                 newRate.EffectiveDate,
                 "Ajustes",
-                "Tarifa diaria modificada",
-                $"Nueva tarifa diaria: USD {newRate.Amount.ToDecimal():N2}",
+                eventType,
+                newRate.Amount.HasValue
+                    ? $"Nueva tarifa diaria: USD {newRate.Amount.Value.ToDecimal():N2}"
+                    : "Tarifa diaria: Sin configurar",
                 newRate.Id,
                 "El cambio afecta únicamente cargos diarios nuevos; el historial permanece inmutable.",
                 newRate.EffectiveFromUtc));
@@ -232,6 +252,7 @@ public sealed class EfAdministrationRepository(IDbContextFactory<PeluqueriaDbCon
         GeneralSettings? previous = await context.Settings.AsNoTracking().SingleOrDefaultAsync(cancellationToken);
         bool changed = previous is null
             || previous.WeeklyUsageFee != settings.WeeklyUsageFee
+            || previous.IsDailyUsageFeeConfirmed != settings.IsDailyUsageFeeConfirmed
             || previous.CollaboratorProfit != settings.CollaboratorProfit
             || !string.Equals(previous.ExportDirectory, settings.ExportDirectory, StringComparison.Ordinal);
         if (!changed) return;

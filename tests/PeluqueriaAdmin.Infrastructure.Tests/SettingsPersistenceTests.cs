@@ -35,24 +35,24 @@ public sealed class SettingsPersistenceTests
             var settingsRepository = new EfSettingsRepository(factory);
             GeneralSettings settings = await settingsRepository.GetAsync(cancellationToken);
             AdministrationData before = await repository.LoadAsync(cancellationToken);
-            DailyRate previous;
-            if (before.DailyRates.Count == 0)
-            {
-                DateTime initialUtc = DateTime.UtcNow;
-                previous = DailyRate.Create(
-                    DateOnly.FromDateTime(initialUtc),
-                    initialUtc,
-                    settings.DailyUsageFee,
-                    initialUtc);
-                await repository.SaveSettingsAndDailyRateAsync(
-                    settings,
-                    previous,
-                    cancellationToken);
-            }
-            else
-            {
-                previous = Assert.Single(before.DailyRates);
-            }
+            Assert.Empty(before.DailyRates);
+            DateTime initialUtc = DateTime.UtcNow;
+            Money initialAmount = Money.FromDecimal(10m);
+            settings.Update(
+                initialAmount,
+                settings.CollaboratorProfit,
+                settings.TotalChairs,
+                settings.ExportDirectory,
+                initialUtc);
+            DailyRate previous = DailyRate.Create(
+                DateOnly.FromDateTime(initialUtc),
+                initialUtc,
+                initialAmount,
+                initialUtc);
+            await repository.SaveSettingsAndDailyRateAsync(
+                settings,
+                previous,
+                cancellationToken);
             DateTime changeUtc = previous.EffectiveFromUtc.AddMinutes(1);
             settings.Update(
                 Money.FromDecimal(15m),
@@ -75,9 +75,9 @@ public sealed class SettingsPersistenceTests
                 await factory.CreateDbContextAsync(cancellationToken);
             FinancialEvent audit = await context.FinancialEvents
                 .SingleAsync(item => item.OperationId == replacement.Id, cancellationToken);
-            Assert.Equal(previous.Amount.MinorUnits, audit.PreviousValue?.MinorUnits);
+            Assert.Equal(previous.Amount!.Value.MinorUnits, audit.PreviousValue?.MinorUnits);
             Assert.Equal(1_500, audit.NewValue?.MinorUnits);
-            Assert.Equal(1_500 - previous.Amount.MinorUnits, audit.DifferenceMinorUnits);
+            Assert.Equal(1_500 - previous.Amount.Value.MinorUnits, audit.DifferenceMinorUnits);
             Assert.Equal(changeUtc, (await context.DailyRates
                 .SingleAsync(item => item.Id == previous.Id, cancellationToken)).EffectiveToUtc);
         }
@@ -125,8 +125,13 @@ public sealed class SettingsPersistenceTests
 
             var repository = new EfSettingsRepository(factory);
             GeneralSettings initial = await repository.GetAsync(cancellationToken);
-            Assert.Equal(1_200, initial.WeeklyUsageFee.MinorUnits);
+            Assert.Null(initial.WeeklyUsageFee);
+            Assert.False(initial.IsDailyUsageFeeConfirmed);
             Assert.Equal("USD", initial.CurrencyCode.Value);
+            await using (PeluqueriaDbContext context = await factory.CreateDbContextAsync(cancellationToken))
+            {
+                Assert.Empty(await context.DailyRates.ToListAsync(cancellationToken));
+            }
 
             DateTime updatedUtc = new(2026, 7, 18, 13, 0, 0, DateTimeKind.Utc);
             initial.Update(
@@ -140,7 +145,8 @@ public sealed class SettingsPersistenceTests
 
             var reloadedRepository = new EfSettingsRepository(factory);
             GeneralSettings reloaded = await reloadedRepository.GetAsync(cancellationToken);
-            Assert.Equal(1_575, reloaded.WeeklyUsageFee.MinorUnits);
+            Assert.Equal(1_575, reloaded.WeeklyUsageFee?.MinorUnits);
+            Assert.True(reloaded.IsDailyUsageFeeConfirmed);
             Assert.Equal(2_550, reloaded.CollaboratorProfit.BasisPoints);
             Assert.Equal(0, reloaded.OptionalSuppliesMonthlyBudget.MinorUnits);
             Assert.Equal(8, reloaded.TotalChairs);
@@ -235,12 +241,109 @@ public sealed class SettingsPersistenceTests
             AdministrationData afterDelete = await repository.LoadAsync(cancellationToken);
             Assert.Empty(afterDelete.LocalUsePeople);
 
-            await using PeluqueriaDbContext verification = await factory.CreateDbContextAsync(cancellationToken);
-            Assert.Equal(1, await verification.Settings.CountAsync(cancellationToken));
-            Assert.Equal("USD", (await verification.Settings.SingleAsync(cancellationToken)).CurrencyCode.Value);
-            Assert.Contains(
-                await verification.Database.GetAppliedMigrationsAsync(cancellationToken),
-                name => name.EndsWith("_CompleteAdministration", StringComparison.Ordinal));
+            await using (PeluqueriaDbContext verification =
+                await factory.CreateDbContextAsync(cancellationToken))
+            {
+                Assert.Equal(1, await verification.Settings.CountAsync(cancellationToken));
+                GeneralSettings migratedSettings = await verification.Settings.SingleAsync(cancellationToken);
+                Assert.Equal("USD", migratedSettings.CurrencyCode.Value);
+                Assert.Equal(1_200, migratedSettings.DailyUsageFee?.MinorUnits);
+                Assert.True(migratedSettings.IsDailyUsageFeePendingConfirmation);
+                Assert.Empty(await verification.DailyRates.ToListAsync(cancellationToken));
+                Assert.Empty(await verification.FinancialEvents
+                    .Where(item => item.EntityType == "Tarifa diaria")
+                    .ToListAsync(cancellationToken));
+                Assert.Contains(
+                    await verification.Database.GetAppliedMigrationsAsync(cancellationToken),
+                    name => name.EndsWith("_CompleteAdministration", StringComparison.Ordinal));
+            }
+
+            DateTimeOffset confirmationTime =
+                new(2026, 7, 19, 15, 30, 0, TimeSpan.Zero);
+            await new SaveSettingsUseCase(
+                    new EfSettingsRepository(factory),
+                    repository,
+                    new FixedTimeProvider(confirmationTime))
+                .ExecuteAsync(
+                    new SaveSettingsRequest(
+                        12m,
+                        20m,
+                        string.Empty,
+                        ConfirmDailyUsageFee: true),
+                    cancellationToken);
+
+            await using PeluqueriaDbContext confirmed =
+                await factory.CreateDbContextAsync(cancellationToken);
+            GeneralSettings confirmedSettings =
+                await confirmed.Settings.SingleAsync(cancellationToken);
+            DailyRate confirmedRate =
+                await confirmed.DailyRates.SingleAsync(cancellationToken);
+            FinancialEvent confirmedEvent = await confirmed.FinancialEvents
+                .SingleAsync(
+                    item => item.EntityType == "Tarifa diaria",
+                    cancellationToken);
+
+            Assert.True(confirmedSettings.IsDailyUsageFeeConfirmed);
+            Assert.Equal(1_200, confirmedRate.Amount?.MinorUnits);
+            Assert.Equal(confirmationTime.UtcDateTime, confirmedRate.EffectiveFromUtc);
+            Assert.Equal(confirmedRate.Id, confirmedEvent.OperationId);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(temporaryRoot))
+            {
+                Directory.Delete(temporaryRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Migration_PreservesExplicitTenAsActiveOnlyFromUpdateForward()
+    {
+        string temporaryRoot = CreateTemporaryRoot();
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+
+        try
+        {
+            ApplicationPaths paths = ApplicationPaths.FromRoot(temporaryRoot);
+            paths.EnsureDirectories();
+            var factory = new TestDbContextFactory(paths.DatabaseFilePath);
+            DateTime utcNow = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
+
+            await using (PeluqueriaDbContext initialContext =
+                await factory.CreateDbContextAsync(cancellationToken))
+            {
+                string initialMigration = initialContext.Database.GetMigrations()
+                    .Single(name => name.EndsWith("_InitialSettings", StringComparison.Ordinal));
+                await initialContext.GetService<IMigrator>()
+                    .MigrateAsync(initialMigration, cancellationToken);
+                await initialContext.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO Settings
+                    (Id, WeeklyUsageFeeMinorUnits, CollaboratorProfitBasisPoints,
+                     OptionalSuppliesMonthlyBudgetMinorUnits, TotalChairs, CurrencyCode, CreatedUtc, UpdatedUtc)
+                    VALUES (1, {1000L}, {2000}, {0L}, {0}, {"USD"}, {utcNow.Ticks}, {utcNow.Ticks});
+                    """, cancellationToken);
+            }
+
+            await new DatabaseInitializer(
+                factory,
+                paths,
+                new FixedTimeProvider(new DateTimeOffset(utcNow)))
+                .InitializeAsync(cancellationToken);
+
+            await using PeluqueriaDbContext verification =
+                await factory.CreateDbContextAsync(cancellationToken);
+            GeneralSettings settings =
+                await verification.Settings.SingleAsync(cancellationToken);
+            DailyRate rate = await verification.DailyRates.SingleAsync(cancellationToken);
+
+            Assert.Equal(1_000, settings.DailyUsageFee?.MinorUnits);
+            Assert.True(settings.IsDailyUsageFeeConfirmed);
+            Assert.False(settings.IsDailyUsageFeePendingConfirmation);
+            Assert.Equal(1_000, rate.Amount?.MinorUnits);
+            Assert.Equal(DateOnly.FromDateTime(DateTime.Now), rate.EffectiveDate);
+            Assert.Empty(await verification.DailyCharges.ToListAsync(cancellationToken));
         }
         finally
         {

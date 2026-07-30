@@ -88,7 +88,7 @@ internal sealed class DailyRateConfiguration : IEntityTypeConfiguration<DailyRat
     {
         builder.ToTable("DailyRates");
         AdministrationConfiguration.ConfigureAudit(builder);
-        AdministrationConfiguration.ConfigureMoney(builder.Property(item => item.Amount))
+        AdministrationConfiguration.ConfigureNullableMoney(builder.Property(item => item.Amount))
             .HasColumnName("AmountMinorUnits");
         builder.Property(item => item.EffectiveFromUtc)
             .HasConversion(value => value.Ticks, value => new DateTime(value, DateTimeKind.Utc));
