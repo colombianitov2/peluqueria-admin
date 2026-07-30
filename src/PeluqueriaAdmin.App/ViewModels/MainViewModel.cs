@@ -349,13 +349,13 @@ public sealed partial class MainViewModel : ObservableObject
         DailyMovements.Clear();
         foreach (var item in DailyActivityQuery.ForLocalDate(data.ActivityRecords, date, TimeZoneInfo.Local))
         {
-            long? amount = ActivityAmount(data, item.EntityId);
+            long? amount = ActivityAmount(data, item);
             DateTime localOccurrence = TimeZoneInfo.ConvertTimeFromUtc(
                 DateTime.SpecifyKind(item.OccurredUtc, DateTimeKind.Utc),
                 TimeZoneInfo.Local);
             DailyMovements.Add(new DailyMovementRow(localOccurrence.ToString("HH:mm:ss", CultureInfo.InvariantCulture),
                 item.Module, item.Action, item.Summary, item.Description ?? string.Empty,
-                amount.HasValue ? $"{ApplicationCurrency.Code} {amount.Value / 100m:N2}" : string.Empty,
+                FormatActivityAmount(item, amount),
                 item.Action == "Eliminación" ? "Eliminado lógicamente" : "Registrado"));
         }
         DailyMovementsStatus = DailyMovements.Count == 0
@@ -363,10 +363,21 @@ public sealed partial class MainViewModel : ObservableObject
             : $"{DailyMovements.Count} movimiento(s) encontrado(s).";
     }
 
-    private static long? ActivityAmount(AdministrationData data, Guid? entityId)
+    private static long? ActivityAmount(AdministrationData data, PeluqueriaAdmin.Domain.Activity.ActivityRecord activity)
     {
+        Guid? entityId = activity.EntityId;
         if (!entityId.HasValue) return null;
         Guid id = entityId.Value;
+        if (activity.Module == "Colaboradores"
+            && activity.Action is "Aporte agregado" or "Aporte editado" or "Aporte eliminado"
+            && data.FinancialEvents.SingleOrDefault(x =>
+                x.EntityId == id
+                && x.EventType == activity.Action
+                && x.OccurredUtc == activity.OccurredUtc) is { } contributionEvent)
+        {
+            return contributionEvent.DifferenceMinorUnits;
+        }
+
         if (data.LocalUsePayments.SingleOrDefault(x => x.Id == id) is { } local) return local.Amount.MinorUnits;
         if (data.InventoryMovements.SingleOrDefault(x => x.Id == id) is { } inventory) return inventory.CashAmount?.MinorUnits;
         if (data.FinancialEntries.SingleOrDefault(x => x.Id == id) is { } entry) return entry.Amount.MinorUnits;
@@ -382,6 +393,25 @@ public sealed partial class MainViewModel : ObservableObject
             .OrderByDescending(x => x.OccurredUtc).FirstOrDefault() is { } financialEvent)
             return financialEvent.DifferenceMinorUnits;
         return null;
+    }
+
+    private static string FormatActivityAmount(
+        PeluqueriaAdmin.Domain.Activity.ActivityRecord activity,
+        long? amount)
+    {
+        if (!amount.HasValue)
+        {
+            return string.Empty;
+        }
+
+        if (activity.Module == "Colaboradores"
+            && activity.Action is "Aporte agregado" or "Aporte editado" or "Aporte eliminado")
+        {
+            string sign = amount.Value >= 0 ? "+" : "−";
+            return $"{sign}{ApplicationCurrency.Code} {Math.Abs(amount.Value) / 100m:N2}";
+        }
+
+        return $"{ApplicationCurrency.Code} {amount.Value / 100m:N2}";
     }
 
     public async Task FlushPendingAsync()

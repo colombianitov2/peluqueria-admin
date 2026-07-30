@@ -724,7 +724,10 @@ public sealed class AdministrationService(
             "Aporte editado",
             "Aporte editado",
             contribution.Id,
-            $"Valor anterior: USD {previousAmount.ToDecimal():N2}. Valor nuevo: USD {amount.ToDecimal():N2}.",
+            $"Valor anterior: USD {previousAmount.ToDecimal():N2}. "
+                + $"Descripción anterior: {previousDescription ?? "Sin descripción"}. "
+                + $"Valor nuevo: USD {amount.ToDecimal():N2}. "
+                + $"Descripción nueva: {contribution.Description ?? "Sin descripción"}.",
             utcNow);
         FinancialEvent financialEvent = FinancialEvent.Create(
             Guid.NewGuid(),
@@ -735,7 +738,8 @@ public sealed class AdministrationService(
             previousAmount,
             amount,
             amount.MinorUnits - previousAmount.MinorUnits,
-            description);
+            $"Descripción anterior: {previousDescription ?? "Sin descripción"}. "
+                + $"Descripción nueva: {contribution.Description ?? "Sin descripción"}.");
         await SaveAsync(
             [contributionEvent, financialEvent, activity],
             [contribution],
