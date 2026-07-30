@@ -520,7 +520,14 @@ public sealed partial class LocalUseViewModel(
         ProfileDebt = FormatMoney(ApplicationCurrency.Code, balance.Debt);
         ProfileCredit = FormatMoney(ApplicationCurrency.Code, balance.Credit);
         ProfileNextCharge = FormatDate(balance.NextChargeDate, worker.ExitDate.HasValue ? "No aplica (retirado)" : "Sin cobro proyectado");
-        ProfileNextChargeAmount = FormatMoney(ApplicationCurrency.Code, balance.CurrentDailyRate);
+        if (balance.NextChargeDate.HasValue && balance.NextChargeAmount.HasValue)
+        {
+            ProfileNextCharge =
+                $"{ProfileNextCharge} · {FormatMoney(ApplicationCurrency.Code, balance.NextChargeAmount)}";
+        }
+        ProfileNextChargeAmount = balance.CurrentDailyRate.HasValue
+            ? FormatMoney(ApplicationCurrency.Code, balance.CurrentDailyRate)
+            : "Sin configurar";
         ProfileNextRequiredPayment = FormatDate(
             balance.NextRequiredPaymentDate,
             worker.ExitDate.HasValue ? "No aplica (retirado)" : "Cubierto con saldo a favor");
@@ -533,7 +540,9 @@ public sealed partial class LocalUseViewModel(
             .OrderBy(item => item.EffectiveDate)
             .ThenBy(item => item.EffectiveFromUtc)
             .Select(item => $"Desde {item.EffectiveDate:yyyy-MM-dd} {item.EffectiveFromUtc.ToLocalTime():HH:mm}: "
-                + $"{ApplicationCurrency.Code} {item.Amount.ToDecimal():N2}"));
+                + (item.Amount.HasValue
+                    ? $"{ApplicationCurrency.Code} {item.Amount.Value.ToDecimal():N2}"
+                    : "Sin configurar")));
 
         Guid? preservedChairId = WorkerProfileSelectedChair?.Id;
         WorkerProfileChairOptions.Clear();

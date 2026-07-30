@@ -20,7 +20,7 @@ public sealed record SuggestedChairPrice(
     string Explanation,
     int ChargeableChairDays = 0,
     long SuggestedDailyPerChairMinorUnits = 0,
-    long CurrentDailyMinorUnits = 0,
+    long? CurrentDailyMinorUnits = null,
     long ProjectedChairIncomeMinorUnits = 0)
 {
     public bool CanCalculate => OccupiedChairs > 0;
@@ -30,7 +30,7 @@ public static class SuggestedChairPriceCalculator
 {
     public static SuggestedChairPrice Calculate(
         AdministrationData data,
-        Money currentDailyRate,
+        Money? currentDailyRate,
         YearMonth month,
         DateOnly today)
     {
@@ -87,10 +87,8 @@ public static class SuggestedChairPriceCalculator
             }
         }
         int chargeableDays = chargeablePersonDays.Count;
-        long projectedChairIncome = data.DailyRates.Count == 0
-            ? checked(chargeableDays * currentDailyRate.MinorUnits)
-            : chargeablePersonDays.Sum(item =>
-                DailyChargeCalculator.RateFor(data.DailyRates, item.Date).Amount.MinorUnits);
+        long projectedChairIncome = chargeablePersonDays.Sum(item =>
+            DailyChargeCalculator.RateFor(data.DailyRates, item.Date)?.Amount?.MinorUnits ?? 0);
         long suggestedDaily = chargeableDays == 0
             ? 0
             : checked((long)decimal.Round(
@@ -115,12 +113,12 @@ public static class SuggestedChairPriceCalculator
             amountToCover,
             monthly,
             weekly,
-            checked(currentDailyRate.MinorUnits * 6),
+            checked((currentDailyRate?.MinorUnits ?? 0) * 6),
             currentMonthly,
             explanation,
             chargeableDays,
             suggestedDaily,
-            currentDailyRate.MinorUnits,
+            currentDailyRate?.MinorUnits,
             projectedChairIncome);
     }
 }

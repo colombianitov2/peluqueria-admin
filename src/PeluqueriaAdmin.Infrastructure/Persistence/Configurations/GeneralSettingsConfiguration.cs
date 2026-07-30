@@ -15,7 +15,7 @@ internal sealed class GeneralSettingsConfiguration : IEntityTypeConfiguration<Ge
                 tableBuilder.HasCheckConstraint("CK_Settings_Singleton", "Id = 1");
                 tableBuilder.HasCheckConstraint(
                     "CK_Settings_WeeklyUsageFeeMinorUnits",
-                    "WeeklyUsageFeeMinorUnits >= 0");
+                    "WeeklyUsageFeeMinorUnits IS NULL OR WeeklyUsageFeeMinorUnits >= 0");
                 tableBuilder.HasCheckConstraint(
                     "CK_Settings_CollaboratorProfitBasisPoints",
                     "CollaboratorProfitBasisPoints >= 0 AND CollaboratorProfitBasisPoints <= 10000");
@@ -33,10 +33,15 @@ internal sealed class GeneralSettingsConfiguration : IEntityTypeConfiguration<Ge
 
         builder.Property(settings => settings.WeeklyUsageFee)
             .HasConversion(
-                value => value.MinorUnits,
-                value => Money.FromMinorUnits(value))
+                value => value.HasValue ? value.Value.MinorUnits : (long?)null,
+                value => value.HasValue ? Money.FromMinorUnits(value.Value) : null)
             .HasColumnName("WeeklyUsageFeeMinorUnits")
+            .IsRequired(false);
+
+        builder.Property(settings => settings.IsDailyUsageFeeConfirmed)
             .IsRequired();
+
+        builder.Ignore(settings => settings.IsDailyUsageFeePendingConfirmation);
 
         builder.Property(settings => settings.CollaboratorProfit)
             .HasConversion(

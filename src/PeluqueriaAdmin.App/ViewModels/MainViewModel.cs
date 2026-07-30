@@ -327,11 +327,15 @@ public sealed partial class MainViewModel : ObservableObject
 
         SuggestedChairPrice suggested = SuggestedChairPriceCalculator.Calculate(
             data,
-            Money.FromDecimal(settings.WeeklyUsageFee),
+            settings.WeeklyUsageFee.HasValue
+                ? Money.FromDecimal(settings.WeeklyUsageFee.Value)
+                : null,
             month,
             today);
         PrecioSugeridoPorSilla = suggested.CanCalculate
-            ? $"Tarifa diaria actual: {ApplicationCurrency.Code} {suggested.CurrentDailyMinorUnits / 100m:N2}{Environment.NewLine}"
+            ? $"Tarifa diaria actual: {(suggested.CurrentDailyMinorUnits.HasValue
+                ? $"{ApplicationCurrency.Code} {suggested.CurrentDailyMinorUnits.Value / 100m:N2}"
+                : "Sin configurar")}{Environment.NewLine}"
                 + $"Tarifa diaria sugerida por día-silla: {ApplicationCurrency.Code} {suggested.SuggestedDailyPerChairMinorUnits / 100m:N2}{Environment.NewLine}"
                 + $"Días-silla cobrables del mes: {suggested.ChargeableChairDays}{Environment.NewLine}"
                 + $"Ingreso proyectado por sillas: {ApplicationCurrency.Code} {suggested.ProjectedChairIncomeMinorUnits / 100m:N2}{Environment.NewLine}"
@@ -415,8 +419,15 @@ public sealed partial class MainViewModel : ObservableObject
         isRefreshingAfterDataChange = true;
         try
         {
+            bool workerProfileRefreshed = false;
+            if (LocalUse.IsWorkerProfileOpen)
+            {
+                await LocalUse.RefreshAsync();
+                workerProfileRefreshed = true;
+            }
+
             if (ReferenceEquals(CurrentPage, this)) await RefreshHomeAsync();
-            else if (ReferenceEquals(CurrentPage, LocalUse)) await LocalUse.RefreshAsync();
+            else if (ReferenceEquals(CurrentPage, LocalUse) && !workerProfileRefreshed) await LocalUse.RefreshAsync();
             else if (ReferenceEquals(CurrentPage, Collaborators)) await Collaborators.RefreshAsync();
             else if (ReferenceEquals(CurrentPage, Sales)) await Sales.RefreshAsync();
             else if (ReferenceEquals(CurrentPage, Inventory)) await Inventory.RefreshAsync();

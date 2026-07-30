@@ -1,13 +1,17 @@
 namespace PeluqueriaAdmin.Application.Settings;
 
 public sealed record SettingsDto(
-    decimal WeeklyUsageFee,
+    decimal? WeeklyUsageFee,
     decimal CollaboratorProfitPercent,
     int TotalChairs,
     string CurrencyCode,
     string ExportDirectory,
     DateTime CreatedUtc,
-    DateTime UpdatedUtc)
+    DateTime UpdatedUtc,
+    bool IsDailyUsageFeeConfirmed = true)
 {
-    public decimal DailyUsageFee => WeeklyUsageFee;
+    public decimal? DailyUsageFee => WeeklyUsageFee;
+
+    public bool IsDailyUsageFeePendingConfirmation =>
+        WeeklyUsageFee.HasValue && !IsDailyUsageFeeConfirmed;
 }

@@ -225,7 +225,7 @@ public sealed class ExcelExportService(
         AddSummary(workbook, snapshot, cutoff, today, version, currency, from, to);
         AddTable(workbook, "Ajustes", ["Ajuste", "Valor", "Unidad"],
         [
-            ["Tarifa diaria general por uso del local", snapshot.Settings.DailyUsageFee.ToDecimal(), currency],
+            ["Tarifa diaria general por uso del local", snapshot.Settings.DailyUsageFee?.ToDecimal(), currency],
             ["Ganancia de colaboradores", snapshot.Settings.CollaboratorProfit.BasisPoints / 10000m, "Porcentaje"],
             ["Moneda única", SafeText(currency), "Código ISO"],
             ["Carpeta de exportación", SafeText(snapshot.Settings.ExportDirectory), "Ruta local"],
@@ -250,7 +250,11 @@ public sealed class ExcelExportService(
             YearMonth.From(today), today);
         AddTable(workbook, "Precio sugerido por silla", ["Concepto", "Valor", "Moneda", "Explicación"],
         [
-            ["Tarifa diaria actual", Minor(suggested.CurrentDailyMinorUnits), currency, "Tarifa configurada"],
+            ["Tarifa diaria actual", suggested.CurrentDailyMinorUnits.HasValue
+                ? Minor(suggested.CurrentDailyMinorUnits.Value)
+                : null, currency, suggested.CurrentDailyMinorUnits.HasValue
+                    ? "Tarifa configurada"
+                    : "Sin configurar"],
             ["Ingreso mensual proyectado por sillas", Minor(suggested.ProjectedChairIncomeMinorUnits), currency, "Suma de días-silla de lunes a sábado"],
             ["Tarifa diaria sugerida", Minor(suggested.SuggestedDailyPerChairMinorUnits), currency, suggested.Explanation],
             ["Precio mensual sugerido", Minor(suggested.SuggestedMonthlyPerChairMinorUnits), currency, suggested.Explanation],
@@ -292,7 +296,9 @@ public sealed class ExcelExportService(
         AddTable(workbook, "Tarifas diarias", ["Vigente desde", "Fecha y hora efectiva", "Finalizada", "Valor diario", "Moneda", "Estado"],
             data.DailyRates.OrderBy(x => x.EffectiveFromUtc).Select(x => (object?[])
             [Date(x.EffectiveDate), x.EffectiveFromUtc.ToLocalTime(), x.EffectiveToUtc?.ToLocalTime(),
-             x.Amount.ToDecimal(), currency, x.EffectiveToUtc.HasValue ? "Histórica" : "Vigente"]),
+             x.Amount?.ToDecimal(), currency, x.Amount.HasValue
+                 ? x.EffectiveToUtc.HasValue ? "Histórica" : "Vigente"
+                 : "Sin configurar"]),
             moneyColumns: [4]);
 
         IEnumerable<object?[]> workerHistory = data.LocalUsePeople.SelectMany(person =>

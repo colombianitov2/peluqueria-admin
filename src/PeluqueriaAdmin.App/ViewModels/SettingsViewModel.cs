@@ -41,6 +41,12 @@ public sealed partial class SettingsViewModel(
     private string weeklyUsageFee = string.Empty;
 
     [ObservableProperty]
+    private bool isDailyUsageFeePendingConfirmation;
+
+    public string DailyUsageFeePendingNotice =>
+        "Valor heredado sin confirmar. No se generarán cargos nuevos hasta que el administrador lo confirme, lo cambie o lo elimine.";
+
+    [ObservableProperty]
     private string collaboratorProfitPercent = string.Empty;
 
     [ObservableProperty]
@@ -186,6 +192,47 @@ public sealed partial class SettingsViewModel(
             IsBusy = false;
         }
     }
+
+    [RelayCommand(CanExecute = nameof(CanConfirmDailyUsageFee))]
+    private async Task ConfirmDailyUsageFeeAsync()
+    {
+        StatusMessage = string.Empty;
+        IsError = false;
+        if (!TryCreateRequest(
+            out SaveSettingsRequest request,
+            out string validationMessage,
+            confirmDailyUsageFee: true))
+        {
+            StatusMessage = validationMessage;
+            IsError = true;
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            SettingsDto settings = await saveSettings.ExecuteAsync(
+                request,
+                completedDraftKey: SettingsDraftKey);
+            administrationService.NotifyDataChanged();
+            trackingEnabled = false;
+            Apply(settings);
+            trackingEnabled = true;
+            StatusMessage = "La tarifa diaria heredada quedó confirmada.";
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            StatusMessage = exception.Message;
+            IsError = true;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanConfirmDailyUsageFee() =>
+        IsDailyUsageFeePendingConfirmation && !IsBusy;
 
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task CreateBackupAsync()
@@ -381,6 +428,7 @@ public sealed partial class SettingsViewModel(
         OpenExcelFolderCommand.NotifyCanExecuteChanged();
         CheckForUpdatesCommand.NotifyCanExecuteChanged();
         ApplyUpdateCommand.NotifyCanExecuteChanged();
+        ConfirmDailyUsageFeeCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnRestorePathChanged(string value) => RestoreBackupCommand.NotifyCanExecuteChanged();
@@ -662,14 +710,22 @@ public sealed partial class SettingsViewModel(
 
     private bool TryCreateRequest(
         out SaveSettingsRequest request,
-        out string validationMessage)
+        out string validationMessage,
+        bool confirmDailyUsageFee = false)
     {
         var errors = new List<string>();
 
-        bool weeklyFeeIsValid = TryParseDecimal(WeeklyUsageFee, out decimal weeklyFee);
-        if (!weeklyFeeIsValid)
+        decimal? weeklyFee = null;
+        if (!string.IsNullOrWhiteSpace(WeeklyUsageFee))
         {
-            errors.Add("La tarifa diaria debe ser un número válido.");
+            if (TryParseDecimal(WeeklyUsageFee, out decimal parsedWeeklyFee))
+            {
+                weeklyFee = parsedWeeklyFee;
+            }
+            else
+            {
+                errors.Add("La tarifa diaria debe ser un número válido.");
+            }
         }
 
         bool profitIsValid = TryParseDecimal(CollaboratorProfitPercent, out decimal profit);
@@ -702,7 +758,11 @@ public sealed partial class SettingsViewModel(
             return false;
         }
 
-        request = new SaveSettingsRequest(weeklyFee, profit, exportPath);
+        request = new SaveSettingsRequest(
+            weeklyFee,
+            profit,
+            exportPath,
+            confirmDailyUsageFee);
         validationMessage = string.Empty;
         return true;
     }
@@ -720,12 +780,17 @@ public sealed partial class SettingsViewModel(
 
     private void Apply(SettingsDto settings)
     {
-        WeeklyUsageFee = settings.WeeklyUsageFee.ToString("0.00", CultureInfo.CurrentCulture);
+        WeeklyUsageFee = settings.WeeklyUsageFee?.ToString("0.00", CultureInfo.CurrentCulture)
+            ?? string.Empty;
+        IsDailyUsageFeePendingConfirmation = settings.IsDailyUsageFeePendingConfirmation;
         CollaboratorProfitPercent = settings.CollaboratorProfitPercent.ToString("0.00", CultureInfo.CurrentCulture);
         ExportDirectory = string.IsNullOrWhiteSpace(settings.ExportDirectory)
             ? userDesktopPath.GetDesktopPath()
             : settings.ExportDirectory;
     }
+
+    partial void OnIsDailyUsageFeePendingConfirmationChanged(bool value) =>
+        ConfirmDailyUsageFeeCommand.NotifyCanExecuteChanged();
 
     private string LocalTodayText() => DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime)
         .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);

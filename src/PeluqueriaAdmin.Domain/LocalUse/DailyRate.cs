@@ -13,7 +13,7 @@ public sealed class DailyRate : AuditableEntity
         Guid id,
         DateOnly effectiveDate,
         DateTime effectiveFromUtc,
-        Money amount,
+        Money? amount,
         DateTime utcNow) : base(id, utcNow)
     {
         EnsureUtc(effectiveFromUtc);
@@ -28,12 +28,12 @@ public sealed class DailyRate : AuditableEntity
 
     public DateTime? EffectiveToUtc { get; private set; }
 
-    public Money Amount { get; private set; }
+    public Money? Amount { get; private set; }
 
     public static DailyRate Create(
         DateOnly effectiveDate,
         DateTime effectiveFromUtc,
-        Money amount,
+        Money? amount,
         DateTime utcNow) =>
         new(Guid.NewGuid(), effectiveDate, effectiveFromUtc, amount, utcNow);
 

@@ -10,9 +10,14 @@ public sealed class GeneralSettings
 
     public int Id { get; private set; }
 
-    public Money WeeklyUsageFee { get; private set; }
+    public Money? WeeklyUsageFee { get; private set; }
 
-    public Money DailyUsageFee => WeeklyUsageFee;
+    public Money? DailyUsageFee => WeeklyUsageFee;
+
+    public bool IsDailyUsageFeeConfirmed { get; private set; }
+
+    public bool IsDailyUsageFeePendingConfirmation =>
+        WeeklyUsageFee.HasValue && !IsDailyUsageFeeConfirmed;
 
     public Percentage CollaboratorProfit { get; private set; }
 
@@ -35,7 +40,8 @@ public sealed class GeneralSettings
         return new GeneralSettings
         {
             Id = SingletonId,
-            WeeklyUsageFee = Money.FromDecimal(12.00m),
+            WeeklyUsageFee = null,
+            IsDailyUsageFeeConfirmed = false,
             CollaboratorProfit = Percentage.FromPercent(20.00m),
             OptionalSuppliesMonthlyBudget = Money.FromDecimal(0.00m),
             TotalChairs = 0,
@@ -51,8 +57,30 @@ public sealed class GeneralSettings
         Percentage collaboratorProfit,
         int totalChairs,
         string? exportDirectory,
+        DateTime utcNow) =>
+        Update(
+            weeklyUsageFee,
+            isDailyUsageFeeConfirmed: true,
+            collaboratorProfit,
+            totalChairs,
+            exportDirectory,
+            utcNow);
+
+    public void Update(
+        Money? dailyUsageFee,
+        bool isDailyUsageFeeConfirmed,
+        Percentage collaboratorProfit,
+        int totalChairs,
+        string? exportDirectory,
         DateTime utcNow)
     {
+        if (isDailyUsageFeeConfirmed && !dailyUsageFee.HasValue)
+        {
+            throw new ArgumentException(
+                "Una tarifa diaria confirmada debe contener un valor.",
+                nameof(dailyUsageFee));
+        }
+
         if (totalChairs < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(totalChairs), "La cantidad de sillas no puede ser negativa.");
@@ -66,7 +94,8 @@ public sealed class GeneralSettings
             throw new ArgumentException("La carpeta de exportación es demasiado larga.", nameof(exportDirectory));
         }
 
-        WeeklyUsageFee = weeklyUsageFee;
+        WeeklyUsageFee = dailyUsageFee;
+        IsDailyUsageFeeConfirmed = isDailyUsageFeeConfirmed;
         CollaboratorProfit = collaboratorProfit;
         OptionalSuppliesMonthlyBudget = Money.FromMinorUnits(0);
         TotalChairs = totalChairs;
