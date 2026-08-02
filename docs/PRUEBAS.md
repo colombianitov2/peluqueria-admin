@@ -11,6 +11,13 @@ revisión visual 100/125/150 % y actualización real desde Ajustes.
 
 ## Suite automatizada
 
+La Fase 5.2.3 amplía la suite a **349 pruebas únicas**: 104 de dominio, 99 de aplicación, 35 de
+infraestructura y 111 de interfaz. La suite completa pasó en Debug y Release: **698 ejecuciones
+aprobadas, 0 fallos y 0 omitidas**. La cobertura nueva mide directamente el formato GUID de EF
+Core/SQLite, normaliza bases heredadas, conserva bases canónicas y todos los conteos de tablas,
+rechaza atómicamente valores inválidos o colisiones, evita cargos duplicados y escribe el
+diagnóstico completo de un fallo de arranque únicamente en la raíz de datos configurada.
+
 La solución contiene cuatro proyectos de pruebas:
 
 - Domain.Tests: reglas puras de cuotas, inventario, obligaciones, mantenimiento, reportes y cierres.

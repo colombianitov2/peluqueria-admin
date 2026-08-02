@@ -34,6 +34,11 @@ La alpha no tiene firma. Windows SmartScreen puede mostrar una advertencia. El C
 
 ## Verificación y límites
 
+La versión correctiva `0.2.0-alpha.3` conserva el mismo identificador de paquete y prepara tanto
+una instalación nueva como la actualización desde `0.2.0-alpha.2`. Su migración Phase523 normaliza
+los GUID heredados antes de generar cargos diarios. La publicación solo será válida cuando el tag
+apunte al merge aprobado del hotfix; este documento no autoriza crear el tag ni el Release.
+
 La versión `0.2.0-alpha.2` es preliminar y actualiza `0.2.0-alpha.1` mediante el feed público de
 Velopack. Incluye el logotipo K&amp;V y la migración aditiva Fase 5.2. La prueba solo se declara
 aprobada después de buscar, descargar, instalar y reiniciar desde Ajustes, verificar la misma ruta

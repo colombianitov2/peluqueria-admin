@@ -9,7 +9,7 @@ Este registro impide que la implementación convierta supuestos en reglas de neg
 - Los cargos diarios vencen agrupados el sábado y conservan la tarifa histórica de su fecha.
 - Los aportes son financiación: afectan saldo disponible por su valor neto, no ganancia.
 - La identidad oficial usa exclusivamente el archivo K&V original suministrado.
-- La versión objetivo es `0.2.0-alpha.2` y debe probarse desde el actualizador de `alpha.1`.
+- La versión correctiva objetivo es `0.2.0-alpha.3` y debe probarse como instalación nueva y como actualización desde `0.2.0-alpha.2`.
 - Una instalación nueva deja vacía la tarifa diaria. El antiguo USD 12 sin procedencia demostrable
   se conserva pendiente e inactivo; solo su confirmación o modificación crea historial. Cualquier
   valor heredado distinto de USD 12 se considera modificación expresa y rige desde la actualización.
