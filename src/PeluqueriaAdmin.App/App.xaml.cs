@@ -1,3 +1,4 @@
+using System.IO;
 using System.Threading;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -91,11 +92,20 @@ public partial class App : System.Windows.Application
         }
         catch (Exception exception)
         {
-            string message = "No fue posible preparar los datos del programa. La aplicación se cerrará sin abrir la ventana principal.";
+            string? logPath = TryWriteStartupFailureLog(exception);
+            string rootCause = exception.GetBaseException().Message;
+            string message =
+                "No fue posible preparar los datos del programa. "
+                + "La aplicación se cerrará sin abrir la ventana principal."
+                + $"\n\nCausa raíz: {rootCause}";
+
+            if (!string.IsNullOrWhiteSpace(logPath))
+            {
+                message += $"\n\nDiagnóstico guardado en:\n{logPath}";
+            }
+
 #if DEBUG
             message += $"\n\nDetalle de desarrollo:\n{exception}";
-#else
-            message += $"\n\nCausa: {exception.Message}";
 #endif
             System.Windows.MessageBox.Show(
                 message,
@@ -150,6 +160,49 @@ public partial class App : System.Windows.Application
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+        }
+    }
+
+    private static string? TryWriteStartupFailureLog(Exception exception)
+    {
+        try
+        {
+            string? testDataRoot =
+                Environment.GetEnvironmentVariable("PELUQUERIA_ADMIN_DATA_ROOT");
+            ApplicationPaths paths = string.IsNullOrWhiteSpace(testDataRoot)
+                ? ApplicationPaths.ForCurrentUser()
+                : ApplicationPaths.FromRoot(testDataRoot);
+            paths.EnsureDirectories();
+
+            string logPath = Path.Combine(
+                paths.LogsDirectory,
+                $"startup-error-{DateTime.Now:yyyyMMdd-HHmmss-fff}.log");
+
+            string diagnostic =
+                $"Fecha local: {DateTime.Now:O}{Environment.NewLine}"
+                + $"Fecha UTC: {DateTime.UtcNow:O}{Environment.NewLine}"
+                + $"Versión del ensamblado: "
+                + $"{typeof(App).Assembly.GetName().Version}{Environment.NewLine}"
+                + $"Sistema: {Environment.OSVersion}{Environment.NewLine}"
+                + $"Proceso: {Environment.ProcessPath}{Environment.NewLine}"
+                + $"Raíz de datos: {paths.RootDirectory}{Environment.NewLine}"
+                + $"Base de datos: {paths.DatabaseFilePath}{Environment.NewLine}"
+                + Environment.NewLine
+                + "Excepción raíz:"
+                + Environment.NewLine
+                + exception.GetBaseException()
+                + Environment.NewLine
+                + Environment.NewLine
+                + "Excepción completa:"
+                + Environment.NewLine
+                + exception;
+
+            File.WriteAllText(logPath, diagnostic);
+            return logPath;
+        }
+        catch
+        {
+            return null;
         }
     }
 
