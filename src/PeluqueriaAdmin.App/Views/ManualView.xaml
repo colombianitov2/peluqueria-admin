@@ -68,7 +68,7 @@
             no cambia cálculos y no modifica la base de datos.
           </Paragraph>
           <Paragraph FontWeight="SemiBold" Foreground="#475569">
-            Versión documentada: 0.2.0-alpha.2.
+            Versión documentada: 0.2.0-alpha.3.
           </Paragraph>
 
           <Paragraph Style="{StaticResource SubTitle}">Índice</Paragraph>

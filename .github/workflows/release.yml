@@ -42,7 +42,19 @@ jobs:
           if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$') {
             throw "La etiqueta debe usar SemVer, por ejemplo v0.1.0-alpha.1."
           }
+
+          $coreVersion = ($version -split '[+-]', 2)[0]
+          $revision = 0
+          if ($version -match '-(?:[^+]*\.)?([0-9]+)(?:\+.*)?$') {
+            $revision = [int]$Matches[1]
+          }
+
+          $assemblyVersion = "$coreVersion.0"
+          $fileVersion = "$coreVersion.$revision"
+
           "version=$version" >> $env:GITHUB_OUTPUT
+          "assembly_version=$assemblyVersion" >> $env:GITHUB_OUTPUT
+          "file_version=$fileVersion" >> $env:GITHUB_OUTPUT
           "prerelease=$($version.Contains('-').ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 
       - name: Restore packages
@@ -62,7 +74,25 @@ jobs:
             --runtime win-x64 `
             --self-contained true `
             --output artifacts/publish `
-            -p:Version=${{ steps.version.outputs.version }}
+            -p:Version=${{ steps.version.outputs.version }} `
+            -p:InformationalVersion=${{ steps.version.outputs.version }} `
+            -p:FileVersion=${{ steps.version.outputs.file_version }} `
+            -p:AssemblyVersion=${{ steps.version.outputs.assembly_version }}
+
+      - name: Verify published executable version
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path `
+            "artifacts/publish/PeluqueriaAdmin.App.exe"
+          $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
+
+          if ($info.ProductVersion -ne "${{ steps.version.outputs.version }}") {
+            throw "ProductVersion incorrecta. Esperada: ${{ steps.version.outputs.version }}. Encontrada: $($info.ProductVersion)."
+          }
+
+          if ($info.FileVersion -ne "${{ steps.version.outputs.file_version }}") {
+            throw "FileVersion incorrecta. Esperada: ${{ steps.version.outputs.file_version }}. Encontrada: $($info.FileVersion)."
+          }
 
       - name: Install matching Velopack CLI
         run: dotnet tool install --tool-path .tools vpk --version 1.2.0

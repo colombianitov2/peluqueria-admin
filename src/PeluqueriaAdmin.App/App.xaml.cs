@@ -1,3 +1,4 @@
+using System.IO;
 using System.Threading;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,6 +31,7 @@ public partial class App : System.Windows.Application
     private DatabaseBackupService? backupService;
     private CancellationTokenSource? backupLoopCancellation;
     private Task? backupLoopTask;
+    private ApplicationExitCoordinator? exitCoordinator;
 
     [STAThread]
     private static void Main(string[] args)
@@ -91,11 +93,20 @@ public partial class App : System.Windows.Application
         }
         catch (Exception exception)
         {
-            string message = "No fue posible preparar los datos del programa. La aplicación se cerrará sin abrir la ventana principal.";
+            string? logPath = TryWriteStartupFailureLog(exception);
+            string rootCause = exception.GetBaseException().Message;
+            string message =
+                "No fue posible preparar los datos del programa. "
+                + "La aplicación se cerrará sin abrir la ventana principal."
+                + $"\n\nCausa raíz: {rootCause}";
+
+            if (!string.IsNullOrWhiteSpace(logPath))
+            {
+                message += $"\n\nDiagnóstico guardado en:\n{logPath}";
+            }
+
 #if DEBUG
             message += $"\n\nDetalle de desarrollo:\n{exception}";
-#else
-            message += $"\n\nCausa: {exception.Message}";
 #endif
             System.Windows.MessageBox.Show(
                 message,
@@ -108,21 +119,56 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(System.Windows.ExitEventArgs e)
     {
-        backupLoopCancellation?.Cancel();
+        exitCoordinator ??= new ApplicationExitCoordinator(
+            () => backupLoopCancellation?.Cancel(),
+            CreateExitBackupAsync,
+            ReportExitBackupFailure,
+            () =>
+            {
+                backupLoopCancellation?.Dispose();
+                backupLoopCancellation = null;
+                backupLoopTask = null;
+                serviceProvider?.Dispose();
+            });
+        exitCoordinator.RunOnce(() => base.OnExit(e));
+    }
+
+    private async Task CreateExitBackupAsync()
+    {
+        if (backupService is not null)
+        {
+            await backupService.CreateAutomaticIfNeededAsync();
+        }
+    }
+
+    private static void ReportExitBackupFailure(Exception exception)
+    {
         try
         {
-            backupService?.CreateAutomaticIfNeededAsync().GetAwaiter().GetResult();
+            string? testDataRoot =
+                Environment.GetEnvironmentVariable("PELUQUERIA_ADMIN_DATA_ROOT");
+            ApplicationPaths paths = string.IsNullOrWhiteSpace(testDataRoot)
+                ? ApplicationPaths.ForCurrentUser()
+                : ApplicationPaths.FromRoot(testDataRoot);
+            paths.EnsureDirectories();
+
+            string logPath = Path.Combine(
+                paths.LogsDirectory,
+                $"shutdown-error-{DateTime.Now:yyyyMMdd-HHmmss-fff}.log");
+            string diagnostic =
+                $"Fecha local: {DateTime.Now:O}{Environment.NewLine}"
+                + $"Fecha UTC: {DateTime.UtcNow:O}{Environment.NewLine}"
+                + $"Proceso: {Environment.ProcessPath}{Environment.NewLine}"
+                + $"Raíz de datos: {paths.RootDirectory}{Environment.NewLine}"
+                + Environment.NewLine
+                + exception;
+
+            File.WriteAllText(logPath, diagnostic);
         }
         catch
         {
-            // Un fallo de la copia automática al salir no debe bloquear el cierre.
+            // Un fallo del diagnóstico no debe impedir la salida de la aplicación.
         }
-
-        backupLoopCancellation?.Dispose();
-        backupLoopCancellation = null;
-        backupLoopTask = null;
-        serviceProvider?.Dispose();
-        base.OnExit(e);
     }
 
     private static async Task RunAutomaticBackupLoopAsync(
@@ -150,6 +196,49 @@ public partial class App : System.Windows.Application
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+        }
+    }
+
+    private static string? TryWriteStartupFailureLog(Exception exception)
+    {
+        try
+        {
+            string? testDataRoot =
+                Environment.GetEnvironmentVariable("PELUQUERIA_ADMIN_DATA_ROOT");
+            ApplicationPaths paths = string.IsNullOrWhiteSpace(testDataRoot)
+                ? ApplicationPaths.ForCurrentUser()
+                : ApplicationPaths.FromRoot(testDataRoot);
+            paths.EnsureDirectories();
+
+            string logPath = Path.Combine(
+                paths.LogsDirectory,
+                $"startup-error-{DateTime.Now:yyyyMMdd-HHmmss-fff}.log");
+
+            string diagnostic =
+                $"Fecha local: {DateTime.Now:O}{Environment.NewLine}"
+                + $"Fecha UTC: {DateTime.UtcNow:O}{Environment.NewLine}"
+                + $"Versión del ensamblado: "
+                + $"{typeof(App).Assembly.GetName().Version}{Environment.NewLine}"
+                + $"Sistema: {Environment.OSVersion}{Environment.NewLine}"
+                + $"Proceso: {Environment.ProcessPath}{Environment.NewLine}"
+                + $"Raíz de datos: {paths.RootDirectory}{Environment.NewLine}"
+                + $"Base de datos: {paths.DatabaseFilePath}{Environment.NewLine}"
+                + Environment.NewLine
+                + "Excepción raíz:"
+                + Environment.NewLine
+                + exception.GetBaseException()
+                + Environment.NewLine
+                + Environment.NewLine
+                + "Excepción completa:"
+                + Environment.NewLine
+                + exception;
+
+            File.WriteAllText(logPath, diagnostic);
+            return logPath;
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -193,5 +282,91 @@ public partial class App : System.Windows.Application
         services.AddSingleton<MainWindow>();
 
         return services.BuildServiceProvider();
+    }
+}
+
+internal sealed class ApplicationExitCoordinator(
+    Action prepareExit,
+    Func<Task> createBackupAsync,
+    Action<Exception> reportFailure,
+    Action cleanup)
+{
+    private int hasRun;
+
+    public void RunOnce(Action baseExit)
+    {
+        if (Interlocked.Exchange(ref hasRun, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            try
+            {
+                prepareExit();
+                ExitBackupRunner.Run(createBackupAsync, reportFailure);
+            }
+            catch (Exception exception)
+            {
+                ReportFailureSafely(reportFailure, exception);
+            }
+        }
+        finally
+        {
+            try
+            {
+                cleanup();
+            }
+            catch (Exception exception)
+            {
+                ReportFailureSafely(reportFailure, exception);
+            }
+            finally
+            {
+                baseExit();
+            }
+        }
+    }
+
+    private static void ReportFailureSafely(
+        Action<Exception> reportFailure,
+        Exception exception)
+    {
+        try
+        {
+            reportFailure(exception);
+        }
+        catch
+        {
+            // El diagnóstico no debe impedir la salida de la aplicación.
+        }
+    }
+}
+
+internal static class ExitBackupRunner
+{
+    public static void Run(
+        Func<Task> createBackupAsync,
+        Action<Exception> reportFailure)
+    {
+        try
+        {
+            Task.Run(async () =>
+                    await createBackupAsync().ConfigureAwait(false))
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception exception)
+        {
+            try
+            {
+                reportFailure(exception);
+            }
+            catch
+            {
+                // El diagnóstico no debe impedir la salida de la aplicación.
+            }
+        }
     }
 }

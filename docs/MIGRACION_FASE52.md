@@ -2,6 +2,7 @@
 
 Migración EF: `20260729100711_Phase52DailyFeesContributionsAndBranding`.
 Corrección EF: `20260730020929_Phase522PendingLegacyDailyRate`.
+Hotfix EF: `20260802191907_Phase523CanonicalizeMigrationGuids`.
 
 ## Política
 
@@ -20,6 +21,33 @@ Corrección EF: `20260730020929_Phase522PendingLegacyDailyRate`.
 - USD 12 solo se usa en esta corrección para reconocer el legado ambiguo; no es valor inicial,
   fallback ni regla comercial.
 - Crea periodos vigentes solo para asignaciones actuales; no reconstruye ocupaciones anteriores.
+
+## Reparación de identificadores de Fase 5.2.3
+
+Phase52 creó algunos identificadores desde SQL como 32 dígitos hexadecimales en minúscula. EF Core
+10 para SQLite persiste los `Guid` como texto canónico de 36 caracteres, con guiones y letras
+mayúsculas. Aunque ambos textos representan el mismo valor lógico, SQLite los compara como cadenas
+diferentes y puede rechazar un cargo diario por su clave foránea.
+
+La migración Phase523 valida primero todos los valores incluidos, detecta colisiones y después
+normaliza únicamente columnas con semántica `Guid` de este grafo:
+
+| Tabla | Columnas normalizadas | Relación |
+|---|---|---|
+| `Chairs` | `Id`, `AssignedPersonId` cuando existe | `AssignedPersonId` referencia `LocalUsePeople.Id` |
+| `ChairAssignmentPeriods` | `Id`, `ChairId`, `PersonId` | `ChairId` referencia `Chairs.Id`; `PersonId` referencia `LocalUsePeople.Id` |
+| `DailyRates` | `Id` | padre de `DailyCharges.RateId` |
+| `DailyCharges` | `Id`, `PersonId`, `ChairId`, `RateId` | referencia trabajador, silla y tarifa diaria |
+| `FinancialEvents` | `Id`, `OperationId`, `EntityId` | las dos últimas son referencias lógicas de auditoría |
+
+`LocalUsePeople.Id` no fue creado por el SQL defectuoso y permanece sin cambios; sus referencias se
+normalizan para coincidir con el formato que EF ya guardó en el padre. La reparación no genera
+identificadores, no modifica datos comerciales y difiere —sin desactivar— la comprobación de claves
+foráneas hasta el final de la transacción. Si encuentra un valor inválido o dos claves que
+colisionarían al normalizarse, aborta todo el cambio.
+
+`Down()` no reescribe datos: una vez normalizado un identificador no se puede distinguir con certeza
+si antes estaba en formato correcto o heredado, y recrear el formato defectuoso sería destructivo.
 
 ## Validación requerida
 
